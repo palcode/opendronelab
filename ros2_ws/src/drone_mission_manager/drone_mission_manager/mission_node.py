@@ -204,8 +204,9 @@ class MissionNode(Node):
 
         current_time = time.time()
 
-        # Check global mission timeout
-        if self.mission_start_time is not None:
+        # Check global mission timeout (once; not while already landing)
+        if (self.mission_start_time is not None and
+                self.state not in ('LANDING', 'COMPLETE')):
             elapsed = current_time - self.mission_start_time
             if elapsed > self.max_mission_time:
                 self.get_logger().error(
