@@ -14,7 +14,7 @@ fi
 
 # Source ROS 2
 # shellcheck source=/dev/null
-source /opt/ros/jazzy/setup.bash
+set +u; source /opt/ros/jazzy/setup.bash; set -u
 
 # Build px4_msgs first (colcon needs packages under src/)
 echo "[INFO] Building px4_msgs dependencies..."
@@ -47,7 +47,7 @@ fi
 
 # Source px4_msgs
 # shellcheck source=/dev/null
-source /data/ros2_build/deps/install/setup.bash
+set +u; source /data/ros2_build/deps/install/setup.bash; set -u
 
 # Build ros2_ws
 echo "[INFO] Building ros2_ws from /workspace/ros2_ws..."
@@ -59,10 +59,9 @@ fi
 mkdir -p /data/ros2_build/ws
 
 cd /workspace/ros2_ws
-colcon build \
+colcon --log-base /data/ros2_build/ws/log build \
     --build-base /data/ros2_build/ws/build \
     --install-base /data/ros2_build/ws/install \
-    --log-base /data/ros2_build/ws/log \
     --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 echo "[SUCCESS] ROS 2 workspace built successfully."
