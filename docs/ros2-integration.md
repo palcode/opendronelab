@@ -322,3 +322,21 @@ Tests include:
 2. **Complex Missions:** Implement waypoint navigation, path following
 3. **Vision Integration:** Add camera topics for object detection, SLAM
 4. **Hardware Testing:** Port to real drone hardware with safety observers
+
+## Verified results (HP OMEN laptop, 2026-11-04 ~01:00 IST)
+
+- **Bridge:** 65 `/fmu` topics visible. `vehicle_status_v1` runs at about 2 Hz, `vehicle_attitude` at 100 Hz and `vehicle_local_position_v1` at 50 Hz.
+- **Telemetry node:** prints a 1 Hz summary, and its arming and nav-state mapping matches the raw `px4_msgs` values.
+- **Mission node** (`mission.launch.py target_altitude:=3.0 hover_duration:=10.0`):
+  - It switched PX4 to offboard and armed, then climbed to 3.01 m and hovered 10 s with less than 0.05 m of xy drift.
+  - It then sent NAV_LAND. The drone landed and auto-disarmed, and the node exited cleanly.
+  - QGroundControl must be connected, otherwise PX4 refuses to arm ("No connection to the GCS").
+- **Failsafe check:**
+  - The mission node was killed with SIGKILL during the hover at 3 m.
+  - PX4 parameters at the time: `COM_OF_LOSS_T` = 1.0 s, `COM_OBL_RC_ACT` = 0, `COM_RC_IN_MODE` = 1, `NAV_RCL_ACT` = 2.
+  - PX4 logged "Failsafe activated" and switched to **AUTO_RTL**. With no RC in SITL, the RTL action applies.
+  - It returned to home (it was already above home), descended, landed and disarmed by itself, and did not drift uncontrolled.
+  - Expect RTL rather than Hold/Land under these defaults.
+- **Fixes found during the laptop run:**
+  - `build-workspace.sh` now lets the ROS setup files load under `set -u`, and passes `--log-base` before `build` because it's a global colcon option.
+  - `mission_node` now sends the timeout land command once instead of every tick.
