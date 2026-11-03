@@ -145,11 +145,11 @@ This matrix pins the exact software versions for the OpenDroneLab development en
 | Component | Version | Source | Test Status |
 |-----------|---------|--------|-------------|
 | git | Via apt (not installed on host) | Ubuntu repos | Required |
-| cmake | Via PX4 setup script | PX4 ubuntu.sh | Required |
-| gcc | Via PX4 setup script | PX4 ubuntu.sh | Required |
+| cmake | Via Dockerfile | PX4 v1.17.0 ubuntu.sh equivalents | Required |
+| gcc | Via Dockerfile | PX4 v1.17.0 ubuntu.sh equivalents | Required |
 | Python 3 | 3.14.4 (host), 3.12+ (container) | Host audit / Ubuntu 24.04 | Host has Python |
 | colcon | Via ROS 2 dev-tools | ROS 2 setup | Not yet tested |
-| arm-none-eabi-gcc | Via PX4 setup script | PX4 ubuntu.sh | For NuttX targets |
+| arm-none-eabi-gcc | Not installed (NuttX not needed) | PX4 ubuntu.sh --no-nuttx | For NuttX targets |
 
 ## Known Compatibility Risks
 
@@ -223,8 +223,8 @@ This matrix pins the exact software versions for the OpenDroneLab development en
 | QGroundControl | **Host** | AppImage from https://docs.qgroundcontrol.com |
 | git, cmake, build-essential | **Host** | Ubuntu package repository (for repo management) |
 | PX4 Autopilot | **Container** | Git clone from https://github.com/PX4/PX4-Autopilot |
-| PX4 Dependencies | **Container** | `Tools/setup/ubuntu.sh` in Ubuntu 24.04 container |
-| Gazebo Harmonic | **Container** | Installed by PX4 ubuntu.sh script |
+| PX4 Dependencies | **Container** | PX4 v1.17.0 `Tools/setup/ubuntu.sh` equivalents in Dockerfile |
+| Gazebo Harmonic | **Container** | Pinned in Dockerfile (from PX4 v1.17.0 ubuntu.sh deps) |
 | ROS 2 Jazzy | **Container** | Official ROS 2 apt repository for Ubuntu 24.04 |
 | Micro XRCE-DDS Agent | **Container** | Build from source in ROS 2 workspace |
 | px4_msgs | **Container** | Git clone from https://github.com/PX4/px4_msgs |

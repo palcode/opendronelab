@@ -56,6 +56,12 @@ devel/
 *.egg-info/
 dist/
 
+# ROS 2 Workspace Build Artifacts
+# (Production builds are stored in /data/ros2_build, external to repo)
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
 # Python
 __pycache__/
 *.py[cod]

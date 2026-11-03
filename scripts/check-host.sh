@@ -216,7 +216,7 @@ echo ""
 # QGroundControl
 echo "--- QGroundControl ---"
 QGC_FOUND=0
-for qgc_path in ~/QGroundControl.AppImage ~/Downloads/QGroundControl.AppImage /usr/local/bin/QGroundControl; do
+for qgc_path in ~/Applications/QGroundControl-x86_64.AppImage ~/QGroundControl.AppImage ~/Downloads/QGroundControl.AppImage /usr/local/bin/QGroundControl; do
     if [[ -f "$qgc_path" ]]; then
         echo "QGroundControl: found at $qgc_path"
         QGC_FOUND=1

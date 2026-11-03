@@ -1,7 +1,7 @@
 # OpenDroneLab
 
-**Status:** Phase 0 Complete - Awaiting Phase 1 Approval  
-**Last Updated:** 2026-11-02
+**Status:** Phase 2 Complete - ROS 2 Integration Ready  
+**Last Updated:** 2026-11-03
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
 
@@ -11,21 +11,24 @@ Build a modular, reproducible software environment for developing and evaluating
 
 ## Current Status
 
-✅ **Phase 0 Complete:** Host audit, compatibility research, documentation baseline
-- Host diagnostic script created and tested
-- Compatibility matrix with pinned versions
-- Setup plan with risk assessment
-- Architecture documentation with rules
+✅ **Phase 0 Complete:** Host audit, compatibility research, documentation baseline  
+✅ **Phase 1 Complete:** Docker image built, PX4 v1.17.0 SITL verified with Gazebo Harmonic  
+✅ **Phase 2 Complete:** ROS 2 Jazzy integration with PX4 via uXRCE-DDS, offboard control packages
 
-🔄 **Phase 1 Pending:** Docker/NVIDIA Container Toolkit install, PX4 SITL + Gazebo
-- Awaiting user approval for host installation
-- See `docs/setup-host.md` for proposed Phase 1 commands
+**Verified on HP OMEN Laptop (Nov 3, 2026):**
+- Container-based PX4 SITL with GUI forwarding (XWayland) ✅
+- Hover flight test: 5m altitude, <0.05m drift ✅
+- QGroundControl UDP connection ✅
+- ROS 2 telemetry subscriptions (vehicle_status_v1, vehicle_attitude, vehicle_local_position_v1) ✅
+- Offboard mission manager with safety limits (altitude, drift, timeout) ✅
 
 ## Quick Links
 
 - **[Architecture](docs/architecture.md)** - System design and rules
 - **[Compatibility Matrix](docs/compatibility-matrix.md)** - Exact versions and test status
 - **[Host Setup](docs/setup-host.md)** - Installation guide and risk assessment
+- **[Phase 2 Hover Test](docs/phase2-hover.md)** - Verified SITL + Gazebo hover flight
+- **[ROS 2 Integration](docs/ros2-integration.md)** - Topics, QoS, offboard control guide
 - **[Agent Working Agreement](AGENTS.md)** - Guidelines for AI agents working on this project
 
 ## System Overview
@@ -88,12 +91,25 @@ open-drone-lab/
 │   ├── architecture.md          # System design
 │   ├── compatibility-matrix.md  # Version matrix
 │   ├── setup-host.md            # Installation guide
-│   └── decisions/               # Architecture decisions (future)
-├── scripts/                     # Utility scripts
-│   └── check-host.sh            # Host diagnostic (Phase 0 ✓)
-├── docker/                      # Container configs (Phase 1)
-├── simulation/                  # Gazebo worlds/models (Phase 3+)
-├── ros2_ws/                     # ROS 2 workspace (Phase 2+)
+│   ├── phase2-hover.md          # Hover test procedure (Phase 1 ✓)
+│   ├── ros2-integration.md      # ROS 2 guide (Phase 2 ✓)
+│   └── simulation-guide.md      # Test scenarios
+├── scripts/                     # Automation scripts
+│   ├── check-host.sh            # Host diagnostic (Phase 0 ✓)
+│   ├── dev-shell.sh             # Development container shell (Phase 1 ✓)
+│   ├── launch-sitl.sh           # SITL launcher (Phase 2 ✓)
+│   ├── hover-test.sh            # Automated hover test (Phase 2 ✓)
+│   ├── build-workspace.sh       # ROS 2 workspace builder (Phase 2 ✓)
+│   └── start-dds-agent.sh       # DDS agent launcher (Phase 2 ✓)
+├── docker/                      # Container configs
+│   └── Dockerfile.dev           # Development image (Phase 1 ✓)
+├── ros2_ws/                     # ROS 2 workspace (Phase 2 ✓)
+│   └── src/
+│       ├── drone_telemetry/     # PX4 telemetry subscriber
+│       ├── drone_mission_manager/ # Offboard mission controller
+│       └── drone_bringup/       # Launch files
+├── simulation/                  # Gazebo scenarios
+│   └── scenarios/               # Test scenario definitions
 ├── experiments/                 # Test scenarios (Phase 5+)
 ├── evaluation/                  # Metrics and reports (Phase 6+)
 └── data/                        # Datasets (gitignored)

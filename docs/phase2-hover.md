@@ -1,8 +1,38 @@
 # Phase 2: Hover Flight Test
 
-**Status:** PROPOSED, NOT YET RUN  
+**Status:** ✅ VERIFIED ON HP OMEN LAPTOP (Nov 3, 2026)  
 **Prerequisites:** Phase 1 complete (Docker, NVIDIA CTK, QGC installed)  
 **Goal:** Build PX4 development container and execute first SITL hover flight
+
+## Verification Results
+
+**Hardware:** HP OMEN Laptop (Ubuntu 26.04, Intel/NVIDIA RTX 5060, Wayland/XWayland)  
+**Date:** November 3, 2026  
+**Image:** `opendronelab-dev:latest` (Ubuntu 24.04, Gazebo Harmonic, ROS 2 Jazzy, PX4 v1.17.0, DDS Agent v2.4.3)
+
+**Launch Command:**
+```bash
+docker run -dit --name odl-sim \
+  --user $(id -u):$(id -g) -e HOME=/tmp --network host \
+  --gpus all --device /dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+  -e DISPLAY=$DISPLAY -e NVIDIA_DRIVER_CAPABILITIES=all \
+  -e __NV_PRIME_RENDER_OFFLOAD=1 -e __GLX_VENDOR_LIBRARY_NAME=nvidia \
+  -v ~/workspace/dronelab:/workspace \
+  -v ~/workspace/dronelab-data:/data -w /data/PX4-Autopilot \
+  opendronelab-dev:latest bash -lc 'make px4_sitl gz_x500'
+```
+
+**Hover Test Results:**
+- **Test Command:** `docker exec` into container, set `MIS_TAKEOFF_ALT 5`, arm, takeoff, 15s hover, land
+- **Max Altitude:** 5.03 m
+- **Mean Hover Altitude:** 4.96 m (target: 5.0 m ±0.5 m) ✅
+- **XY Drift:** 0.05 m (limit: ≤1.0 m) ✅
+- **Auto-disarm:** Yes, on land ✅
+- **ULog Location:** `build/px4_sitl_default/rootfs/log/*.ulg`
+- **QGC Connection:** UDP 14550, stable telemetry ✅
+- **PX4 uXRCE-DDS Client:** Auto-starts, targets UDP 127.0.0.1:8888 ✅
+
+**Test Result:** ✅ PASS
 
 ## Overview
 
