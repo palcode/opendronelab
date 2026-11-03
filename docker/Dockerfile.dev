@@ -1,0 +1,166 @@
+# OpenDroneLab Development Container
+# Ubuntu 24.04 with PX4, Gazebo Harmonic, ROS 2 Jazzy, and Micro XRCE-DDS Agent
+# Built for non-root user matching host UID/GID for X11 authorization
+
+ARG UBUNTU_VERSION=24.04
+FROM ubuntu:${UBUNTU_VERSION}
+
+# Build arguments for user creation
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG USERNAME=dev
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install base dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    locales \
+    sudo \
+    wget \
+    && locale-gen en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add Gazebo package repository for Harmonic
+RUN curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
+    -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
+    http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+    > /etc/apt/sources.list.d/gazebo-stable.list
+
+# Add ROS 2 repository
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+    http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+    > /etc/apt/sources.list.d/ros2.list
+
+# Install Gazebo Harmonic (pinned version)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gz-harmonic=1.0.0-1~noble \
+    libunwind-dev \
+    cppzmq-dev \
+    dmidecode \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    libeigen3-dev \
+    libimage-exiftool-perl \
+    libopencv-dev \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ROS 2 Jazzy
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-jazzy-ros-base \
+    ros-dev-tools \
+    python3-colcon-common-extensions \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PX4 dependencies (from ubuntu.sh without NuttX toolchain)
+# Based on PX4-Autopilot/Tools/setup/ubuntu.sh
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    astyle \
+    build-essential \
+    ccache \
+    clang \
+    clang-tidy \
+    cmake \
+    cppcheck \
+    file \
+    g++ \
+    gcc \
+    gdb \
+    git \
+    lcov \
+    libgstreamer-plugins-base1.0-dev \
+    libgstreamer1.0-dev \
+    libxml2-dev \
+    libxml2-utils \
+    make \
+    ninja-build \
+    pkg-config \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    rsync \
+    shellcheck \
+    unzip \
+    xsltproc \
+    zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages for PX4 from the v1.17.0 tag's own requirements list
+RUN curl -fsSL https://raw.githubusercontent.com/PX4/PX4-Autopilot/v1.17.0/Tools/setup/requirements.txt -o /tmp/px4-requirements.txt \
+    && pip3 install --no-cache-dir --break-system-packages --ignore-installed -r /tmp/px4-requirements.txt \
+    && rm /tmp/px4-requirements.txt
+
+# Install additional tools for Gazebo GUI and OpenGL
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1-mesa-dri \
+    libglx-mesa0 \
+    mesa-utils \
+    x11-apps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Micro XRCE-DDS Agent dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-jre \
+    libgtest-dev \
+    libasio-dev \
+    libtinyxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user with matching UID/GID
+# (ubuntu:24.04 ships a default 'ubuntu' user at UID/GID 1000; remove it first)
+RUN (userdel -r ubuntu 2>/dev/null || true) \
+    && (groupdel ubuntu 2>/dev/null || true) \
+    && groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME
+
+# Switch to non-root user
+USER $USERNAME
+WORKDIR /home/$USERNAME
+
+# Clone and build Micro XRCE-DDS Agent v2.4.3 as user
+RUN git clone -b v2.4.3 --depth 1 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git \
+    && cd Micro-XRCE-DDS-Agent \
+    && mkdir build && cd build \
+    && cmake .. \
+    && make -j$(nproc) \
+    && sudo make install \
+    && sudo ldconfig \
+    && cd ../.. \
+    && rm -rf Micro-XRCE-DDS-Agent
+
+# Set up environment
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+# Let the NVIDIA runtime inject GL/Vulkan driver libs (needed for Gazebo on the GPU)
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# Source ROS 2 setup in bashrc
+RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+
+# Create workspace directories
+RUN mkdir -p /home/$USERNAME/workspace /home/$USERNAME/data
+
+# Default command
+CMD ["/bin/bash"]
+
+# Labels
+LABEL org.opencontainers.image.title="OpenDroneLab Dev Container"
+LABEL org.opencontainers.image.description="PX4 SITL development with Gazebo Harmonic and ROS 2 Jazzy"
+LABEL org.opencontainers.image.version="0.1.0"

@@ -1,0 +1,142 @@
+# OpenDroneLab .gitignore
+
+# ROS 2 Bags
+*.db3
+*.db3-shm
+*.db3-wal
+*.mcap
+rosbag2_*/
+
+# PX4 Logs
+*.ulg
+*.px4log
+logs/
+log/
+
+# Recordings and Media
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.webm
+*.bag
+recordings/
+
+# Model Weights and Checkpoints
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.h5
+*.keras
+*.pb
+*.ckpt
+*.safetensors
+weights/
+checkpoints/
+models/*.pt
+models/*.pth
+models/*.onnx
+
+# Datasets
+data/
+datasets/
+*.csv
+*.tar
+*.tar.gz
+*.zip
+*.npz
+*.npy
+
+# Build Artifacts
+build/
+install/
+log/
+devel/
+*.egg-info/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+*.hypothesis/
+
+# C/C++
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+*.app
+*.dSYM/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+
+# Docker
+*.tar
+docker-compose.override.yml
+
+# Gazebo
+.gazebo/
+*.world~
+*.sdf~
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.log
+tmp/
+temp/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Secrets and Credentials
+.env
+.env.local
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# OS
+Thumbs.db
+.DS_Store
+._*
+
+# QGroundControl
+*.qgc
+*.plan~
+
+# Custom Exclusions
+# Add project-specific exclusions below this line

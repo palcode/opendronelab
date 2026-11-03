@@ -1,0 +1,155 @@
+# Phase 2+ Baseline Scenario: Square Pattern
+# Purpose: Autonomous 10m square at 5m altitude via ROS 2
+# Used as nominal baseline for sensor quality and fault injection experiments
+
+name: phase2-square
+phase: 2
+status: not_run
+description: |
+  Autonomous flight of 10m x 10m square pattern at 5m altitude.
+  Commanded via ROS 2 using documented PX4 interfaces.
+  Serves as baseline for later sensor/fault experiments in Phase 5.
+
+# Environment
+vehicle: gz_x500
+world: default
+make_target: make px4_sitl gz_x500
+simulator: gazebo-harmonic
+
+# Control
+control_method: ros2  # ROS 2 mission node
+interface: TrajectorySetpoint  # PX4 topic for offboard control
+flight_mode: offboard  # PX4 Offboard mode
+
+# Mission Profile
+mission:
+  - action: arm
+    method: ros2_vehicle_command
+  
+  - action: takeoff
+    altitude_m: 5.0
+    method: ros2_trajectory_setpoint
+  
+  - action: goto_waypoint
+    waypoint: [0.0, 0.0, 5.0]
+    frame: local_ned
+    speed_m_s: 2.0
+  
+  - action: goto_waypoint
+    waypoint: [10.0, 0.0, 5.0]
+    frame: local_ned
+    speed_m_s: 2.0
+  
+  - action: goto_waypoint
+    waypoint: [10.0, 10.0, 5.0]
+    frame: local_ned
+    speed_m_s: 2.0
+  
+  - action: goto_waypoint
+    waypoint: [0.0, 10.0, 5.0]
+    frame: local_ned
+    speed_m_s: 2.0
+  
+  - action: goto_waypoint
+    waypoint: [0.0, 0.0, 5.0]
+    frame: local_ned
+    speed_m_s: 2.0
+  
+  - action: land
+    position: [0.0, 0.0, 0.0]
+    method: ros2_vehicle_command
+  
+  - action: disarm
+    method: automatic
+
+# Expected Duration
+duration_estimate_s: 100
+
+# Acceptance Criteria (Phase 2)
+acceptance:
+  - ROS 2 observes PX4 state via telemetry topics
+  - ROS 2 commands PX4 successfully (trajectory setpoints)
+  - Square pattern completed within tolerance
+  - PX4 failsafes remain active (test by killing ROS 2 node)
+  - Vehicle enters safe mode if ROS 2 node stops
+
+# Baseline Metrics
+metrics:
+  waypoint_accuracy_m: 0.5  # Target ±0.5m
+  waypoint_tolerance_m: 1.0  # Acceptable ±1.0m
+  altitude_target_m: 5.0
+  altitude_tolerance_m: 0.5
+  cruise_speed_m_s: 2.0
+  speed_tolerance_m_s: 0.5
+  total_distance_m: 40.0  # Square perimeter
+  total_flight_time_s: ~100
+  battery_consumption_pct: <20  # Simulated
+  ros2_command_latency_ms: <50  # Target <50ms
+
+# Future Experiment Variants (Phase 5)
+experiment_variants:
+  - name: phase5-square-gps-noise
+    description: GPS noise injection
+    fault: gps_noise
+    parameters:
+      noise_stddev_m: [1.0, 2.0, 5.0]
+  
+  - name: phase5-square-gps-dropout
+    description: GPS signal loss
+    fault: gps_dropout
+    parameters:
+      dropout_duration_s: [5, 10, 20]
+      dropout_start_s: 30
+  
+  - name: phase5-square-imu-bias
+    description: IMU bias injection
+    fault: imu_bias
+    parameters:
+      accel_bias_m_s2: [0.1, 0.5, 1.0]
+      gyro_bias_rad_s: [0.01, 0.05, 0.1]
+  
+  - name: phase5-square-wind
+    description: Wind disturbance
+    fault: wind
+    parameters:
+      wind_speed_m_s: [2, 5, 10]
+      wind_direction_deg: [0, 90, 180, 270]
+  
+  - name: phase5-square-telemetry-loss
+    description: ROS 2 ↔ PX4 bridge interruption
+    fault: dds_bridge_pause
+    parameters:
+      pause_duration_s: [2, 5, 10]
+      pause_start_s: 30
+
+# Logs and Artifacts
+logs:
+  px4_ulg: logs/phase2-square/sitl_log_*.ulg
+  rosbag_mcap: logs/phase2-square/square_baseline.mcap
+  qgc_telemetry: logs/phase2-square/qgc_telemetry.tlog
+  metrics_csv: logs/phase2-square/metrics.csv
+  path_plot: logs/phase2-square/path_2d.png
+  altitude_plot: logs/phase2-square/altitude_vs_time.png
+
+# ROS 2 Topics to Record
+ros2_topics:
+  - /fmu/out/vehicle_local_position
+  - /fmu/out/vehicle_attitude
+  - /fmu/out/vehicle_status
+  - /fmu/out/sensor_combined
+  - /fmu/in/trajectory_setpoint
+  - /fmu/in/vehicle_command
+
+# Implementation Files (Phase 2)
+implementation:
+  launch_file: ros2_ws/src/drone_bringup/launch/square_mission.launch.py
+  mission_node: ros2_ws/src/drone_mission_manager/src/square_mission_node.cpp
+  config: ros2_ws/src/drone_bringup/config/square_mission.yaml
+
+# Notes
+notes: |
+  - Requires Phase 2 ROS 2 integration complete
+  - Baseline for all Phase 5 fault injection experiments
+  - Record comprehensive rosbag for offline analysis
+  - Verify coordinate frame transformations (NED ↔ ENU)
+  - Document actual vs. expected performance metrics
