@@ -28,6 +28,10 @@ _loop() {
     done
 }
 
-_loop >> "${LOG_FILE}" 2>&1 &
+# Detach fully (own session, no stdin) so the logger survives the shell that
+# started it closing.
+export -f _loop
+export INTERVAL
+setsid nohup bash -c _loop >> "${LOG_FILE}" 2>&1 < /dev/null &
 echo $! > "${PID_FILE}"
 echo "[INFO] memory-logger started (pid $!) -> ${LOG_FILE} every ${INTERVAL}s"
