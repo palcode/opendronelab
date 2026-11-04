@@ -576,7 +576,19 @@ groups | grep dialout
 ls -l ~/Applications/QGroundControl-x86_64.AppImage
 ```
 
+### Docker Group Is Root-Equivalent
+
+Membership in the `docker` group lets a user start a container that mounts any host path as root, so it is effectively passwordless root on this laptop. OpenDroneLab keeps that risk contained by convention:
+
+- Containers run as the host user (`--user $(id -u):$(id -g)`), never `--privileged`.
+- Only the repo (`/workspace`), the data dir (`/data`) and the read-only X11 socket are mounted. Never `/`, `/etc`, `/boot`, `/dev/nvme*` or `/var/run/docker.sock`.
+- The sim container has a memory cap (`MEM_LIMIT`, default 12g) so a runaway Gazebo cannot take down the desktop.
+- To remove the access entirely, see [rollback.md](rollback.md).
+
 ## Rollback Plan
+
+See also [rollback.md](rollback.md) for the full, current rollback list.
+
 
 If issues arise during installation:
 

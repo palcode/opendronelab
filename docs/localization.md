@@ -310,3 +310,12 @@ test/test_metrics.py::test_compute_metrics_with_mask PASSED
 - **PX4 Coordinate Frames:** https://docs.px4.io/v1.17/en/getting_started/px4_basic_concepts.html#frames-of-reference
 - **Gazebo Coordinate Systems:** https://gazebosim.org/docs/harmonic/tutorials
 - **px4_msgs Reference:** https://github.com/PX4/px4_msgs/tree/release/1.17
+
+## Run Options (added 2026-11-04)
+
+- `HEADLESS=1 MODEL=gz_x500 ./scripts/launch-sitl.sh` runs only the Gazebo server (`gz sim -s`); QGC still connects on UDP 14550.
+- The container is capped at `MEM_LIMIT` (default `12g`, swap capped to the same value).
+- ROS 2 uses `ROS_DOMAIN_ID=42` (override with `ODL_ROS_DOMAIN_ID`) and `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`; PX4's `UXRCE_DDS_DOM_ID` is set to match through `PX4_PARAM_UXRCE_DDS_DOM_ID`. Verified: `/fmu/out/vehicle_odometry` at 100 Hz and `/ground_truth/odometry` at 50 Hz on domain 42.
+- These apply when the container is created, so run `docker rm -f odl-sim` before relaunching with new values.
+- `./scripts/memory-logger.sh` logs container memory/CPU, Gazebo RSS and GPU temperature/power; `./scripts/stop-all.sh` stops it, any bag recording and the sim.
+- **Fixed random seed: deferred.** PX4's `px4-rc.gzsim` builds the `gz sim` command internally with no seed hook, so a seed needs either a PX4 patch or launching Gazebo ourselves (`PX4_GZ_STANDALONE=1` + `gz sim --seed`). Planned for the next batch.

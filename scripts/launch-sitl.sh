@@ -2,6 +2,10 @@
 # launch-sitl.sh: Idempotent SITL container launcher for OpenDroneLab
 # Starts the odl-sim container with PX4 SITL and Gazebo if not already running.
 # MODEL defaults to gz_x500; use MODEL=gz_x500_mono_cam for the camera drone.
+# HEADLESS=1 runs Gazebo without its GUI. MEM_LIMIT (default 12g) caps RAM.
+# ODL_ROS_DOMAIN_ID (default 42) + localhost-only discovery keep ROS on this host.
+# These env options apply when the container is created; to change them on an
+# existing container, remove it first: docker rm -f odl-sim
 # WORLD (optional) is a world *name* (stem). The SDF must be at
 # worlds/${WORLD}.sdf. PX4 v1.17 loads ${PX4_GZ_WORLDS}/${PX4_GZ_WORLD}.sdf
 # and gz_env.sh overwrites PX4_GZ_WORLDS, so we copy the SDF into PX4's
@@ -16,6 +20,14 @@ WORKSPACE_DIR="${WORKSPACE_DIR:-/home/$(whoami)/workspace/dronelab}"
 DATA_DIR="${DATA_DIR:-/home/$(whoami)/workspace/dronelab-data}"
 MODEL="${MODEL:-gz_x500}"
 WORLD="${WORLD:-}"
+# HEADLESS=1 starts only the Gazebo server (no GUI): lighter, used for baselines.
+HEADLESS="${HEADLESS:-}"
+# Hard memory cap so a Gazebo leak kills the container, not the desktop.
+# Swap is capped to the same value (no extra swap). Set MEM_LIMIT=0 to disable.
+MEM_LIMIT="${MEM_LIMIT:-12g}"
+# Keep ROS 2 / DDS traffic on this laptop and off the default domain.
+# PX4's uXRCE-DDS client domain must match (UXRCE_DDS_DOM_ID).
+ODL_ROS_DOMAIN_ID="${ODL_ROS_DOMAIN_ID:-42}"
 
 _container_cmd() {
     docker inspect --format '{{.Config.Cmd}}' "${CONTAINER_NAME}" 2>/dev/null || echo ""
@@ -81,6 +93,15 @@ if [ -n "${WORLD}" ]; then
     START_CMD="mkdir -p /data/gz_fuel_cache && cp -f /workspace/worlds/${WORLD}.sdf Tools/simulation/gz/worlds/${WORLD}.sdf && make px4_sitl ${MODEL}"
 fi
 
+EXTRA_ARGS=()
+if [ -n "${HEADLESS}" ]; then
+    EXTRA_ARGS+=(-e HEADLESS=1)
+    WORLD_MSG="${WORLD_MSG} (headless)"
+fi
+if [ "${MEM_LIMIT}" != "0" ]; then
+    EXTRA_ARGS+=(--memory "${MEM_LIMIT}" --memory-swap "${MEM_LIMIT}")
+fi
+
 # Launch new container (docker run flags identical to the verified p4 host pattern;
 # only additive -e flags when WORLD is set).
 echo "[INFO] Launching new SITL container '${CONTAINER_NAME}' with model '${MODEL}'${WORLD_MSG}..."
@@ -99,6 +120,10 @@ docker run -dit \
     -v "${WORKSPACE_DIR}":/workspace \
     -v "${DATA_DIR}":/data \
     "${WORLD_ARGS[@]}" \
+    "${EXTRA_ARGS[@]}" \
+    -e ROS_DOMAIN_ID="${ODL_ROS_DOMAIN_ID}" \
+    -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST \
+    -e PX4_PARAM_UXRCE_DDS_DOM_ID="${ODL_ROS_DOMAIN_ID}" \
     -w /data/PX4-Autopilot \
     "${IMAGE_NAME}" \
     bash -lc "${START_CMD}"

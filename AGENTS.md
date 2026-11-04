@@ -133,6 +133,22 @@ For every task assigned, follow this sequence:
   - Adding users to groups (note: may require logout)
   - Changing network, firewall, or systemd settings
 
+#### Host command denylist (explicit approval from Pallab each time)
+
+This laptop dual-boots Windows. The following are **never** run on the host without Pallab's explicit, per-instance approval in chat. Any host `sudo` falls under the same rule, and Pallab runs host `sudo` commands himself.
+
+- Boot / firmware: `mokutil`, `efibootmgr`, `grub-*`, `update-grub`, `bootctl`, anything under `/boot` or `/boot/efi`
+- Disks / partitions: `fdisk`, `parted`, `gdisk`, `sgdisk`, `mkfs*`, `wipefs`, `dd` to a block device, any `mount` of `nvme0n1p1` (EFI), `nvme0n1p3` or `nvme0n1p4` (Windows)
+- Kernel / drivers: `dkms`, `modprobe`, `insmod`/`rmmod`, NVIDIA driver installs or removals, `update-initramfs`
+- Packages / sources: `apt install|remove|purge`, edits to `/etc/apt/sources.list*` or keyrings
+- System config: anything under `/etc` (e.g. `/etc/docker/daemon.json`), `systemctl enable|disable|mask`, `ufw`, `usermod`/group changes
+
+Containers must never bind-mount `/`, `/etc`, `/boot`, `/dev/nvme*` or `/var/run/docker.sock`, and must not run with `--privileged`.
+
+#### Background helpers
+
+Long-running host helpers must record a pidfile in `logs/.pids/` (see `scripts/memory-logger.sh`), so `scripts/stop-all.sh` can stop everything cleanly before a shutdown.
+
 ### 5. Delete or Overwrite Configuration
 - Do not delete configuration files without backing them up first
 - Do not overwrite user-edited configs without confirmation
