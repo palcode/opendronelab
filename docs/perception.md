@@ -200,20 +200,34 @@ Output: `/data/bags/<timestamp>/` (MCAP or SQLite3 format)
 
 These are **baseline values** for an idle camera. During flight missions with active PX4 control, latency may increase.
 
-### Verified Results (Placeholder)
+### Verified Results (<host>, 2026-11-04)
 
-**To be filled in by laptop verification:**
+Measured on the HP OMEN (RTX 5060 Laptop GPU, 23 GB RAM), container `odl-sim` running
+`make px4_sitl gz_x500_mono_cam` with the XRCE agent, camera bridge, edge overlay node and
+rqt_image_view, drone idle on the ground.
 
 | Metric | Measured Value |
 |--------|----------------|
-| Camera FPS | ___ Hz |
-| Processing Time | ___ ms |
-| Latency (mean) | ___ ms |
-| Latency (max) | ___ ms |
-| Container CPU | ___% |
-| Container Memory | ___ GB |
-| GPU Utilization | ___% |
-| GPU Memory | ___ GB |
+| Camera FPS (`/camera/image_raw`) | 30 Hz (879 frames in 29.3 s of bag); `ros2 topic hz` under-reports at 7-19 Hz because the CLI cannot keep up with 3.7 MB frames |
+| Camera info rate | 30.0 Hz |
+| Image format | 1280x960, `rgb8`, frame_id `camera_link`, sim-time stamps |
+| Edge overlay FPS | 14-19 Hz (mean 14.1 over 131 s); about 6 Hz while a bag is being recorded |
+| Processing Time | mean 5.3 ms, max 7.6 ms |
+| Latency (mean) | 15.5 ms |
+| Latency (max) | 21.3 ms |
+| Container CPU | 140-380% |
+| Container Memory | about 8 GB at steady state; docker stats rose to 16.9 GB after the bag recording, mostly page cache from writing the bag |
+| GPU Utilization | 15-16% |
+| GPU Memory | 0.8 GB |
+
+**Rosbag:** `scripts/record-bag.sh 30` wrote `/data/bags/20261104_085751` (MCAP, 29.3 s,
+6393 messages, 3.7 GB). Raw 1280x960 images cost about 125 MB/s, so record raw camera only
+for short clips, or drop `/camera/image_raw` from the topic list for long runs.
+
+**Fix found during verification:** PX4's pip requirements install numpy 2.x, which broke
+`import cv2` (Ubuntu's python3-opencv is built for numpy 1.x). `docker/Dockerfile.dev` now runs
+`sudo pip3 install --ignore-installed "numpy<2"` system-wide. `sudo` matters: without it pip
+installs into the dev user's home and other UIDs still load numpy 2.x.
 
 ## Troubleshooting
 
