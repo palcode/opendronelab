@@ -338,7 +338,7 @@ draft's "already decoded" path produced garbage ~1–4 px boxes and is not used.
 | **Busy guard** | drops frames while inference is running |
 | **Logs** | 1 Hz FPS / inference ms / avg detections |
 
-Parameters: `model_path`, `score_threshold` (0.5), `nms_threshold` (0.45),
+Parameters: `model_path`, `score_threshold` (0.35), `nms_threshold` (0.45),
 `process_every_n` (3), `num_threads` (4). Missing model raises at startup with a
 pointer to `scripts/fetch-models.sh`.
 
@@ -349,15 +349,18 @@ header copied from the image.
 ### Detection test world
 
 `worlds/detection_test.sdf` — world name **`detection_test`** (must match
-`PX4_GZ_WORLD`). Static Fuel models (all HTTP 200 under OpenRobotics):
+`PX4_GZ_WORLD`). The world declares **no `<plugin>` list**, the same as PX4's
+`default.sdf`: PX4's server.config then supplies all systems. An explicit plugin list
+replaces that set, which dropped the magnetometer system ("Found 0 compass", so no arming).
+Static Fuel models (all HTTP 200 under OpenRobotics):
 
 | Model | Pose (ENU) |
 |-------|------------|
-| Standing person | 8, -2, 0 |
-| Prius Hybrid | 12, 3, 0 (yaw π/2) |
-| Chair | 6, -3, 0 |
-| Beer (bottle stand-in) | 5, 0, 0.15 |
-| Backpack | 7, 2, 0.3 |
+| Standing person | 4, -1.2, 0 |
+| Prius Hybrid | 6, 2.2, 0 (yaw π/2) |
+| Chair | 3.5, -1.6, 0 |
+| Beer (bottle stand-in) | 3, 0, 0.15 |
+| Backpack | 4, 1.2, 0.3 |
 
 The mono_cam sensor pose is identity, so the camera looks along **+X**; objects at
 positive X are in view at ground level and from a 3–5 m hover.
@@ -391,15 +394,28 @@ Record detections without raw frames:
 # or: ./scripts/record-bag.sh --no-raw-camera 10
 ```
 
-### Detector measurements (placeholder)
+### Detector measurements (<host>, 2026-11-04)
 
-Not yet measured on <host>. Fill in after the laptop rebuild + bag:
+Measured on the ground with the detection world, the XRCE agent, the camera bridge, the
+YOLOX node and rqt_image_view all running (100 s of 1 Hz node logs).
 
-| Metric | Target / Notes |
+| Metric | Measured Value |
 |--------|----------------|
-| Detection rate | process_every_n=3 → ~10 Hz from a 30 Hz camera |
-| Inference time | YOLOX-nano CPU, expect tens of ms |
-| Container CPU / GPU / mem | compare to edge-only baseline above |
+| Detections | person 0.83, car 0.73, chair 0.51 (stable, 3.0 per frame); the bottle and backpack are not detected (too small at 416 input) |
+| Detection rate | 5.9 Hz mean (process_every_n=3 plus the busy guard; the sim load limits the camera delivery) |
+| Inference time | mean 14.2 ms, max 17.8 ms (onnxruntime 1.17.1 CPU, 4 threads) |
+| Container CPU | about 425% |
+| Container Memory | 12.9 GB per docker stats (includes page cache) |
+| GPU | 36% and 1.07 GB (Gazebo rendering plus rqt; the detector itself is CPU-only) |
+| Bag (10 s, `--no-raw-camera`) | `bags/20261104_095531`, 57 MB, 9.1 s: 55 Detection2DArray and 16 annotated images |
+
+**Object distance matters.** With the objects at 5-12 m, the person (about 100 px tall in
+the 1280x960 frame, about 43 px at the 416 input) scored only 0.28 and the car 0.35, so a
+0.5 cutoff gave 0 detections. The fix moved the objects to 3-6 m and lowered the default
+cutoff to 0.35. For distant targets, consider tiling or a larger input model.
+
+**QoS:** `/perception/detections_image` is published best effort, so subscribers must use
+sensor-data QoS (rqt_image_view does).
 
 ### Container extras for detection
 

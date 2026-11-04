@@ -97,7 +97,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'score_threshold',
-            default_value='0.5',
+            default_value='0.35',
             description='Detection score threshold',
         ),
         DeclareLaunchArgument(

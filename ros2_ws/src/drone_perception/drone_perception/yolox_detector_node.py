@@ -191,7 +191,7 @@ class YOLOXDetectorNode(Node):
         super().__init__('yolox_detector_node')
 
         self.declare_parameter('model_path', '/data/models/yolox_nano.onnx')
-        self.declare_parameter('score_threshold', 0.5)
+        self.declare_parameter('score_threshold', 0.35)
         self.declare_parameter('nms_threshold', 0.45)
         self.declare_parameter('process_every_n', 3)
         self.declare_parameter('num_threads', 4)
