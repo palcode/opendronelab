@@ -52,7 +52,7 @@ Edge Overlay Node (Canny edges, FPS/latency overlay)
 
 | Topic | Type | Rate | Description |
 |-------|------|------|-------------|
-| `/camera/image_raw` | `sensor_msgs/msg/Image` | 30 Hz | Raw camera image (bgr8 encoding) |
+| `/camera/image_raw` | `sensor_msgs/msg/Image` | 30 Hz | Raw camera image (rgb8 encoding) |
 | `/camera/camera_info` | `sensor_msgs/msg/CameraInfo` | 30 Hz | Camera intrinsics and distortion |
 | `/clock` | `rosgraph_msgs/msg/Clock` | Sim rate | Simulation time for synchronization |
 
@@ -287,27 +287,124 @@ Tests include:
 - Text overlay function
 - Ament linters (flake8, pep257, copyright)
 
-## Next Steps: Object Detection
+## Object Detection with YOLOX
 
-**Current status:** Phase 3 establishes baseline camera transport and demonstrates image processing is feasible.
+Phase 3 finishes with a lightweight YOLOX-nano object detector once camera transport
+is verified stable (see Verified Results above).
 
-**Phase 4 (Future):** Add a lightweight object detector only after verifying:
-1. ☐ Camera topics available at stable rate (25-30 Hz)
-2. ☐ End-to-end latency acceptable (<100 ms mean)
-3. ☐ Processing overhead is reasonable (CPU, GPU, memory)
-4. ☐ Bag recording and replay work correctly
+### Model
 
-**Candidate detectors (Phase 4):**
-- **YOLO-based:** YOLOv8-nano (fast, lightweight)
-- **Classical:** Haar cascades or HOG+SVM (CPU-friendly)
-- **Tracking:** Simple object tracking (e.g., colored marker detection)
+| Item | Value |
+|------|-------|
+| **Model** | YOLOX-nano (Megvii/YOLOX) |
+| **Format** | ONNX (`yolox_nano.onnx`) |
+| **Licence** | Apache-2.0 |
+| **Release** | [0.1.1rc0](https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_nano.onnx) |
+| **SHA256** | `c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d` |
+| **Input** | 1×3×416×416, BGR float32 in `[0, 255]`, no normalisation |
+| **Output** | 1×3549×85 (raw; `decode_in_inference=False`) |
 
-**Evaluation criteria:**
-- Detection latency: target <50 ms additional overhead
-- Accuracy: depends on use case (simple shape/color vs. complex objects)
-- Resource impact: should not degrade PX4 control loop performance
+Download and verify:
 
-**Do not proceed to Phase 4 until Phase 3 baseline measurements confirm stable transport.**
+```bash
+./scripts/fetch-models.sh
+```
+
+Stores the model at `/data/models/yolox_nano.onnx` (outside git).
+
+### Preprocess / decode (verified on box)
+
+The official Megvii ONNX export does **not** decode in the graph. The node's pipeline
+matches the YOLOX `onnx_inference` demo:
+
+1. Convert the ROS `rgb8` camera image to **BGR** via cv_bridge.
+2. Letterbox to 416×416 with pad value **114**, content at **top-left** (not centered).
+3. Run ONNX Runtime (CPU).
+4. Apply `demo_postprocess` (grids + strides 8/16/32, `exp` on wh).
+5. Convert center-xywh → corner-xyxy, NMS, unscale by the letterbox scale.
+
+On the public YOLOX `assets/dog.jpg` (768×576), the corrected pipeline yields
+sensible boxes (score≥0.3): **dog ~0.86**, **bicycle ~0.80**, **car ~0.80**. The
+draft's "already decoded" path produced garbage ~1–4 px boxes and is not used.
+
+### YOLOX Detector Node
+
+| Item | Value |
+|------|-------|
+| **Node** | `yolox_detector_node` |
+| **Subscribe** | `/camera/image_raw` (sensor QoS: best effort, keep-last 1) |
+| **Publish** | `/perception/detections` (`vision_msgs/Detection2DArray`) |
+| **Publish** | `/perception/detections_image` (annotated `sensor_msgs/Image`) |
+| **Busy guard** | drops frames while inference is running |
+| **Logs** | 1 Hz FPS / inference ms / avg detections |
+
+Parameters: `model_path`, `score_threshold` (0.5), `nms_threshold` (0.45),
+`process_every_n` (3), `num_threads` (4). Missing model raises at startup with a
+pointer to `scripts/fetch-models.sh`.
+
+Jazzy `vision_msgs` fields used: `results[].hypothesis.class_id` (COCO name),
+`results[].hypothesis.score`, `bbox.center.position.x/y`, `bbox.size_x/size_y`,
+header copied from the image.
+
+### Detection test world
+
+`worlds/detection_test.sdf` — world name **`detection_test`** (must match
+`PX4_GZ_WORLD`). Static Fuel models (all HTTP 200 under OpenRobotics):
+
+| Model | Pose (ENU) |
+|-------|------------|
+| Standing person | 8, -2, 0 |
+| Prius Hybrid | 12, 3, 0 (yaw π/2) |
+| Chair | 6, -3, 0 |
+| Beer (bottle stand-in) | 5, 0, 0.15 |
+| Backpack | 7, 2, 0.3 |
+
+The mono_cam sensor pose is identity, so the camera looks along **+X**; objects at
+positive X are in view at ground level and from a 3–5 m hover.
+
+### Launching with the detection world
+
+```bash
+WORLD=detection_test MODEL=gz_x500_mono_cam ./scripts/launch-sitl.sh
+```
+
+**How world loading works (PX4 v1.17.0):** `PX4_GZ_WORLD` is a **name** (stem), not a
+path. `px4-rc.gzsim` starts Gazebo with `${PX4_GZ_WORLDS}/${PX4_GZ_WORLD}.sdf`.
+`gz_env.sh` overwrites `PX4_GZ_WORLDS` to the PX4 source worlds directory, so
+`launch-sitl.sh` copies `worlds/${WORLD}.sdf` into
+`Tools/simulation/gz/worlds/` at container start and passes
+`-e PX4_GZ_WORLD=${WORLD}`. It also sets `-e GZ_FUEL_CACHE_PATH=/data/gz_fuel_cache`
+so Fuel downloads persist on the data volume (honoured by gz-fuel-tools
+`ClientConfig`).
+
+Gazebo camera topics then use `/world/detection_test/...`. `detection.launch.py`
+defaults `gz_world:=detection_test` and derives the topic names unless overridden.
+
+```bash
+ros2 launch drone_bringup detection.launch.py rqt_image_view:=true
+```
+
+Record detections without raw frames:
+
+```bash
+./scripts/record-bag.sh 10 --no-raw-camera
+# or: ./scripts/record-bag.sh --no-raw-camera 10
+```
+
+### Detector measurements (placeholder)
+
+Not yet measured on <host>. Fill in after the laptop rebuild + bag:
+
+| Metric | Target / Notes |
+|--------|----------------|
+| Detection rate | process_every_n=3 → ~10 Hz from a 30 Hz camera |
+| Inference time | YOLOX-nano CPU, expect tens of ms |
+| Container CPU / GPU / mem | compare to edge-only baseline above |
+
+### Container extras for detection
+
+- Keep the verified `numpy<2` pin (system-wide, with `sudo`).
+- `onnxruntime==1.17.1` (cp312 manylinux wheel on PyPI; re-pin `numpy<2` after install).
 
 ## References
 
@@ -316,3 +413,5 @@ Tests include:
 - **OpenCV Canny:** https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html
 - **ROS 2 sensor_msgs:** https://docs.ros2.org/latest/api/sensor_msgs/
 - **PX4 Camera Models:** https://github.com/PX4/PX4-Autopilot/tree/v1.17.0/Tools/simulation/gz/models
+- **YOLOX:** https://github.com/Megvii-BaseDetection/YOLOX
+- **vision_msgs:** https://index.ros.org/p/vision_msgs/

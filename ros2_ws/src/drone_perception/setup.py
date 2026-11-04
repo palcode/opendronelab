@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'edge_overlay_node = drone_perception.edge_overlay_node:main',
+            'yolox_detector_node = drone_perception.yolox_detector_node:main',
         ],
     },
 )

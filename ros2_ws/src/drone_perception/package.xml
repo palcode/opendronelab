@@ -9,8 +9,9 @@
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
+  <depend>vision_msgs</depend>
   <depend>cv_bridge</depend>
-  <exec_depend>python3-opencv</exec_depend>
+  <depend>python3-opencv</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

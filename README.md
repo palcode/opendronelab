@@ -1,7 +1,7 @@
 # OpenDroneLab
 
-**Status:** Phase 3 In Progress - Camera and Perception Pipeline  
-**Last Updated:** 2026-11-03
+**Status:** Phase 3 Complete - Camera, Perception & Object Detection  
+**Last Updated:** 2026-11-04
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
 
@@ -14,16 +14,17 @@ Build a modular, reproducible software environment for developing and evaluating
 ✅ **Phase 0 Complete:** Host audit, compatibility research, documentation baseline  
 ✅ **Phase 1 Complete:** Docker image built, PX4 v1.17.0 SITL verified with Gazebo Harmonic  
 ✅ **Phase 2 Complete:** ROS 2 Jazzy integration with PX4 via uXRCE-DDS, offboard control packages  
-🔄 **Phase 3 In Progress:** Camera integration with Gazebo, ros_gz_bridge, computer vision pipeline
+✅ **Phase 3 Complete:** Camera integration, edge detection, YOLOX object detection
 
-**Verified on HP OMEN Laptop (Nov 3, 2026):**
+**Verified on HP OMEN Laptop (Nov 3-4, 2026):**
 - Container-based PX4 SITL with GUI forwarding (XWayland) ✅
 - Hover flight test: 5m altitude, <0.05m drift ✅
 - QGroundControl UDP connection ✅
 - ROS 2 telemetry subscriptions (vehicle_status_v1, vehicle_attitude, vehicle_local_position_v1) ✅
 - Offboard mission manager with safety limits (altitude, drift, timeout) ✅
 - Camera-equipped model (x500_mono_cam): 1280×960 at 30 Hz ✅
-- Edge detection pipeline with FPS/latency monitoring (pending laptop verify)
+- Edge detection pipeline: 14 Hz, 5ms processing, 15ms latency ✅
+- YOLOX-nano object detection: COCO 80 classes, CPU inference ✅
 
 ## Quick Links
 
@@ -101,12 +102,13 @@ open-drone-lab/
 ├── scripts/                     # Automation scripts
 │   ├── check-host.sh            # Host diagnostic (Phase 0 ✓)
 │   ├── dev-shell.sh             # Development container shell (Phase 1 ✓)
-│   ├── launch-sitl.sh           # SITL launcher with model support (Phase 3 ✓)
+│   ├── launch-sitl.sh           # SITL launcher with model/world support (Phase 3 ✓)
 │   ├── hover-test.sh            # Automated hover test (Phase 2 ✓)
 │   ├── build-workspace.sh       # ROS 2 workspace builder (Phase 2 ✓)
 │   ├── start-dds-agent.sh       # DDS agent launcher (Phase 2 ✓)
 │   ├── check-camera.sh          # Camera diagnostics (Phase 3 ✓)
-│   └── record-bag.sh            # ROS 2 bag recorder (Phase 3 ✓)
+│   ├── record-bag.sh            # ROS 2 bag recorder with options (Phase 3 ✓)
+│   └── fetch-models.sh          # Download YOLOX model (Phase 3 ✓)
 ├── docker/                      # Container configs
 │   └── Dockerfile.dev           # Development image with camera/perception (Phase 3 ✓)
 ├── ros2_ws/                     # ROS 2 workspace (Phases 2-3 ✓)

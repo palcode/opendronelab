@@ -1,0 +1,122 @@
+<?xml version="1.0" ?>
+<!--
+  Detection Test World for OpenDroneLab
+  Based on PX4 default world with COCO-recognizable static Fuel models.
+
+  World name MUST be "detection_test" so it matches PX4_GZ_WORLD=detection_test
+  (gz topics become /world/detection_test/...).
+
+  Placement: Gazebo camera looks along +X (sensor pose identity). PX4 x500
+  default spawn is near origin facing +X in ENU, so objects at positive X
+  are in view at ground level and from a 3–5 m hover.
+-->
+<sdf version="1.9">
+  <world name="detection_test">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"></plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"></plugin>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"></plugin>
+
+    <scene>
+      <ambient>1.0 1.0 1.0</ambient>
+      <background>0.8 0.8 0.8</background>
+      <sky></sky>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.6 0.6 0.6 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Person (COCO 0): static Standing person (not the Walking mesh) -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Standing person</uri>
+      <name>person_1</name>
+      <pose>8 -2 0 0 0 0</pose>
+    </include>
+
+    <!-- Car (COCO 2) -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Prius Hybrid</uri>
+      <name>car_1</name>
+      <pose>12 3 0 0 0 1.57</pose>
+    </include>
+
+    <!-- Chair (COCO 56) -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Chair</uri>
+      <name>chair_1</name>
+      <pose>6 -3 0 0 0 0</pose>
+    </include>
+
+    <!-- Bottle stand-in (COCO 39): Beer model is a recognizable bottle shape -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Beer</uri>
+      <name>bottle_1</name>
+      <pose>5 0 0.15 0 0 0</pose>
+    </include>
+
+    <!-- Backpack (COCO 24) -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Backpack</uri>
+      <name>backpack_1</name>
+      <pose>7 2 0.3 0 0 0</pose>
+    </include>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397742</latitude_deg>
+      <longitude_deg>8.545594</longitude_deg>
+      <elevation>488.0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+  </world>
+</sdf>

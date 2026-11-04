@@ -165,6 +165,11 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
 # PX4 requirements pull numpy 2.x via pip, which breaks the apt python3-opencv (built for numpy 1.x)
 RUN sudo pip3 install --no-cache-dir --break-system-packages --ignore-installed "numpy<2"
 
+# ONNX Runtime for YOLOX detector (Phase 3). 1.17.1 has a cp312 manylinux wheel
+# and is the draft pin; re-pin numpy afterwards because ort may pull numpy 2.x.
+RUN sudo pip3 install --no-cache-dir --break-system-packages onnxruntime==1.17.1 \
+    && sudo pip3 install --no-cache-dir --break-system-packages --ignore-installed "numpy<2"
+
 # Source ROS 2 setup in bashrc
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 
