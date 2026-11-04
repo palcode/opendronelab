@@ -162,6 +162,9 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     python3-opencv \
     && sudo rm -rf /var/lib/apt/lists/*
 
+# PX4 requirements pull numpy 2.x via pip, which breaks the apt python3-opencv (built for numpy 1.x)
+RUN sudo pip3 install --no-cache-dir --break-system-packages --ignore-installed "numpy<2"
+
 # Source ROS 2 setup in bashrc
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 
