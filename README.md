@@ -1,6 +1,6 @@
 # OpenDroneLab
 
-**Status:** Phase 2 Complete - ROS 2 Integration Ready  
+**Status:** Phase 3 In Progress - Camera and Perception Pipeline  
 **Last Updated:** 2026-11-03
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
@@ -13,7 +13,8 @@ Build a modular, reproducible software environment for developing and evaluating
 
 ✅ **Phase 0 Complete:** Host audit, compatibility research, documentation baseline  
 ✅ **Phase 1 Complete:** Docker image built, PX4 v1.17.0 SITL verified with Gazebo Harmonic  
-✅ **Phase 2 Complete:** ROS 2 Jazzy integration with PX4 via uXRCE-DDS, offboard control packages
+✅ **Phase 2 Complete:** ROS 2 Jazzy integration with PX4 via uXRCE-DDS, offboard control packages  
+🔄 **Phase 3 In Progress:** Camera integration with Gazebo, ros_gz_bridge, computer vision pipeline
 
 **Verified on HP OMEN Laptop (Nov 3, 2026):**
 - Container-based PX4 SITL with GUI forwarding (XWayland) ✅
@@ -21,6 +22,8 @@ Build a modular, reproducible software environment for developing and evaluating
 - QGroundControl UDP connection ✅
 - ROS 2 telemetry subscriptions (vehicle_status_v1, vehicle_attitude, vehicle_local_position_v1) ✅
 - Offboard mission manager with safety limits (altitude, drift, timeout) ✅
+- Camera-equipped model (x500_mono_cam): 1280×960 at 30 Hz ✅
+- Edge detection pipeline with FPS/latency monitoring (pending laptop verify)
 
 ## Quick Links
 
@@ -29,6 +32,7 @@ Build a modular, reproducible software environment for developing and evaluating
 - **[Host Setup](docs/setup-host.md)** - Installation guide and risk assessment
 - **[Phase 2 Hover Test](docs/phase2-hover.md)** - Verified SITL + Gazebo hover flight
 - **[ROS 2 Integration](docs/ros2-integration.md)** - Topics, QoS, offboard control guide
+- **[Camera & Perception](docs/perception.md)** - Camera integration, edge detection, metrics
 - **[Agent Working Agreement](AGENTS.md)** - Guidelines for AI agents working on this project
 
 ## System Overview
@@ -97,17 +101,20 @@ open-drone-lab/
 ├── scripts/                     # Automation scripts
 │   ├── check-host.sh            # Host diagnostic (Phase 0 ✓)
 │   ├── dev-shell.sh             # Development container shell (Phase 1 ✓)
-│   ├── launch-sitl.sh           # SITL launcher (Phase 2 ✓)
+│   ├── launch-sitl.sh           # SITL launcher with model support (Phase 3 ✓)
 │   ├── hover-test.sh            # Automated hover test (Phase 2 ✓)
 │   ├── build-workspace.sh       # ROS 2 workspace builder (Phase 2 ✓)
-│   └── start-dds-agent.sh       # DDS agent launcher (Phase 2 ✓)
+│   ├── start-dds-agent.sh       # DDS agent launcher (Phase 2 ✓)
+│   ├── check-camera.sh          # Camera diagnostics (Phase 3 ✓)
+│   └── record-bag.sh            # ROS 2 bag recorder (Phase 3 ✓)
 ├── docker/                      # Container configs
-│   └── Dockerfile.dev           # Development image (Phase 1 ✓)
-├── ros2_ws/                     # ROS 2 workspace (Phase 2 ✓)
+│   └── Dockerfile.dev           # Development image with camera/perception (Phase 3 ✓)
+├── ros2_ws/                     # ROS 2 workspace (Phases 2-3 ✓)
 │   └── src/
 │       ├── drone_telemetry/     # PX4 telemetry subscriber
 │       ├── drone_mission_manager/ # Offboard mission controller
-│       └── drone_bringup/       # Launch files
+│       ├── drone_perception/    # Computer vision pipeline (Phase 3 ✓)
+│       └── drone_bringup/       # Launch files (telemetry, mission, perception)
 ├── simulation/                  # Gazebo scenarios
 │   └── scenarios/               # Test scenario definitions
 ├── experiments/                 # Test scenarios (Phase 5+)
