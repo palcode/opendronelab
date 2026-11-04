@@ -3,6 +3,7 @@
 # Starts the odl-sim container with PX4 SITL and Gazebo if not already running.
 # MODEL defaults to gz_x500; use MODEL=gz_x500_mono_cam for the camera drone.
 # HEADLESS=1 runs Gazebo without its GUI. MEM_LIMIT (default 12g) caps RAM.
+# GZ_SEED=<int> starts Gazebo with a fixed random seed.
 # ODL_ROS_DOMAIN_ID (default 42) + localhost-only discovery keep ROS on this host.
 # These env options apply when the container is created; to change them on an
 # existing container, remove it first: docker rm -f odl-sim
@@ -28,6 +29,10 @@ MEM_LIMIT="${MEM_LIMIT:-12g}"
 # Keep ROS 2 / DDS traffic on this laptop and off the default domain.
 # PX4's uXRCE-DDS client domain must match (UXRCE_DDS_DOM_ID).
 ODL_ROS_DOMAIN_ID="${ODL_ROS_DOMAIN_ID:-42}"
+# GZ_SEED=<int> fixes Gazebo's random seed (sensor noise etc.). PX4's
+# px4-rc.gzsim has no seed option, so we start the Gazebo server ourselves
+# with --seed and PX4 attaches to the already-running world.
+GZ_SEED="${GZ_SEED:-}"
 
 _container_cmd() {
     docker inspect --format '{{.Config.Cmd}}' "${CONTAINER_NAME}" 2>/dev/null || echo ""
@@ -94,6 +99,21 @@ if [ -n "${WORLD}" ]; then
 fi
 
 EXTRA_ARGS=()
+if [ -n "${GZ_SEED}" ]; then
+    if ! [[ "${GZ_SEED}" =~ ^[0-9]+$ ]]; then
+        echo "[ERROR] GZ_SEED must be a non-negative integer" >&2; exit 1
+    fi
+    SEED_WORLD="${WORLD:-default}"
+    GZ_GUI_CMD=""
+    [ -z "${HEADLESS}" ] && GZ_GUI_CMD="(gz sim -g > /dev/null 2>&1 &) && "
+    # Build first so gz_env.sh and plugins exist, then start the seeded server.
+    PRESTART="make px4_sitl && source build/px4_sitl_default/rootfs/gz_env.sh && (gz sim --seed ${GZ_SEED} --verbose=1 -r -s Tools/simulation/gz/worlds/${SEED_WORLD}.sdf > /tmp/gz-server.log 2>&1 &) && sleep 5 && ${GZ_GUI_CMD}"
+    # Strip the trailing make and re-append it after the prestart. (Avoid
+    # ${var/pat/rep}: bash 5.2 expands '&' in the replacement.)
+    START_CMD="${START_CMD%"make px4_sitl ${MODEL}"}${PRESTART}make px4_sitl ${MODEL}"
+    EXTRA_ARGS+=(-e "GZ_SEED=${GZ_SEED}")
+    WORLD_MSG="${WORLD_MSG} (seed ${GZ_SEED})"
+fi
 if [ -n "${HEADLESS}" ]; then
     EXTRA_ARGS+=(-e HEADLESS=1)
     WORLD_MSG="${WORLD_MSG} (headless)"
