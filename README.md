@@ -1,6 +1,6 @@
 # OpenDroneLab
 
-**Status:** Phase 3 Complete - Camera, Perception & Object Detection  
+**Status:** Phase 4a Complete - Localization Baseline  
 **Last Updated:** 2026-11-04
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
@@ -14,7 +14,8 @@ Build a modular, reproducible software environment for developing and evaluating
 ✅ **Phase 0 Complete:** Host audit, compatibility research, documentation baseline  
 ✅ **Phase 1 Complete:** Docker image built, PX4 v1.17.0 SITL verified with Gazebo Harmonic  
 ✅ **Phase 2 Complete:** ROS 2 Jazzy integration with PX4 via uXRCE-DDS, offboard control packages  
-✅ **Phase 3 Complete:** Camera integration, edge detection, YOLOX object detection
+✅ **Phase 3 Complete:** Camera integration, edge detection, YOLOX object detection  
+✅ **Phase 4a Complete:** Localization baseline (EKF2 vs Gazebo ground truth, 3-run square flight, horizontal RMSE 0.27 m, vertical 0.07 m)
 
 **Verified on HP OMEN Laptop (Nov 3-4, 2026):**
 - Container-based PX4 SITL with GUI forwarding (XWayland) ✅
@@ -34,6 +35,8 @@ Build a modular, reproducible software environment for developing and evaluating
 - **[Phase 2 Hover Test](docs/phase2-hover.md)** - Verified SITL + Gazebo hover flight
 - **[ROS 2 Integration](docs/ros2-integration.md)** - Topics, QoS, offboard control guide
 - **[Camera & Perception](docs/perception.md)** - Camera integration, edge detection, metrics
+- **[Localization](docs/localization.md)** - EKF2 baseline, coordinate frames, evaluation
+- **[Evaluation Roadmap](docs/evaluation-roadmap.md)** - Performance optimization and future improvements
 - **[Agent Working Agreement](AGENTS.md)** - Guidelines for AI agents working on this project
 
 ## System Overview
@@ -202,10 +205,11 @@ Detailed guides will be added in future phases.
 ## Phased Roadmap
 
 - [x] **Phase 0:** Host audit and compatibility matrix (Complete)
-- [ ] **Phase 1:** PX4 SITL + Gazebo + QGroundControl
-- [ ] **Phase 2:** ROS 2 integration and telemetry
-- [ ] **Phase 3:** Camera and perception
-- [ ] **Phase 4:** Localization experiments
+- [x] **Phase 1:** PX4 SITL + Gazebo + QGroundControl (Complete)
+- [x] **Phase 2:** ROS 2 integration and telemetry (Complete)
+- [x] **Phase 3:** Camera and perception (Complete)
+- [x] **Phase 4a:** Localization baseline with EKF2 evaluation
+- [ ] **Phase 4b:** Localization improvements (future)
 - [ ] **Phase 5:** Simulation-only resilience experiments
 - [ ] **Phase 6:** Automated evaluation
 - [ ] **Phase 7+:** Future enhancements

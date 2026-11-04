@@ -160,6 +160,7 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     ros-jazzy-rqt-image-view \
     ros-jazzy-vision-msgs \
     python3-opencv \
+    python3-matplotlib \
     && sudo rm -rf /var/lib/apt/lists/*
 
 # PX4 requirements pull numpy 2.x via pip, which breaks the apt python3-opencv (built for numpy 1.x)
