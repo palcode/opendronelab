@@ -75,6 +75,26 @@ docker tag opendronelab-dev:phase3 opendronelab-dev:latest
 # then recreate odl-sim: docker rm -f odl-sim && ./scripts/launch-sitl.sh
 ```
 
+## Applied 2026-11-06
+
+**Dev image (`opendronelab-dev:phase4b-evo` → `:latest`, ID `71f579d53bcf`, 11.1 GB)**
+
+Adds evo 1.38.1 in an isolated venv (`/opt/evo`, CLI only), `python3-venv`, and
+the mcap CLI 0.4.0 (sha256-verified binary). System numpy stays 1.26.4. The
+previous `:latest` is still tagged `:phase4-gpu` (`a89f7f07c456`).
+
+Undo (no sudo):
+```bash
+docker tag opendronelab-dev:phase4-gpu opendronelab-dev:latest
+# then recreate odl-sim: docker rm -f odl-sim && ./scripts/launch-sitl.sh
+```
+Note: an existing `odl-sim` container keeps the image it was created from, so
+use `docker rm -f odl-sim` before the next launch to pick up a new `:latest`.
+
+**Official image** `px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9`
+(4.84 GB, smoke test only). Remove with
+`docker image rm px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9`.
+
 **Docker log limits applied 2026-11-05** (json-file, 50m x 3; backup
 `/etc/docker/daemon.json.bak-2026-11-05`; undo: `sudo cp` the backup back, then
 `sudo systemctl restart docker`).
