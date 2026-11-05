@@ -1,0 +1,287 @@
+{
+  "configById": {
+    "Plot!north": {
+      "paths": [
+        {
+          "value": "/fmu/out/vehicle_local_position_v1.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "EKF2 x (N)",
+          "color": "#e15759"
+        },
+        {
+          "value": "/ground_truth/odometry.pose.pose.position.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "GT y_enu (N)",
+          "color": "#59a14f"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "foxglovePanelTitle": "North (m): EKF2 vs GT",
+      "followingViewWidth": 0,
+      "yAxisLabel": "m"
+    },
+    "Plot!east": {
+      "paths": [
+        {
+          "value": "/fmu/out/vehicle_local_position_v1.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "EKF2 y (E)",
+          "color": "#e15759"
+        },
+        {
+          "value": "/ground_truth/odometry.pose.pose.position.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "GT x_enu (E)",
+          "color": "#59a14f"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "foxglovePanelTitle": "East (m): EKF2 vs GT",
+      "followingViewWidth": 0,
+      "yAxisLabel": "m"
+    },
+    "Plot!down": {
+      "paths": [
+        {
+          "value": "/fmu/out/vehicle_local_position_v1.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "EKF2 z (D)",
+          "color": "#e15759"
+        },
+        {
+          "value": "/ground_truth/odometry.pose.pose.position.z.@negative",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "GT -z_enu (D)",
+          "color": "#59a14f"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "foxglovePanelTitle": "Down (m): EKF2 vs GT",
+      "followingViewWidth": 0,
+      "yAxisLabel": "m"
+    },
+    "Plot!errors": {
+      "paths": [
+        {
+          "value": "/studio_script/localization_error.horiz_err",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "horizontal",
+          "color": "#4e79a7"
+        },
+        {
+          "value": "/studio_script/localization_error.down_err",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "down",
+          "color": "#f28e2b"
+        },
+        {
+          "value": "/studio_script/localization_error.north_err",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "north",
+          "color": "#76b7b2"
+        },
+        {
+          "value": "/studio_script/localization_error.east_err",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "east",
+          "color": "#edc948"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "foxglovePanelTitle": "EKF2 - GT error (m, NED, not origin-aligned)",
+      "followingViewWidth": 0,
+      "yAxisLabel": "m"
+    },
+    "Image!camera": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/camera/image_raw",
+        "calibrationTopic": "/camera/camera_info"
+      },
+      "foxglovePanelTitle": "Camera /camera/image_raw"
+    },
+    "Image!annotated": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/perception/annotated"
+      },
+      "foxglovePanelTitle": "Detections /perception/annotated"
+    },
+    "StateTransitions!navstate": {
+      "paths": [
+        {
+          "value": "/fmu/out/vehicle_status_v1.nav_state",
+          "timestampMethod": "receiveTime",
+          "label": "nav_state"
+        },
+        {
+          "value": "/fmu/out/vehicle_status_v1.arming_state",
+          "timestampMethod": "receiveTime",
+          "label": "arming_state"
+        },
+        {
+          "value": "/fmu/out/vehicle_land_detected.landed",
+          "timestampMethod": "receiveTime",
+          "label": "landed"
+        }
+      ],
+      "isSynced": true,
+      "foxglovePanelTitle": "PX4 mode / arming / landed"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {
+    "odl-localization-error": {
+      "name": "localization_error",
+      "sourceCode": "// OpenDroneLab: EKF2 vs ground-truth error, in NED (metres).\n// Ground truth /ground_truth/odometry is ENU (Gazebo world): north = y,\n// east = x, down = -z. EKF2 vehicle_local_position_v1 is NED.\n// Each EKF2 sample is compared with the latest GT sample (zero-order hold,\n// GT at 50 Hz), WITHOUT origin alignment, so values include the constant\n// EKF2-origin vs Gazebo-origin offset. localization_metrics / evo-check.sh\n// remain the reference numbers.\nimport { Input } from \"./types\";\n\nexport const inputs = [\"/ground_truth/odometry\", \"/fmu/out/vehicle_local_position_v1\"];\nexport const output = \"/studio_script/localization_error\";\n\ntype Output = {\n  north_err: number;\n  east_err: number;\n  down_err: number;\n  horiz_err: number;\n  err_3d: number;\n};\n\nlet gt: { n: number; e: number; d: number } | undefined;\n\nexport default function script(\n  event: Input<\"/ground_truth/odometry\"> | Input<\"/fmu/out/vehicle_local_position_v1\">,\n): Output | undefined {\n  const msg = event.message as any;\n  if (event.topic === \"/ground_truth/odometry\") {\n    const p = msg.pose.pose.position;\n    gt = { n: p.y, e: p.x, d: -p.z };\n    return undefined;\n  }\n  if (gt === undefined) {\n    return undefined;\n  }\n  const dn = msg.x - gt.n;\n  const de = msg.y - gt.e;\n  const dd = msg.z - gt.d;\n  return {\n    north_err: dn,\n    east_err: de,\n    down_err: dd,\n    horiz_err: Math.hypot(dn, de),\n    err_3d: Math.hypot(dn, de, dd),\n  };\n}\n"
+    }
+  },
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": {
+        "direction": "column",
+        "first": "Plot!north",
+        "second": "Plot!east",
+        "splitPercentage": 50
+      },
+      "second": {
+        "direction": "column",
+        "first": "Plot!down",
+        "second": "Plot!errors",
+        "splitPercentage": 50
+      },
+      "splitPercentage": 50
+    },
+    "second": {
+      "direction": "column",
+      "first": "Image!camera",
+      "second": {
+        "direction": "column",
+        "first": "Image!annotated",
+        "second": "StateTransitions!navstate",
+        "splitPercentage": 60
+      },
+      "splitPercentage": 45
+    },
+    "splitPercentage": 62
+  }
+}

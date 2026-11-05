@@ -3,6 +3,7 @@
 # Stores bags in /data/bags/<timestamp> (never in the repo)
 # Usage: record-bag.sh [duration] [--no-raw-camera] [--localization]
 # Flags and duration may appear in any order.
+# Review bags with the mcap CLI / Foxglove layout: see docs/bag-review.md
 set -euo pipefail
 
 CONTAINER_NAME="odl-sim"

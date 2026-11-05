@@ -297,6 +297,8 @@ ros2 bag play scenario_name/
 - `ros2 topic echo`: Print messages from bag
 - PlotJuggler: Supports MCAP format
 - Custom Python scripts using `rosbag2_py`
+- `mcap` CLI (in the image): `mcap info`, `mcap filter`, `mcap convert`. See [bag-review.md](bag-review.md)
+- Foxglove layout `tools/foxglove/opendronelab-localization.json` (EKF2 vs GT, errors, camera). See [bag-review.md](bag-review.md)
 
 ### Screenshots and Videos
 
