@@ -9,6 +9,8 @@ NUM_RUNS="${1:-1}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULTS_DIR="/data/results/${TIMESTAMP}"
 BAG_DURATION=120
+# Flight command (override for the C++ node: FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp")
+FLIGHT_CMD="${FLIGHT_CMD:-ros2 run drone_localization square_flight}"
 
 echo "================================================================"
 echo "  Localization Baseline Evaluation"
@@ -65,7 +67,7 @@ for run in $(seq 1 "$NUM_RUNS"); do
     # Run square flight
     echo "[${run}/${NUM_RUNS}] Running square flight mission..."
     if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "${SOURCE_CMD}; timeout 120 ros2 run drone_localization square_flight"; then
+        bash -c "${SOURCE_CMD}; timeout 120 ${FLIGHT_CMD}"; then
         echo "[${run}/${NUM_RUNS}] Mission completed successfully"
         MISSION_STATUS="success"
     else

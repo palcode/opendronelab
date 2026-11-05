@@ -359,3 +359,14 @@ Commands per bag (see the script): `evo_ape tum gt_ned.tum est_ned.tum -r trans_
 - These apply when the container is created, so run `docker rm -f odl-sim` before relaunching with new values.
 - `./scripts/memory-logger.sh` logs container memory/CPU, Gazebo RSS and GPU temperature/power; `./scripts/stop-all.sh` stops it, any bag recording and the sim.
 - **Fixed random seed:** `GZ_SEED=1234 HEADLESS=1 MODEL=gz_x500 ./scripts/launch-sitl.sh`. PX4's `px4-rc.gzsim` has no seed option, so the launcher builds PX4, sources `gz_env.sh`, starts `gz sim --seed N -r -s <world>.sdf` itself (server log at `/tmp/gz-server.log` in the container), and PX4 attaches to the running world ("gazebo already running world") and spawns the model. This fixes Gazebo's own random seed; whether every noise source (PX4-side sensor noise, timing) becomes repeatable run to run has not been measured yet.
+
+### C++ flight node (`drone_flight_cpp`, branch `cpp-flight-node`, WIP: gate NOT run)
+
+`square_flight_cpp` is a C++ port of `square_flight` on [px4-ros2-interface-lib](https://github.com/Auterion/px4-ros2-interface-lib) **release/1.17 @ `4a3370f`** (message set checked compatible with px4_msgs release/1.17 / PX4 v1.17.0 by the lib's `check-message-compatibility.py`). It is built by `build-workspace.sh` (`MAKEFLAGS=-j2`, because unbounded `-j` OOM-killed cc1plus inside the 12g container). Design: an external mode streams the same position setpoints (10 m square, 5 m, 0.5 m tolerance, 3 s hold, 20 Hz), and a mode executor (ActivateImmediately) arms after 2 s, runs the mode, lands and waits for disarm. On exit the node is destroyed before `rclcpp::shutdown()` so PX4 unregisters it (a stale registration is flagged "unresponsive" and blocks arming). QGC must be connected (otherwise "No connection to the GCS").
+
+```bash
+ros2 run drone_flight_cpp square_flight_cpp        # or: ros2 launch drone_flight_cpp square_flight_cpp.launch.py
+FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp" ./scripts/run-baseline.sh 3
+```
+
+Status (2026-11-06): one run armed, then PX4 auto-disarmed ("Disarmed by auto preflight disarming") before takeoff, so the mode never flew. That's not diagnosed yet. Further runs were blocked because Gazebo would not start: gst-plugin-scanner was stuck in the kernel DRM lock (`drm_modeset_lock_all_ctx` / `drm_open`, D state), which needs a host reboot. The comparison table and gate are still pending.

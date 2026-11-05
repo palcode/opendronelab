@@ -106,8 +106,10 @@ if [ -n "${GZ_SEED}" ]; then
     SEED_WORLD="${WORLD:-default}"
     GZ_GUI_CMD=""
     [ -z "${HEADLESS}" ] && GZ_GUI_CMD="(gz sim -g > /dev/null 2>&1 &) && "
-    # Build first so gz_env.sh and plugins exist, then start the seeded server.
-    PRESTART="make px4_sitl && source build/px4_sitl_default/rootfs/gz_env.sh && (gz sim --seed ${GZ_SEED} --verbose=1 -r -s Tools/simulation/gz/worlds/${SEED_WORLD}.sdf > /tmp/gz-server.log 2>&1 &) && sleep 5 && ${GZ_GUI_CMD}"
+    # Build first so gz_env.sh and plugins exist, then start the seeded server
+    # and wait (max 60 s) for its world clock; a fixed sleep raced slow starts
+    # and PX4 then spawned a second server and timed out.
+    PRESTART="make px4_sitl && source build/px4_sitl_default/rootfs/gz_env.sh && (gz sim --seed ${GZ_SEED} --verbose=1 -r -s Tools/simulation/gz/worlds/${SEED_WORLD}.sdf > /tmp/gz-server.log 2>&1 &) && for _i in \$(seq 1 60); do gz topic -l 2>/dev/null | grep -q /world/${SEED_WORLD}/clock && break; sleep 1; done && ${GZ_GUI_CMD}"
     # Strip the trailing make and re-append it after the prestart. (Avoid
     # ${var/pat/rep}: bash 5.2 expands '&' in the replacement.)
     START_CMD="${START_CMD%"make px4_sitl ${MODEL}"}${PRESTART}make px4_sitl ${MODEL}"

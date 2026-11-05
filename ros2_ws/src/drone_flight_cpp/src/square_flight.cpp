@@ -23,6 +23,7 @@
 
 #include <Eigen/Core>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <stdexcept>
@@ -44,6 +45,10 @@ struct Params
 };
 
 static int g_exit_code = 1;
+// Set when the executor is done; main() then destroys the node (which
+// unregisters the mode/executor from PX4) BEFORE rclcpp::shutdown(). A
+// stale registration is flagged unresponsive and blocks the next arm.
+static std::atomic<bool> g_done{false};
 
 class SquareMode : public px4_ros2::ModeBase
 {
@@ -73,6 +78,7 @@ public:
 
   void onActivate() override
   {
+    RCLCPP_INFO(node().get_logger(), "Square mode active");
     idx_ = 0;
     arrived_ = false;
     start_ = node().get_clock()->now();
@@ -142,9 +148,24 @@ public:
   {
     if (started_) {return;}
     started_ = true;
-    RCLCPP_INFO(node_.get_logger(), "Executor active, arming");
+    // Give PX4 ~2 s to receive the mode's first arming-check replies
+    // (arming immediately after registration is rejected as "unresponsive"),
+    // matching the Python node's 2 s setpoint pre-stream.
+    RCLCPP_INFO(node_.get_logger(), "Executor active, arming in 2 s");
+    timer_ = node_.create_wall_timer(2s, [this]() {timer_->cancel(); tryArm();});
+  }
+
+  void tryArm()
+  {
     arm([this](px4_ros2::Result r) {
-        if (r != px4_ros2::Result::Success) {return finish("arm", r);}
+        if (r != px4_ros2::Result::Success) {
+          if (++arm_attempts_ < 5) {
+            RCLCPP_WARN(node_.get_logger(), "Arm %s, retrying in 1 s", resultToString(r));
+            timer_ = node_.create_wall_timer(1s, [this]() {timer_->cancel(); tryArm();});
+            return;
+          }
+          return finish("arm", r);
+        }
         RCLCPP_INFO(node_.get_logger(), "Armed, flying square");
         scheduleMode(ownedMode().id(), [this](px4_ros2::Result r2) {
           mission_ok_ = (r2 == px4_ros2::Result::Success);
@@ -156,8 +177,9 @@ public:
             waitUntilDisarmed([this](px4_ros2::Result r4) {
               if (r4 != px4_ros2::Result::Success) {return finish("disarm", r4);}
               RCLCPP_INFO(node_.get_logger(), "Mission complete (disarmed)");
+              done_ = true;
               g_exit_code = mission_ok_ ? 0 : 1;
-              rclcpp::shutdown();
+              g_done = true;
             });
           });
         });
@@ -179,11 +201,13 @@ private:
     done_ = true;
     RCLCPP_ERROR(node_.get_logger(), "%s failed: %s", step, resultToString(r));
     g_exit_code = 1;
-    rclcpp::shutdown();
+    g_done = true;
   }
 
   rclcpp::Node & node_;
   bool started_{false}, done_{false}, mission_ok_{false};
+  int arm_attempts_{0};
+  rclcpp::TimerBase::SharedPtr timer_;
 };
 
 // Wait for valid local position and passing preflight checks before
@@ -236,7 +260,13 @@ int main(int argc, char * argv[])
   rclcpp::init(argc, argv);
   if (!waitReady()) {rclcpp::shutdown(); return 1;}
   try {
-    rclcpp::spin(std::make_shared<SquareNode>("square_flight_cpp", false));
+    auto node = std::make_shared<SquareNode>("square_flight_cpp", std::getenv("ODL_PX4_ROS2_DEBUG") != nullptr);
+    rclcpp::executors::SingleThreadedExecutor exec;
+    exec.add_node(node);
+    while (rclcpp::ok() && !g_done) {exec.spin_once(50ms);}
+    exec.remove_node(node);
+    node.reset();  // unregisters from PX4 while the context is still valid
+    std::this_thread::sleep_for(200ms);
   } catch (const std::exception & e) {
     RCLCPP_ERROR(rclcpp::get_logger("square_flight_cpp"), "%s", e.what());
     g_exit_code = 1;
