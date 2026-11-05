@@ -287,6 +287,25 @@ test/test_metrics.py::test_compute_metrics_with_mask PASSED
 9 passed in 0.64s
 ```
 
+**Test run (2026-11-06, image `opendronelab-dev:latest` = `:phase4-gpu`, ID `a89f7f07c456`):** run in a throwaway container from the repo root (`docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v $PWD:/workspace -v <data>:/data ...`, ROS + workspace overlays sourced, numpy 1.26.4, cv2 4.6.0, onnxruntime-gpu 1.28.0):
+
+```
+=== functional suites ===
+pytest ros2_ws/src/drone_perception/test/test_processing.py \
+       ros2_ws/src/drone_perception/test/test_yolox.py \
+       ros2_ws/src/drone_localization/test/test_metrics.py
+23 passed, 1 warning in 0.50s          # 14 perception + 9 localization
+
+=== per package ===
+drone_localization/test:  9 passed, 1 warning in 0.53s
+drone_perception/test:    3 failed, 14 passed in 0.71s
+  FAILED test_copyright.py::test_copyright
+  FAILED test_flake8.py::test_flake8
+  FAILED test_pep257.py::test_pep257
+```
+
+The 23 functional tests all pass. The three failures are the ament lint tests in `drone_perception` (missing copyright headers, import-order / E402 flake8 findings, pep257 docstring style). They are pre-existing style findings (same result in `logs/phase4-gpu-pytest.log` on 2026-11-05), not behaviour failures, and are not fixed yet. The warning is matplotlib's "Unable to import Axes3D" (apt + pip matplotlib both present); 2D plots are unaffected.
+
 **Known gotcha (fixed):** after an offboard landing, PX4 stays in OFFBOARD (nav_state 14). With no offboard setpoints streaming, the preflight check fails and QGC shows "Arming denied: Resolve system health failures first". `square_flight` now switches to Hold (AUTO_LOITER) after disarming, and also at startup if it finds the vehicle disarmed in OFFBOARD, so repeat runs need no sim restart.
 
 ## Timestamp Alignment
