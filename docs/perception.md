@@ -229,6 +229,26 @@ for short clips, or drop `/camera/image_raw` from the topic list for long runs.
 `sudo pip3 install --ignore-installed "numpy<2"` system-wide. `sudo` matters: without it pip
 installs into the dev user's home and other UIDs still load numpy 2.x.
 
+
+
+## Detector GPU runtime (Phase 4)
+
+The `opendronelab-dev:phase4-gpu` image installs `onnxruntime-gpu[cuda,cudnn]==1.28.0`
+(CUDA 13 / cuDNN 9 via nvidia-* pip wheels; no CUDA toolkit in the image). The
+detector calls `ort.preload_dlls()` so the CUDA EP can find those libs, then
+prefers `CUDAExecutionProvider` and falls back to CPU. Pinning lives in
+`docker/constraints.txt`. Benchmark with:
+
+```bash
+docker run --rm --gpus all --user $(id -u):$(id -g) -e HOME=/tmp \
+  -v $PWD:/workspace -v ~/workspace/dronelab-data:/data \
+  opendronelab-dev:latest \
+  python3 /workspace/scripts/bench-detector.py --require-cuda
+```
+
+On the RTX 5060 Laptop (driver 595 / CUDA 13.2, sm_120), YOLOX-nano measured
+about 4.4× faster on CUDA than on CPU (warmup excluded, N=200).
+
 ## Troubleshooting
 
 ### Issue: No /camera topics visible
@@ -319,7 +339,7 @@ matches the YOLOX `onnx_inference` demo:
 
 1. Convert the ROS `rgb8` camera image to **BGR** via cv_bridge.
 2. Letterbox to 416×416 with pad value **114**, content at **top-left** (not centered).
-3. Run ONNX Runtime (CPU).
+3. Run ONNX Runtime (CUDA EP when available, else CPU; `force_cpu:=true` to force CPU).
 4. Apply `demo_postprocess` (grids + strides 8/16/32, `exp` on wh).
 5. Convert center-xywh → corner-xyxy, NMS, unscale by the letterbox scale.
 

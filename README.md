@@ -111,9 +111,13 @@ open-drone-lab/
 │   ├── start-dds-agent.sh       # DDS agent launcher (Phase 2 ✓)
 │   ├── check-camera.sh          # Camera diagnostics (Phase 3 ✓)
 │   ├── record-bag.sh            # ROS 2 bag recorder with options (Phase 3 ✓)
-│   └── fetch-models.sh          # Download YOLOX model (Phase 3 ✓)
+│   ├── fetch-models.sh          # Download YOLOX model (Phase 3 ✓)
+│   ├── bench-detector.py        # YOLOX CPU vs CUDA benchmark (Phase 4 ✓)
+│   ├── memory-logger.sh         # Host/GPU memory logger with pidfile
+│   └── stop-all.sh              # Stop helpers + odl-sim
 ├── docker/                      # Container configs
-│   └── Dockerfile.dev           # Development image with camera/perception (Phase 3 ✓)
+│   ├── Dockerfile.dev           # Dev image: PX4/Gazebo/ROS 2 + GPU ORT (Phase 4 ✓)
+│   └── constraints.txt          # pip pins (numpy<2, onnxruntime-gpu==1.28.0)
 ├── ros2_ws/                     # ROS 2 workspace (Phases 2-3 ✓)
 │   └── src/
 │       ├── drone_telemetry/     # PX4 telemetry subscriber

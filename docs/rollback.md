@@ -9,8 +9,12 @@ Before any future host change: take a snapshot of the state you might roll back 
 ```bash
 ./scripts/stop-all.sh                 # stop helpers, bag recording, odl-sim
 docker rm -f odl-sim                  # remove the sim container
-docker image rm opendronelab-dev:latest opendronelab-dev:phase3 \
-    opendronelab-dev:phase3-edge opendronelab-dev:phase3-pre opendronelab-dev:phase2
+# Prefer retagging :latest back to :phase3 rather than deleting images:
+docker tag opendronelab-dev:phase3 opendronelab-dev:latest
+# Full cleanup (optional; keeps Windows dual-boot untouched):
+docker image rm opendronelab-dev:latest opendronelab-dev:phase4-gpu \
+    opendronelab-dev:phase3 opendronelab-dev:phase3-edge \
+    opendronelab-dev:phase3-pre opendronelab-dev:phase2
 docker builder prune                  # drop build cache
 xhost -SI:localuser:$(whoami)         # revoke the X11 grant (also cleared on reboot)
 rm ~/Applications/QGroundControl-x86_64.AppImage
@@ -58,18 +62,22 @@ Check first that nothing else needs them (`apt rdepends --installed <pkg>`).
 
 ## Applied 2026-11-05
 
-**Docker daemon log limits (`/etc/docker/daemon.json`)**
+**Dev image (`opendronelab-dev:phase4-gpu` → `:latest`)**
 
-`log-driver` is `json-file` with `max-size: 50m` and `max-file: 3`. Backup of the
-pre-change file:
+GPU onnxruntime (1.28.0 + nvidia-* CUDA 13 / cuDNN 9 pip wheels), BuildKit
+cache mounts, digest-pinned `ubuntu:24.04`, `docker/constraints.txt`, and a
+build smoke test. `:phase3` is kept as the rollback image (same digest as the
+previous `:latest`).
 
-`/etc/docker/daemon.json.bak-2026-11-05`
-
-Undo (Pallab runs):
+Undo (no sudo):
 ```bash
-sudo cp /etc/docker/daemon.json.bak-2026-11-05 /etc/docker/daemon.json
-sudo systemctl restart docker
+docker tag opendronelab-dev:phase3 opendronelab-dev:latest
+# then recreate odl-sim: docker rm -f odl-sim && ./scripts/launch-sitl.sh
 ```
 
-**ufw:** inactive as of 2026-11-05. If enabled, undo with `sudo ufw disable`
-(and `sudo ufw reset` to clear rules).
+**Docker log limits applied 2026-11-05** (json-file, 50m x 3; backup
+`/etc/docker/daemon.json.bak-2026-11-05`; undo: `sudo cp` the backup back, then
+`sudo systemctl restart docker`).
+
+**ufw:** inactive as of 2026-11-05 (Pallab chose to leave it off); if enabled
+later, undo with `sudo ufw disable`.
