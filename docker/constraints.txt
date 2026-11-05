@@ -1,0 +1,11 @@
+# Pip constraints for the OpenDroneLab dev image.
+# Used with: pip install -c /tmp/constraints.txt ...
+#
+# numpy must stay on 1.x: Ubuntu noble's python3-opencv is built against numpy 1.x
+# and `import cv2` fails under numpy 2.x.
+numpy>=1.26.0,<2
+#
+# GPU inference (Phase 4). onnxruntime-gpu replaces onnxruntime; do not install both.
+# 1.28.0 is the first release whose CUDA 12.8 arch list includes sm_120 (Blackwell);
+# the default PyPI wheel from 1.27+ is CUDA 13.0, which matches driver 595 (CUDA 13.2).
+onnxruntime-gpu==1.28.0

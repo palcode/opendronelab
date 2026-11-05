@@ -54,6 +54,7 @@ def _expand_topics(context, *args, **kwargs):
                 'nms_threshold': LaunchConfiguration('nms_threshold'),
                 'process_every_n': LaunchConfiguration('process_every_n'),
                 'num_threads': 4,
+                'force_cpu': LaunchConfiguration('force_cpu'),
             }],
         ),
         Node(
@@ -109,6 +110,11 @@ def generate_launch_description():
             'process_every_n',
             default_value='3',
             description='Process every Nth frame (1=all frames)',
+        ),
+        DeclareLaunchArgument(
+            'force_cpu',
+            default_value='false',
+            description='Force CPUExecutionProvider (skip CUDA even if available)',
         ),
         OpaqueFunction(function=_expand_topics),
     ])

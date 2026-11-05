@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """YOLOX object detector node for real-time detection.
 
-Uses YOLOX-nano ONNX with CPU inference. The Megvii 0.1.1rc0 ONNX export
+Uses YOLOX-nano ONNX with CUDA EP when available, CPU EP otherwise.
+Pass force_cpu:=true to stick to CPU. The Megvii 0.1.1rc0 ONNX export
 ships with decode_in_inference=False, so outputs are raw (relative to grid
 cells) and must go through demo_postprocess (grids + strides, exp on wh)
 before xywh→xyxy conversion — matching YOLOX onnx_inference demo.
@@ -195,24 +196,59 @@ class YOLOXDetectorNode(Node):
         self.declare_parameter('nms_threshold', 0.45)
         self.declare_parameter('process_every_n', 3)
         self.declare_parameter('num_threads', 4)
+        self.declare_parameter('force_cpu', False)
 
         model_path = self.get_parameter('model_path').value
         self.score_threshold = self.get_parameter('score_threshold').value
         self.nms_threshold = self.get_parameter('nms_threshold').value
         self.process_every_n = int(self.get_parameter('process_every_n').value)
         num_threads = int(self.get_parameter('num_threads').value)
+        force_cpu = bool(self.get_parameter('force_cpu').value)
 
         try:
+            # onnxruntime-gpu ships CUDA libs via nvidia-* pip wheels; preload
+            # them so the CUDA EP can resolve cublas/cudnn without a system CUDA.
+            try:
+                import onnxruntime.preload_dlls as _ort_preload
+                _ort_preload.preload_dlls()
+            except Exception as preload_err:  # pragma: no cover - best effort
+                self.get_logger().warn(f'ORT preload_dlls skipped: {preload_err}')
+
+            available = ort.get_available_providers()
+            if force_cpu:
+                providers = ['CPUExecutionProvider']
+            else:
+                providers = []
+                if 'CUDAExecutionProvider' in available:
+                    providers.append('CUDAExecutionProvider')
+                providers.append('CPUExecutionProvider')
+
             sess_options = ort.SessionOptions()
             sess_options.intra_op_num_threads = num_threads
             sess_options.inter_op_num_threads = num_threads
-            self.session = ort.InferenceSession(model_path, sess_options)
+            self.session = ort.InferenceSession(
+                model_path, sess_options, providers=providers,
+            )
             self.input_name = self.session.get_inputs()[0].name
             input_shape = self.session.get_inputs()[0].shape
             # ONNX shape is [N, C, H, W]
             self.input_size = (int(input_shape[2]), int(input_shape[3]))
+            active = self.session.get_providers()
             self.get_logger().info(f'Loaded YOLOX model from {model_path}')
             self.get_logger().info(f'Input size: {self.input_size}')
+            self.get_logger().info(
+                f'ORT providers available={available} requested={providers} '
+                f'active={active} force_cpu={force_cpu}'
+            )
+            if (
+                not force_cpu
+                and 'CUDAExecutionProvider' in providers
+                and 'CUDAExecutionProvider' not in active
+            ):
+                self.get_logger().warn(
+                    'CUDAExecutionProvider was requested but is not active; '
+                    'falling back to CPU. Check nvidia runtime / ORT GPU install.'
+                )
         except Exception as e:
             self.get_logger().error(
                 f'Failed to load model at {model_path}: {e}. '

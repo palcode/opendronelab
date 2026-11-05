@@ -56,8 +56,20 @@ Check first that nothing else needs them (`apt rdepends --installed <pkg>`).
 
 **Base tools** (`git cmake build-essential ca-certificates curl gnupg2`) are generally useful and can stay.
 
-## Planned, not yet applied
+## Applied 2026-11-05
 
-These are proposed for a later batch. If they get applied, add their undo steps here:
-- Docker log limits in `/etc/docker/daemon.json`
-- `ufw` rules for ports 8888, 14550 and 18570
+**Docker daemon log limits (`/etc/docker/daemon.json`)**
+
+`log-driver` is `json-file` with `max-size: 50m` and `max-file: 3`. Backup of the
+pre-change file:
+
+`/etc/docker/daemon.json.bak-2026-11-05`
+
+Undo (Pallab runs):
+```bash
+sudo cp /etc/docker/daemon.json.bak-2026-11-05 /etc/docker/daemon.json
+sudo systemctl restart docker
+```
+
+**ufw:** inactive as of 2026-11-05. If enabled, undo with `sudo ufw disable`
+(and `sudo ufw reset` to clear rules).

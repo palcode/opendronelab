@@ -1,9 +1,11 @@
+# syntax=docker/dockerfile:1
 # OpenDroneLab Development Container
 # Ubuntu 24.04 with PX4, Gazebo Harmonic, ROS 2 Jazzy, and Micro XRCE-DDS Agent
 # Built for non-root user matching host UID/GID for X11 authorization
 
-ARG UBUNTU_VERSION=24.04
-FROM ubuntu:${UBUNTU_VERSION}
+# Pin by digest of the locally present ubuntu:24.04 (tag kept for humans).
+# Digest verified 2026-11-05: docker images ubuntu:24.04 --digests
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 # Build arguments for user creation
 ARG USER_UID=1000
@@ -14,8 +16,15 @@ ARG USERNAME=dev
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
+# Keep apt downloads in the BuildKit cache mount across builds.
+RUN rm -f /etc/apt/apt.conf.d/docker-clean \
+    && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
+        > /etc/apt/apt.conf.d/keep-cache
+
 # Install base dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     gnupg \
@@ -23,8 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     locales \
     sudo \
     wget \
-    && locale-gen en_US.UTF-8 \
-    && rm -rf /var/lib/apt/lists/*
+    && locale-gen en_US.UTF-8
 
 # Add Gazebo package repository for Harmonic
 RUN curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
@@ -41,7 +49,9 @@ RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     > /etc/apt/sources.list.d/ros2.list
 
 # Install Gazebo Harmonic (pinned version)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     gz-harmonic=1.0.0-1~noble \
     libunwind-dev \
     cppzmq-dev \
@@ -54,19 +64,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libeigen3-dev \
     libimage-exiftool-perl \
     libopencv-dev \
-    protobuf-compiler \
-    && rm -rf /var/lib/apt/lists/*
+    protobuf-compiler
 
 # Install ROS 2 Jazzy
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-ros-base \
     ros-dev-tools \
-    python3-colcon-common-extensions \
-    && rm -rf /var/lib/apt/lists/*
+    python3-colcon-common-extensions
 
 # Install PX4 dependencies (from ubuntu.sh without NuttX toolchain)
 # Based on PX4-Autopilot/Tools/setup/ubuntu.sh
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     astyle \
     build-essential \
     ccache \
@@ -96,29 +108,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     shellcheck \
     unzip \
     xsltproc \
-    zip \
-    && rm -rf /var/lib/apt/lists/*
+    zip
+
+# Pip constraints (numpy<2, onnxruntime-gpu pin). Copied early so later pip
+# layers can -c against it without invalidating the heavy apt layers above.
+COPY constraints.txt /tmp/constraints.txt
 
 # Install Python packages for PX4 from the v1.17.0 tag's own requirements list
-RUN curl -fsSL https://raw.githubusercontent.com/PX4/PX4-Autopilot/v1.17.0/Tools/setup/requirements.txt -o /tmp/px4-requirements.txt \
-    && pip3 install --no-cache-dir --break-system-packages --ignore-installed -r /tmp/px4-requirements.txt \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    curl -fsSL https://raw.githubusercontent.com/PX4/PX4-Autopilot/v1.17.0/Tools/setup/requirements.txt -o /tmp/px4-requirements.txt \
+    && pip3 install --break-system-packages --ignore-installed \
+        -c /tmp/constraints.txt -r /tmp/px4-requirements.txt \
     && rm /tmp/px4-requirements.txt
 
 # Install additional tools for Gazebo GUI and OpenGL
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-dri \
     libglx-mesa0 \
     mesa-utils \
-    x11-apps \
-    && rm -rf /var/lib/apt/lists/*
+    x11-apps
 
 # Install Micro XRCE-DDS Agent dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     default-jre \
     libgtest-dev \
     libasio-dev \
-    libtinyxml2-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libtinyxml2-dev
 
 # Create non-root user with matching UID/GID
 # (ubuntu:24.04 ships a default 'ubuntu' user at UID/GID 1000; remove it first)
@@ -152,7 +171,9 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 
 # Camera / perception: Gazebo<->ROS 2 bridge and image tooling (Phase 3)
-RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     ros-jazzy-ros-gz-bridge \
     ros-jazzy-ros-gz-image \
     ros-jazzy-cv-bridge \
@@ -160,16 +181,20 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     ros-jazzy-rqt-image-view \
     ros-jazzy-vision-msgs \
     python3-opencv \
-    python3-matplotlib \
-    && sudo rm -rf /var/lib/apt/lists/*
+    python3-matplotlib
 
-# PX4 requirements pull numpy 2.x via pip, which breaks the apt python3-opencv (built for numpy 1.x)
-RUN sudo pip3 install --no-cache-dir --break-system-packages --ignore-installed "numpy<2"
-
-# ONNX Runtime for YOLOX detector (Phase 3). 1.17.1 has a cp312 manylinux wheel
-# and is the draft pin; re-pin numpy afterwards because ort may pull numpy 2.x.
-RUN sudo pip3 install --no-cache-dir --break-system-packages onnxruntime==1.17.1 \
-    && sudo pip3 install --no-cache-dir --break-system-packages --ignore-installed "numpy<2"
+# Enforce numpy 1.x (apt python3-opencv) via constraints, then install
+# onnxruntime-gpu[cuda,cudnn]. CUDA/cuDNN come from the nvidia-* pip wheels
+# (no CUDA toolkit in the image). Host driver 595 reports CUDA 13.2, matching
+# the CUDA 13 default of onnxruntime-gpu >= 1.27. Do NOT also install
+# onnxruntime (CPU-only); the two packages conflict.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    sudo pip3 install --break-system-packages --ignore-installed \
+        -c /tmp/constraints.txt "numpy<2" \
+    && sudo pip3 install --break-system-packages \
+        -c /tmp/constraints.txt "onnxruntime-gpu[cuda,cudnn]==1.28.0" \
+    && sudo pip3 install --break-system-packages --ignore-installed \
+        -c /tmp/constraints.txt "numpy<2"
 
 # Source ROS 2 setup in bashrc
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
@@ -177,10 +202,24 @@ RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 # Create workspace directories
 RUN mkdir -p /home/$USERNAME/workspace /home/$USERNAME/data
 
+# Build smoke test: imports used by the perception stack, numpy major == 1.
+USER root
+RUN bash -lc 'set +u; source /opt/ros/jazzy/setup.bash; set -u; \
+    python3 -c "\
+import cv2, numpy, onnxruntime, rclpy; \
+assert numpy.__version__.startswith(\"1.\"), numpy.__version__; \
+print(\"smoke_ok\", \
+      \"cv2\", cv2.__version__, \
+      \"numpy\", numpy.__version__, \
+      \"onnxruntime\", onnxruntime.__version__, \
+      \"providers\", onnxruntime.get_available_providers(), \
+      \"rclpy\", rclpy.__name__)"'
+USER $USERNAME
+
 # Default command
 CMD ["/bin/bash"]
 
 # Labels
 LABEL org.opencontainers.image.title="OpenDroneLab Dev Container"
 LABEL org.opencontainers.image.description="PX4 SITL development with Gazebo Harmonic and ROS 2 Jazzy"
-LABEL org.opencontainers.image.version="0.1.0"
+LABEL org.opencontainers.image.version="0.2.0"
