@@ -95,18 +95,22 @@ def summarize(label: str, times_ms: list[float], available, providers, active):
     print(f'available_providers: {available}')
     print(f'requested_providers: {providers}')
     print(f'active_providers:    {active}')
+    mean = statistics.mean(times_ms)
+    fps = 1000.0 / mean if mean > 0 else 0.0
     print(
-        f'N={len(times_ms)}  mean={statistics.mean(times_ms):.3f} ms  '
+        f'N={len(times_ms)}  mean={mean:.3f} ms  '
         f'p50={p50:.3f} ms  p95={p95:.3f} ms  '
-        f'min={min(times_ms):.3f} ms  max={max(times_ms):.3f} ms'
+        f'min={min(times_ms):.3f} ms  max={max(times_ms):.3f} ms  '
+        f'fps={fps:.1f}'
     )
     return {
         'label': label,
-        'mean': statistics.mean(times_ms),
+        'mean': mean,
         'p50': p50,
         'p95': p95,
         'min': min(times_ms),
         'max': max(times_ms),
+        'fps': fps,
         'active': list(active),
     }
 

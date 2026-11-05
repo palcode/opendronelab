@@ -203,7 +203,11 @@ class YOLOXDetectorNode(Node):
         self.nms_threshold = self.get_parameter('nms_threshold').value
         self.process_every_n = int(self.get_parameter('process_every_n').value)
         num_threads = int(self.get_parameter('num_threads').value)
-        force_cpu = bool(self.get_parameter('force_cpu').value)
+        _fc = self.get_parameter('force_cpu').value
+        if isinstance(_fc, str):
+            force_cpu = _fc.strip().lower() in ('1', 'true', 'yes', 'on')
+        else:
+            force_cpu = bool(_fc)
 
         try:
             # onnxruntime-gpu ships CUDA libs via nvidia-* pip wheels; preload
