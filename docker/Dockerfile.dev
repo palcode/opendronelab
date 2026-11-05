@@ -196,6 +196,30 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && sudo pip3 install --break-system-packages --ignore-installed \
         -c /tmp/constraints.txt "numpy<2"
 
+# Phase 4b analysis tools.
+# evo (GPL-3) lives in its own venv and is used ONLY as an external CLI
+# (scripts/evo-check.sh). Our packages must never `import evo`; the system
+# python cannot see it. Version pinned in constraints.txt (numpy<2 kept too).
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+    python3-venv
+RUN --mount=type=cache,target=/root/.cache/pip \
+    sudo python3 -m venv /opt/evo \
+    && sudo /opt/evo/bin/pip install -c /tmp/constraints.txt evo \
+    && sudo sh -c '/opt/evo/bin/pip freeze > /opt/evo/freeze.txt' \
+    && for b in /opt/evo/bin/evo_*; do sudo ln -s "$b" /usr/local/bin/; done
+
+# mcap CLI (MIT), pinned release binary verified by sha256
+# (digest from the GitHub release asset, re-checked by download 2026-11-06).
+ARG MCAP_VERSION=0.4.0
+ARG MCAP_SHA256=3ace13bc8f0273c69742f25695f7f2df84aed57ddd7c36d5f9a59561dc719fb1
+RUN curl -fsSL -o /tmp/mcap \
+        "https://github.com/foxglove/mcap/releases/download/releases%2Fmcap-cli%2Fv${MCAP_VERSION}/mcap-linux-amd64" \
+    && echo "${MCAP_SHA256}  /tmp/mcap" | sha256sum -c - \
+    && sudo install -m 0755 /tmp/mcap /usr/local/bin/mcap \
+    && rm -f /tmp/mcap
+
 # Source ROS 2 setup in bashrc
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 
@@ -214,6 +238,13 @@ print(\"smoke_ok\", \
       \"onnxruntime\", onnxruntime.__version__, \
       \"providers\", onnxruntime.get_available_providers(), \
       \"rclpy\", rclpy.__name__)"'
+# Tool smoke test: evo must NOT be importable from system python (GPL-3
+# boundary), evo CLIs and mcap must run, and the evo venv keeps numpy 1.x.
+RUN if python3 -c "import evo" 2>/dev/null; then echo "evo leaked into system python" >&2; exit 1; fi \
+    && evo_ape --help >/dev/null && evo_rpe --help >/dev/null \
+    && /opt/evo/bin/python -c "import importlib.metadata as m, numpy; assert numpy.__version__.startswith('1.'), numpy.__version__; print('smoke_ok evo', m.version('evo'), 'venv-numpy', numpy.__version__)" \
+    && python3 -c "import numpy; assert numpy.__version__.startswith('1.'); print('smoke_ok system-numpy', numpy.__version__)" \
+    && mcap --version
 USER $USERNAME
 
 # Default command
@@ -222,4 +253,4 @@ CMD ["/bin/bash"]
 # Labels
 LABEL org.opencontainers.image.title="OpenDroneLab Dev Container"
 LABEL org.opencontainers.image.description="PX4 SITL development with Gazebo Harmonic and ROS 2 Jazzy"
-LABEL org.opencontainers.image.version="0.2.0"
+LABEL org.opencontainers.image.version="0.3.0"

@@ -9,3 +9,7 @@ numpy>=1.26.0,<2
 # 1.28.0 is the first release whose CUDA 12.8 arch list includes sm_120 (Blackwell);
 # the default PyPI wheel from 1.27+ is CUDA 13.0, which matches driver 595 (CUDA 13.2).
 onnxruntime-gpu==1.28.0
+#
+# Trajectory evaluation (Phase 4b). evo is GPL-3: installed in /opt/evo (venv) and
+# called only as an external CLI (evo_ape / evo_rpe). Never import it from our packages.
+evo==1.38.1
