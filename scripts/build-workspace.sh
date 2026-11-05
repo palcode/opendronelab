@@ -49,6 +49,32 @@ fi
 # shellcheck source=/dev/null
 set +u; source /data/ros2_build/deps/install/setup.bash; set -u
 
+# px4-ros2-interface-lib (px4_ros2_cpp), pinned to release/1.17 for PX4 v1.17.0 messages.
+# Messages verified with its scripts/check-message-compatibility.py against px4_msgs release/1.17.
+PX4_ROS2_LIB_COMMIT="4a3370f084ac6f1ef001a4afa2b007845ffd0837"
+PX4_ROS2_LIB_SRC=/data/ros2_deps/px4-ros2-interface-lib
+if [ ! -d "${PX4_ROS2_LIB_SRC}" ]; then
+    echo "[INFO] Cloning px4-ros2-interface-lib @ ${PX4_ROS2_LIB_COMMIT}..."
+    git clone https://github.com/Auterion/px4-ros2-interface-lib.git "${PX4_ROS2_LIB_SRC}"
+fi
+if [ "$(git -C "${PX4_ROS2_LIB_SRC}" rev-parse HEAD)" != "${PX4_ROS2_LIB_COMMIT}" ]; then
+    git -C "${PX4_ROS2_LIB_SRC}" fetch origin && git -C "${PX4_ROS2_LIB_SRC}" checkout -q "${PX4_ROS2_LIB_COMMIT}"
+fi
+[ -e /data/ros2_build/deps/src/px4_ros2_cpp ] || ln -s "${PX4_ROS2_LIB_SRC}/px4_ros2_cpp" /data/ros2_build/deps/src/px4_ros2_cpp
+cd /data/ros2_build/deps
+if [ ! -f install/px4_ros2_cpp/share/px4_ros2_cpp/package.xml ]; then
+    echo "[INFO] Building px4_ros2_cpp..."
+    # Heavy templates: unbounded -j OOMs the 12g container while SITL runs.
+    MAKEFLAGS="-j${PX4_ROS2_LIB_JOBS:-2}" colcon build --packages-select px4_ros2_cpp \
+        --build-base build \
+        --install-base install \
+        --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+    # shellcheck source=/dev/null
+    set +u; source /data/ros2_build/deps/install/setup.bash; set -u
+else
+    echo "[INFO] px4_ros2_cpp already built, skipping."
+fi
+
 # Build ros2_ws
 echo "[INFO] Building ros2_ws from /workspace/ros2_ws..."
 if [ ! -d /workspace/ros2_ws/src ]; then
