@@ -21,8 +21,8 @@ def build_session(model_path: str, use_cuda: bool, num_threads: int):
     import onnxruntime as ort
 
     try:
-        import onnxruntime.preload_dlls as preload
-        preload.preload_dlls()
+        # ort.preload_dlls() is a function on the package (ORT >= 1.27).
+        ort.preload_dlls()
     except Exception as err:  # pragma: no cover
         print(f'WARN: preload_dlls skipped: {err}', file=sys.stderr)
 

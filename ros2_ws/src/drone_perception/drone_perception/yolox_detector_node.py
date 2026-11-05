@@ -212,9 +212,9 @@ class YOLOXDetectorNode(Node):
         try:
             # onnxruntime-gpu ships CUDA libs via nvidia-* pip wheels; preload
             # them so the CUDA EP can resolve cublas/cudnn without a system CUDA.
+            # API is ort.preload_dlls() (function on the package), not a submodule.
             try:
-                import onnxruntime.preload_dlls as _ort_preload
-                _ort_preload.preload_dlls()
+                ort.preload_dlls()
             except Exception as preload_err:  # pragma: no cover - best effort
                 self.get_logger().warn(f'ORT preload_dlls skipped: {preload_err}')
 
