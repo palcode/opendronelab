@@ -294,3 +294,7 @@ See `docs/evaluation-roadmap.md` for detailed migration timeline and alternative
 - Pegasus Simulator: https://github.com/PegasusSimulator/PegasusSimulator
 - Aerostack2: https://github.com/aerostack2/aerostack2
 - evo (trajectory evaluation): https://github.com/MichaelGrupp/evo
+
+## Official PX4 image (reference only)
+
+See [official-image.md](official-image.md): `px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9` pinned by digest, smoke test only (no v1.17 tag is published).
