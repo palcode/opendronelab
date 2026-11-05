@@ -31,9 +31,8 @@ mcap doctor $B            # structure check (our bags print many "log_time ... l
 mcap filter $B -y '^/ground_truth/odometry$' -y '^/fmu/out/vehicle_local_position_v1$' \
     -s 1793813700 -e 1793813730 -o /tmp/gt_est.mcap
 mcap filter $B -n '^/camera/image_raw$' -o /tmp/no_raw_camera.mcap   # drop a topic
-mcap compress /tmp/no_raw_camera.mcap -o /tmp/small.mcap               # zstd copy
 ```
-A filtered `.mcap` is a single file. To `ros2 bag play` it, use `ros2 bag play -s mcap /tmp/gt_est.mcap`.
+`mcap filter` already writes zstd-compressed chunks (so `mcap compress` on its output gains nothing). A filtered `.mcap` is a single file that rosbag2 reads directly: `ros2 bag info -s mcap /tmp/gt_est.mcap`, `ros2 bag play -s mcap /tmp/gt_est.mcap` (both verified).
 
 **Convert SQLite3 -> MCAP** (for any old or third-party `.db3` bag; ours do not need it):
 ```bash

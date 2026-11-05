@@ -304,7 +304,7 @@ drone_perception/test:    3 failed, 14 passed in 0.71s
   FAILED test_pep257.py::test_pep257
 ```
 
-The 23 functional tests all pass. The three failures are the ament lint tests in `drone_perception` (missing copyright headers, import-order / E402 flake8 findings, pep257 docstring style). They are pre-existing style findings (same result in `logs/phase4-gpu-pytest.log` on 2026-11-05), not behaviour failures, and are not fixed yet. The warning is matplotlib's "Unable to import Axes3D" (apt + pip matplotlib both present); 2D plots are unaffected.
+The 23 functional tests all pass. After the TUM-export commit added 3 tests (yaw/quaternion, yaw wrap interpolation, TUM format), the same run on `:phase4b-evo` gives **26 passed** (14 perception + 12 localization). The three failures are the ament lint tests in `drone_perception` (missing copyright headers, import-order / E402 flake8 findings, pep257 docstring style). They are pre-existing style findings (same result in `logs/phase4-gpu-pytest.log` on 2026-11-05), not behaviour failures, and are not fixed yet. The warning is matplotlib's "Unable to import Axes3D" (apt + pip matplotlib both present); 2D plots are unaffected.
 
 ### evo Cross-Check (2026-11-06)
 
