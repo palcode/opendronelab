@@ -110,6 +110,84 @@ def interpolate_trajectory(timestamps, positions, target_timestamps):
     return np.column_stack([x_interp, y_interp, z_interp])
 
 
+def extract_heading_ned(messages):
+    """Return EKF2 heading (yaw, rad, NED) from vehicle_local_position msgs."""
+    return np.array([float(msg.heading) for _, msg in messages], dtype=np.float64)
+
+
+def quaternion_to_yaw(qx, qy, qz, qw):
+    """Yaw (rad) about +z of a quaternion (ZYX convention)."""
+    return np.arctan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
+
+
+def extract_ground_truth_yaw_ned(messages):
+    """
+    Return ground-truth yaw (rad) in NED from ENU/FLU nav_msgs/Odometry.
+
+    ENU yaw is measured from East toward North; NED yaw from North toward
+    East, so yaw_ned = pi/2 - yaw_enu (wrapped to [-pi, pi]).
+    """
+    yaws = []
+    for _, msg in messages:
+        q = msg.pose.pose.orientation
+        yaw_enu = quaternion_to_yaw(q.x, q.y, q.z, q.w)
+        yaws.append(np.pi / 2.0 - yaw_enu)
+    yaws = np.array(yaws, dtype=np.float64)
+    return np.arctan2(np.sin(yaws), np.cos(yaws))
+
+
+def interpolate_yaw(timestamps, yaws, target_timestamps):
+    """Interpolate yaw angles (rad) onto target times without wrap jumps."""
+    unwrapped = np.unwrap(yaws)
+    out = np.interp(target_timestamps / 1e9, timestamps / 1e9, unwrapped)
+    return np.arctan2(np.sin(out), np.cos(out))
+
+
+def yaw_to_quaternion(yaws):
+    """Yaw-only quaternions as an (N, 4) array in TUM order qx qy qz qw."""
+    yaws = np.asarray(yaws, dtype=np.float64)
+    zeros = np.zeros_like(yaws)
+    return np.column_stack([zeros, zeros, np.sin(yaws / 2.0), np.cos(yaws / 2.0)])
+
+
+def write_tum(path, timestamps_ns, positions, quaternions):
+    """
+    Write a TUM trajectory file: ``timestamp tx ty tz qx qy qz qw``.
+
+    Timestamps are bag receive time converted to seconds (9 decimals), so
+    estimate and ground-truth files share one time base.
+    """
+    timestamps_ns = np.asarray(timestamps_ns, dtype=np.float64)
+    positions = np.asarray(positions, dtype=np.float64)
+    quaternions = np.asarray(quaternions, dtype=np.float64)
+    if not (len(timestamps_ns) == len(positions) == len(quaternions)):
+        raise ValueError('timestamps, positions and quaternions differ in length')
+    with open(path, 'w') as f:
+        for t, p, q in zip(timestamps_ns, positions, quaternions):
+            f.write(
+                f'{t / 1e9:.9f} {p[0]:.6f} {p[1]:.6f} {p[2]:.6f} '
+                f'{q[0]:.9f} {q[1]:.9f} {q[2]:.9f} {q[3]:.9f}\n'
+            )
+
+
+def export_tum_pair(output_dir, timestamps_ns, gt_positions, est_positions,
+                    gt_yaws, est_yaws):
+    """
+    Write ``gt_ned.tum`` and ``est_ned.tum`` for the exact samples scored.
+
+    Both are NED, origin-aligned like the metrics, sampled at the estimate's
+    bag receive times (GT interpolated), airborne samples only. Orientation
+    is yaw-only (GT yaw vs EKF2 heading). Returns the two paths.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    gt_path = output_dir / 'gt_ned.tum'
+    est_path = output_dir / 'est_ned.tum'
+    write_tum(gt_path, timestamps_ns, gt_positions, yaw_to_quaternion(gt_yaws))
+    write_tum(est_path, timestamps_ns, est_positions, yaw_to_quaternion(est_yaws))
+    return gt_path, est_path
+
+
 def align_trajectories(
     gt_timestamps,
     gt_positions,
@@ -239,6 +317,11 @@ def main(args=None):
         action='store_true',
         help='Disable first-sample origin alignment (keeps absolute bias)',
     )
+    parser.add_argument(
+        '--tum-dir',
+        help='Also write gt_ned.tum / est_ned.tum (scored samples) here '
+             'for an external evo cross-check (scripts/evo-check.sh)',
+    )
     parsed = parser.parse_args(args)
 
     bag_path = Path(parsed.bag_path)
@@ -287,6 +370,24 @@ def main(args=None):
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=2)
     print(f'Metrics saved to: {metrics_path}')
+
+    if parsed.tum_dir:
+        gt_yaw = interpolate_yaw(
+            gt_timestamps, extract_ground_truth_yaw_ned(gt_msgs), aligned_ts
+        )
+        est_yaw = extract_heading_ned(est_msgs)
+        # Same overlap window align_trajectories applied to the estimate.
+        window = (est_timestamps >= aligned_ts[0]) & (est_timestamps <= aligned_ts[-1])
+        est_yaw = est_yaw[window]
+        gt_tum, est_tum = export_tum_pair(
+            parsed.tum_dir,
+            aligned_ts[airborne_mask],
+            gt_aligned[airborne_mask],
+            est_aligned[airborne_mask],
+            gt_yaw[airborne_mask],
+            est_yaw[airborne_mask],
+        )
+        print(f'TUM export: {gt_tum} and {est_tum}')
 
     print('\n=== Localization Metrics ===')
     print(f"Horizontal RMSE: {metrics['horizontal_rmse']:.3f} m")

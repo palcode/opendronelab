@@ -179,3 +179,46 @@ def test_compute_metrics_with_mask():
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+
+def test_yaw_conversions_and_quaternion():
+    """GT ENU yaw -> NED yaw, and yaw-only quaternion round trip."""
+    from drone_localization.localization_metrics import (
+        quaternion_to_yaw,
+        yaw_to_quaternion,
+    )
+    yaws = np.array([0.0, 0.5, -1.2, np.pi / 2])
+    q = yaw_to_quaternion(yaws)
+    assert q.shape == (4, 4)
+    np.testing.assert_allclose(np.linalg.norm(q, axis=1), 1.0)
+    back = quaternion_to_yaw(q[:, 0], q[:, 1], q[:, 2], q[:, 3])
+    np.testing.assert_allclose(back, yaws, atol=1e-12)
+
+
+def test_interpolate_yaw_across_wrap():
+    """Yaw interpolation must not swing through zero at the +-pi wrap."""
+    from drone_localization.localization_metrics import interpolate_yaw
+    t = np.array([0.0, 1e9])
+    yaws = np.array([np.pi - 0.1, -np.pi + 0.1])
+    mid = interpolate_yaw(t, yaws, np.array([0.5e9]))[0]
+    assert abs(abs(mid) - np.pi) < 1e-9
+
+
+def test_write_tum_format(tmp_path):
+    """TUM rows: 8 columns, seconds timestamps, positions as given."""
+    from drone_localization.localization_metrics import (
+        export_tum_pair,
+    )
+    ts = np.array([1.5e9, 2.0e9, 2.5e9])
+    gt = np.array([[0.0, 0.0, -5.0], [1.0, 0.0, -5.0], [2.0, 0.0, -5.0]])
+    est = gt + np.array([0.1, 0.0, 0.0])
+    gt_path, est_path = export_tum_pair(
+        tmp_path, ts, gt, est, np.zeros(3), np.zeros(3)
+    )
+    rows = np.loadtxt(est_path)
+    assert rows.shape == (3, 8)
+    np.testing.assert_allclose(rows[:, 0], [1.5, 2.0, 2.5])
+    np.testing.assert_allclose(rows[:, 1:4], est, atol=1e-6)
+    np.testing.assert_allclose(rows[:, 7], 1.0)
+    rows_gt = np.loadtxt(gt_path)
+    np.testing.assert_allclose(rows_gt[:, 0], rows[:, 0])

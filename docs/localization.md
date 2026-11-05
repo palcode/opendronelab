@@ -306,6 +306,27 @@ drone_perception/test:    3 failed, 14 passed in 0.71s
 
 The 23 functional tests all pass. The three failures are the ament lint tests in `drone_perception` (missing copyright headers, import-order / E402 flake8 findings, pep257 docstring style). They are pre-existing style findings (same result in `logs/phase4-gpu-pytest.log` on 2026-11-05), not behaviour failures, and are not fixed yet. The warning is matplotlib's "Unable to import Axes3D" (apt + pip matplotlib both present); 2D plots are unaffected.
 
+### evo Cross-Check (2026-11-06)
+
+`scripts/evo-check.sh` re-scores the three baseline bags with [evo](https://github.com/MichaelGrupp/evo) 1.38.1 (GPL-3, installed in the image at `/opt/evo` and run **only as an external CLI**; our packages never import it). It runs in a throwaway container (`--network none`) and writes everything to `<bag>/evo/`; the baseline `metrics.json` in the bag root is not touched.
+
+**TUM export:** `localization_metrics <bag> --tum-dir DIR` writes `gt_ned.tum` and `est_ned.tum` (`timestamp tx ty tz qx qy qz qw`) containing exactly the samples the metrics score: NED frame, bag receive time in seconds, GT interpolated onto the estimate's timestamps, first-sample origin offset removed (unless `--no-origin-align`), airborne samples only. Orientation is yaw-only (GT yaw converted ENU->NED vs EKF2 `heading`).
+
+| Bag | Ours horiz RMSE | evo APE xy RMSE | Ours 3D RMSE (sqrt(h²+v²)) | evo APE 3D RMSE | Diff | evo APE `--align_origin` | evo APE `-a` (Umeyama SE3) | evo RPE, 1 m (trans) |
+|-----|-----------------|-----------------|----------------------------|-----------------|------|--------------------------|----------------------------|----------------------|
+| `20261104_230415` | 0.267115 m | 0.267115 m | 0.274709 m | 0.274709 m | < 2e-8 m | 0.648 m | 0.258 m | 0.160 m |
+| `20261104_231131` | 0.265934 m | 0.265934 m | 0.273794 m | 0.273794 m | < 2e-8 m | 0.765 m | 0.258 m | 0.170 m |
+| `20261104_231610` | 0.266807 m | 0.266807 m | 0.275023 m | 0.275023 m | < 2e-8 m | 0.366 m | 0.255 m | 0.163 m |
+
+Commands per bag (see the script): `evo_ape tum gt_ned.tum est_ned.tum -r trans_part [--project_to_plane xy]` with **no evo alignment**, because the files already carry our origin alignment. The remaining differences (~1e-8 m) come from the 6-decimal TUM rounding.
+
+**What this does and does not verify:**
+- **Agrees (0.00%):** our error and RMSE arithmetic, and our horizontal definition, matches evo's `trans_part` APE projected to xy. Our 3D RMSE (`sqrt(h_rmse² + v_rmse²)`, which equals the RMSE of the 3D error norm) matches evo's 3D APE. Both tools read the same exported samples.
+- **Shared, not independently checked:** time association (bag receive time, GT linearly interpolated onto estimate times), the airborne mask and our translation-only first-sample origin alignment happen before export, so evo inherits them.
+- **Different alignment definitions (information only):** evo `--align_origin` applies the *full* first-pose SE3 transform (yaw included) at the first *airborne* sample. A small EKF2 heading offset at that instant rotates the whole 10 m square, so the error is 0.37-0.77 m and varies run to run. Ours removes only a translation at the first overlapping sample, which is on the ground. evo `-a` (Umeyama best-fit SE3 over the whole flight) gives 0.255-0.258 m, slightly below ours, as a best-fit alignment should.
+
+**Decision on slimming the custom code:** not slimmed. The custom ATE code is ~20 lines of numpy (`align_trajectories`, `compute_metrics`) that also produces vertical, mean and max metrics, which evo's APE does not report separately. It runs inside the ROS package and its unit tests without evo. A "thin wrapper" would have to shell out to a GPL CLI from the metrics node and parse its output, which is not cleaner. evo stays the external cross-check: re-run `./scripts/evo-check.sh [bag ...]` after any metrics change.
+
 **Known gotcha (fixed):** after an offboard landing, PX4 stays in OFFBOARD (nav_state 14). With no offboard setpoints streaming, the preflight check fails and QGC shows "Arming denied: Resolve system health failures first". `square_flight` now switches to Hold (AUTO_LOITER) after disarming, and also at startup if it finds the vehicle disarmed in OFFBOARD, so repeat runs need no sim restart.
 
 ## Timestamp Alignment
