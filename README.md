@@ -18,6 +18,8 @@ Build a modular, reproducible software environment for developing and evaluating
 ✅ **Phase 4a Complete:** Localization baseline (EKF2 vs Gazebo GT; Python square mean H/V RMSE 0.267/0.065 m)
 ✅ **C++ square flight:** `drone_flight_cpp` on main (classic OFFBOARD, mean H/V 0.270/0.066 m vs Python gate)
 ✅ **Camera-world memory:** PX4 `GstCameraSystem` disabled by default (`config/gz-server.config`); detection still works
+✅ **OpenVINS + opt-in EV:** VIO Umeyama xy 0.64/0.36/1.11 m; EV verify 0.21/0.24 m; default `EKF2_EV_CTRL=0`
+✅ **Hardware hooks:** `docs/real-drone-readiness.md` + `config/openvins/hardware_placeholder/` (no invented IDs)
 
 **Verified on HP OMEN Laptop (Nov 3-4, 2026):**
 - Container-based PX4 SITL with GUI forwarding (XWayland) ✅
@@ -27,7 +29,7 @@ Build a modular, reproducible software environment for developing and evaluating
 - Offboard mission manager with safety limits (altitude, drift, timeout) ✅
 - Camera-equipped model (x500_mono_cam): 1280×960 at 30 Hz ✅
 - Edge detection pipeline: 14 Hz, 5ms processing, 15ms latency ✅
-- YOLOX-nano object detection: COCO 80 classes, CPU inference ✅
+- YOLOX-nano object detection: COCO 80 classes, GPU (CUDA) with CPU fallback ✅
 
 ## Quick Links
 
@@ -38,7 +40,8 @@ Build a modular, reproducible software environment for developing and evaluating
 - **[ROS 2 Integration](docs/ros2-integration.md)** - Topics, QoS, offboard control guide
 - **[Camera & Perception](docs/perception.md)** - Camera integration, edge detection, metrics
 - **[Localization](docs/localization.md)** - EKF2 baseline, coordinate frames, evaluation
-- **[Evaluation Roadmap](docs/evaluation-roadmap.md)** - Performance optimization and future improvements
+- **[Status / roadmap](docs/evaluation-roadmap.md)** - Current stack, real hardware next, future exploration
+- **[Real-drone readiness](docs/real-drone-readiness.md)** - Hardware checklist, remaps, placeholder calib
 - **[Agent Working Agreement](AGENTS.md)** - Guidelines for AI agents working on this project
 
 ## System Overview
@@ -93,50 +96,25 @@ Build a modular, reproducible software environment for developing and evaluating
 ## Repository Structure
 
 ```
-open-drone-lab/
-├── README.md                    # This file
-├── AGENTS.md                    # AI agent guidelines
-├── .gitignore                   # Git exclusions
-├── docs/                        # Documentation
-│   ├── architecture.md          # System design
-│   ├── compatibility-matrix.md  # Version matrix
-│   ├── setup-host.md            # Installation guide
-│   ├── phase2-hover.md          # Hover test procedure (Phase 1 ✓)
-│   ├── ros2-integration.md      # ROS 2 guide (Phase 2 ✓)
-│   └── simulation-guide.md      # Test scenarios
-├── scripts/                     # Automation scripts
-│   ├── check-host.sh            # Host diagnostic (Phase 0 ✓)
-│   ├── dev-shell.sh             # Development container shell (Phase 1 ✓)
-│   ├── launch-sitl.sh           # SITL launcher with model/world support (Phase 3 ✓)
-│   ├── hover-test.sh            # Automated hover test (Phase 2 ✓)
-│   ├── build-workspace.sh       # ROS 2 workspace builder (Phase 2 ✓)
-│   ├── start-dds-agent.sh       # DDS agent launcher (Phase 2 ✓)
-│   ├── check-camera.sh          # Camera diagnostics (Phase 3 ✓)
-│   ├── record-bag.sh            # ROS 2 bag recorder with options (Phase 3 ✓)
-│   ├── fetch-models.sh          # Download YOLOX model (Phase 3 ✓)
-│   ├── bench-detector.py        # YOLOX CPU vs CUDA benchmark (Phase 4 ✓)
-│   ├── memory-logger.sh         # Host/GPU memory logger with pidfile
-│   ├── run-baseline.sh          # N-run square + bag + metrics (C++ default)
-│   ├── evo-check.sh             # External evo APE cross-check
-│   └── stop-all.sh              # Stop helpers + odl-sim
-├── config/                      # Gazebo server.config overlays (GstCamera off by default)
-├── docker/                      # Container configs
-│   ├── Dockerfile.dev           # Dev image: PX4/Gazebo/ROS 2 + GPU ORT (Phase 4 ✓)
-│   └── constraints.txt          # pip pins (numpy<2, onnxruntime-gpu==1.28.0)
-├── ros2_ws/                     # ROS 2 workspace (Phases 2-3 ✓)
-│   └── src/
-│       ├── drone_telemetry/     # PX4 telemetry subscriber
-│       ├── drone_mission_manager/ # Offboard mission controller
-│       ├── drone_perception/    # Computer vision pipeline (Phase 3 ✓)
-│       ├── drone_localization/  # GT bridge, metrics, Python square_flight (Phase 4a ✓)
-│       ├── drone_flight_cpp/    # C++ OFFBOARD square_flight (default baseline)
-│       └── drone_bringup/       # Launch files (telemetry, mission, perception, detection)
-├── simulation/                  # Gazebo scenarios
-│   └── scenarios/               # Test scenario definitions
-├── experiments/                 # Test scenarios (Phase 5+)
-├── evaluation/                  # Metrics and reports (Phase 6+)
-└── data/                        # Datasets (gitignored)
+dronelab/
+├── README.md
+├── AGENTS.md
+├── docs/                        # architecture, localization, real-drone-readiness, …
+├── scripts/                     # launch-sitl, run-baseline, run-vio-*, record-bag, …
+├── config/                      # gz-server overlays; openvins/ (sim + hardware_placeholder)
+├── worlds/                      # Gazebo SDFs (vio_test, detection_test, …)
+├── docker/                      # Dockerfile.dev + pip constraints
+├── ros2_ws/src/
+│   ├── drone_flight_cpp/        # Production C++ square (OFFBOARD)
+│   ├── drone_localization/      # GT, metrics, Python square, vision_px4_bridge
+│   ├── drone_perception/        # Edge + YOLOX
+│   ├── drone_bringup/           # Launch files (vio, vio_ev, detection, …)
+│   ├── drone_telemetry/         # Phase 2 telemetry
+│   └── drone_mission_manager/   # Phase 2 hover mission
+└── tools/foxglove/              # Layout JSON only (app optional)
 ```
+
+Runtime data lives under `~/workspace/dronelab-data` (bags, PX4 build, overlays) — not in git.
 
 ## Getting Started
 
@@ -201,32 +179,15 @@ Detailed guides will be added in future phases.
 ✅ Repeatable test scenarios  
 ✅ Automated metrics and reports  
 
-## Not in Scope (Initial Phases)
+## Scope
 
-❌ Real-world flight testing  
-❌ Custom flight controller firmware  
-❌ Disabling flight controller failsafes  
-❌ Large model training (use cloud if needed)  
-❌ Isaac Sim (use Gazebo)  
-❌ Multi-vehicle swarms (future)  
-❌ Hardware-in-the-loop (HIL) (future)  
+**Supported now:** simulation stack through Phase 4b (see status above).
 
-**Note:** Any future hardware testing requires separate safety review, legal compliance, and controlled test environment.
+**Next (first-class):** real hardware bring-up using `docs/real-drone-readiness.md` — still requires separate safety/legal/range review; no invented ports or calib in-repo.
 
-## Phased Roadmap
+**Not scheduled (future exploration):** CI/BuildKit image rebuilds, Lyrical+Jetty, Isaac/Pegasus, multi-vehicle frameworks, fault-injection automation — see `docs/evaluation-roadmap.md`.
 
-- [x] **Phase 0:** Host audit and compatibility matrix (Complete)
-- [x] **Phase 1:** PX4 SITL + Gazebo + QGroundControl (Complete)
-- [x] **Phase 2:** ROS 2 integration and telemetry (Complete)
-- [x] **Phase 3:** Camera and perception (Complete)
-- [x] **Phase 4a:** Localization baseline with EKF2 evaluation
-- [x] **C++ flight + camera memory:** OFFBOARD port gated; GstCamera leak workaround
-- [x] **Phase 4b:** OpenVINS + opt-in EV (`vio_test`); VIO Umeyama xy 0.64/0.36/1.11 m; EV verify 0.21/0.24 m (default `EKF2_EV_CTRL=0`)
-- [ ] **Phase 5:** Simulation-only resilience experiments
-- [ ] **Phase 6:** Automated evaluation
-- [ ] **Phase 7+:** Future enhancements
-
-See handover plan for detailed phase acceptance criteria.
+**Never without approval:** custom FC firmware that disables failsafes; host boot/partition/Secure Boot changes.
 
 ## Hardware Configuration
 
@@ -257,16 +218,9 @@ AI agents working on this project must follow the guidelines in `AGENTS.md`. Key
 
 ## Safety and Limitations
 
-⚠️ **Simulation Only:** This environment is for software development in simulation. No real flight hardware is involved.
+⚠️ **Sim-first:** The verified path today is SITL. Code is **not** flight-certified.
 
-⚠️ **Not Flight-Ready:** Code developed here is experimental and not validated for real-world flight.
-
-⚠️ **Future Hardware Flight:** If hardware testing is ever considered, it must be a separate, safety-reviewed effort with:
-- Legal compliance (FAA, local regulations)
-- Controlled test environment
-- Manual override capability
-- Validated failsafes
-- Insurance and risk assessment
+⚠️ **Hardware bring-up:** Use `docs/real-drone-readiness.md` when ready. Requires safety/legal/range review, manual override, and validated failsafes — placeholders only in this repo until an airframe is named.
 
 ## License
 

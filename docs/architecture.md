@@ -622,16 +622,9 @@ docker run \
 - Port: `14550`
 - Auto-connect on start: Enabled
 
-#### Future Hardware Integration
+#### Real hardware
 
-When/if hardware flight controllers are used:
-- QGC already has dialout group access
-- Serial ports: `/dev/ttyUSB0`, `/dev/ttyACM0`, etc. directly accessible
-- USB devices automatically appear in QGC's connection dropdown
-- No container serial port forwarding needed
-- Maintains same workflow as SITL
-
-**Note:** Hardware flight testing is **out of scope** for initial phases. This is documented for architectural completeness only.
+Bring-up checklist and launch hooks: `docs/real-drone-readiness.md`. Do not invent serial devices or airframe IDs here.
 
 ## Deployment Strategy
 
@@ -641,11 +634,9 @@ When/if hardware flight controllers are used:
 - ROS 2 nodes in same container
 - QGroundControl on host
 
-### Phase 2+: Distributed (Future)
-- PX4 SITL in one container
-- Gazebo in another container (optional)
-- ROS 2 nodes in separate containers
-- Networked via DDS discovery or static peers
+### Multi-host / distributed (future exploration)
+
+Not implemented. Single-host container + host QGC is the supported layout.
 
 ### Not in Scope (Yet)
 - Real hardware flight
@@ -711,14 +702,9 @@ When/if hardware flight controllers are used:
 - No real flight hardware is involved
 - Safety checks are minimal (not flight-ready)
 
-### Future Hardware Flight (Not Now)
-If hardware flight is considered in the future:
-- Separate safety review required
-- Legal compliance (FAA, local laws)
-- Controlled test environment
-- Manual override capability
-- Validated failsafes
-- Insurance and risk assessment
+#### Real hardware
+
+Bring-up checklist and launch hooks: `docs/real-drone-readiness.md`. Do not invent serial devices or airframe IDs here.
 
 ### Data Privacy
 - No telemetry uploaded without explicit user consent
@@ -744,7 +730,6 @@ open-drone-lab/
 │   ├── setup-container.md     # (Phase 1)
 │   ├── simulation-guide.md    # (Phase 1)
 │   ├── ros2-integration.md    # (Phase 2)
-│   ├── experiments.md         # (Phase 5)
 │   ├── safety-and-limitations.md
 │   └── decisions/             # Architecture decision records
 ├── docker/                    # Container definitions
@@ -755,11 +740,9 @@ open-drone-lab/
 │   ├── check-host.sh          # Phase 0 ✓
 │   ├── build-workspace.sh     # (Phase 2)
 │   ├── launch-sitl.sh         # (Phase 1)
-│   └── collect-diagnostics.sh # (Phase 6)
 ├── simulation/                # Gazebo assets
 │   ├── worlds/                # Custom worlds (Phase 3+)
 │   ├── models/                # Custom models (Phase 3+)
-│   └── scenarios/             # Test scenarios (Phase 5)
 ├── ros2_ws/                   # ROS 2 workspace (Phase 2)
 │   └── src/
 │       ├── drone_bringup/
@@ -769,11 +752,9 @@ open-drone-lab/
 │       ├── drone_perception/
 │       ├── drone_localization/
 │       └── drone_evaluation/
-├── experiments/               # Experiment definitions (Phase 5)
 │   ├── baseline/
 │   ├── sensor_quality/
 │   └── communication/
-├── evaluation/                # Results and reports (Phase 6)
 │   ├── metrics/
 │   ├── plots/
 │   └── reports/
@@ -800,21 +781,10 @@ open-drone-lab/
 - Tag releases (v0.1.0, v0.2.0, etc.)
 - Never commit large bags, logs, or binaries
 
-## Future Architecture Considerations
+## Future exploration
 
-### Potential Enhancements (Not Phase 0-1)
-- Multi-vehicle simulation (Phase 7+)
-- Hardware-in-the-loop (HIL) support
-- ROS 2 Zenoh bridge (PX4 v1.17+ experimental)
-- GPU-accelerated perception
-- Cloud-based training pipeline
-- CI/CD for automated testing
+Unscheduled ideas (image rebuild, CI, Lyrical/Jetty, alternate sim frameworks) live in `docs/evaluation-roadmap.md`. Real hardware bring-up is first-class: `docs/real-drone-readiness.md`.
 
-### Known Limitations
-- Single vehicle only (initially)
-- Simulation-only (no real hardware path yet)
-- Limited sensor suite (expand in Phase 3+)
-- Local compute only (no cloud integration yet)
 
 ## References
 

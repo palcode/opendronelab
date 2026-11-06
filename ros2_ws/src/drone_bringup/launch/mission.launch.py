@@ -1,4 +1,7 @@
-"""Launch file for drone mission manager node."""
+"""Launch Phase 2 hover mission (drone_mission_manager).
+
+Production square flights use drone_flight_cpp / scripts/run-baseline.sh.
+"""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration

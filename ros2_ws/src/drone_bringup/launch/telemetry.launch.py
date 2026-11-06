@@ -1,4 +1,4 @@
-"""Launch file for drone telemetry node."""
+"""Launch Phase 2 telemetry subscriber (drone_telemetry)."""
 from launch import LaunchDescription
 from launch_ros.actions import Node
 

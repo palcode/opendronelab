@@ -119,7 +119,6 @@ Per handover plan Section 6 Phase 1:
 
 #### Files
 
-- **Scenario definition:** `simulation/scenarios/phase1-hover.yaml`
 - **Expected logs:** `logs/phase1-hover/` (PX4 .ulg, screenshot)
 
 ---
@@ -156,8 +155,9 @@ Autonomous flight of a 10 m × 10 m square pattern at 5 m altitude, commanded vi
 
 3. Launch ROS 2 mission node (Phase 2+):
    ```bash
-   # Future command, not yet implemented
-   ros2 launch drone_bringup square_mission.launch.py
+   # Production square (C++); requires odl-sim + QGC + DDS agent
+   ros2 run drone_flight_cpp square_flight_cpp
+   # Or: ./scripts/run-baseline.sh 1
    ```
 
 4. Execute square pattern:
@@ -176,8 +176,7 @@ Autonomous flight of a 10 m × 10 m square pattern at 5 m altitude, commanded vi
 
 6. Record rosbag2 for analysis:
    ```bash
-   # Future command
-   ros2 bag record -a -o square_baseline
+   ./scripts/record-bag.sh 100 --localization
    ```
 
 #### Acceptance Criteria (Phase 2+)
@@ -211,18 +210,9 @@ These metrics establish the nominal performance for comparison in later experime
 | Battery consumption | <20% simulated | - |
 | ROS 2 command latency | <50 ms | <100 ms acceptable |
 
-#### Future Experiments (Phase 5)
+#### Future exploration
 
-This scenario will be used as the baseline for:
-
-1. **GPS degradation:** Introduce GPS noise, dropout, or complete loss
-2. **IMU bias/noise:** Inject IMU sensor errors
-3. **Camera frame drops:** Simulate camera failures (if using visual odometry)
-4. **Telemetry interruption:** Pause uXRCE-DDS bridge
-5. **Wind disturbances:** Enable Gazebo wind plugin
-6. **Battery low:** Trigger low battery failsafe mid-mission
-
-Each experiment compares performance metrics against this baseline.
+Fault-injection variants of the square are **not implemented**. See `docs/evaluation-roadmap.md`. Hardware bring-up is separate: `docs/real-drone-readiness.md`.
 
 #### Troubleshooting
 
@@ -235,37 +225,21 @@ Each experiment compares performance metrics against this baseline.
 
 #### Files
 
-- **Scenario definition:** `simulation/scenarios/phase2-square.yaml`
-- **ROS 2 launch file:** `ros2_ws/src/drone_bringup/launch/square_mission.launch.py` (Phase 2)
-- **Mission node:** `ros2_ws/src/drone_mission_manager/src/square_mission_node.cpp` (Phase 2)
-- **Expected logs:** `logs/phase2-square/` (PX4 .ulg, ROS 2 .mcap, metrics CSV)
+- **Flight node:** `ros2 run drone_flight_cpp square_flight_cpp` (production)
+- **Python reference:** `ros2 run drone_localization square_flight`
+- **Baseline script:** `scripts/run-baseline.sh`
+- **Bags:** `/data/bags/` via `scripts/record-bag.sh`
 
 ---
 
-## Scenario Definition Format
+## How scenarios are run today
 
-Scenarios are defined in YAML format in `simulation/scenarios/`:
+There is no separate `simulation/scenarios/*.yaml` runner. Use:
 
-```yaml
-name: scenario-name
-phase: 1
-status: not_run
-description: Brief description
-vehicle: gz_x500
-world: default
-control: qgc  # or ros2, script
-duration_s: 60
-waypoints:
-  - [x, y, z]
-acceptance:
-  - Criterion 1
-  - Criterion 2
-metrics:
-  - metric_name: target_value
-logs:
-  - px4_ulg: path/to/log.ulg
-  - rosbag: path/to/bag.mcap
-```
+- Hover / early ROS: `docs/phase2-hover.md`, `mission.launch.py`
+- Square baseline: `scripts/run-baseline.sh` / `square_flight_cpp`
+- VIO / EV: `scripts/run-vio-baseline.sh`, `vio.launch.py`, `vio_ev.launch.py`
+- Hardware later: `docs/real-drone-readiness.md`
 
 ## Logs and Data
 
@@ -338,35 +312,17 @@ PX4_SIM_SPEED_FACTOR=0.5 make px4_sitl gz_x500
 
 ### Headless Mode
 
-For automated testing without GUI:
+Use the project launcher (Gazebo server only; QGC still on the host):
+
 ```bash
-HEADLESS=1 make px4_sitl gz_x500
+HEADLESS=1 GZ_SEED=1234 MODEL=gz_x500 ./scripts/launch-sitl.sh
 ```
 
-Simulation runs faster without rendering overhead.
+## Next steps
 
-## Next Steps
-
-### Phase 1 (Current)
-1. Complete host setup (Docker, NVIDIA CTK, QGC)
-2. Build PX4 v1.17.0 in container
-3. Execute `phase1-hover` scenario
-4. Document actual results vs. expected
-5. Update this guide with lessons learned
-
-### Phase 2 (Future)
-1. Install ROS 2 Jazzy + Micro XRCE-DDS Agent
-2. Build px4_msgs and telemetry node
-3. Verify ROS 2 ↔ PX4 communication
-4. Implement `phase2-square` mission node
-5. Execute scenario and record baseline metrics
-
-### Phase 5 (Future)
-1. Implement fault injection framework
-2. Create experiment variants of `phase2-square`
-3. Run baseline vs. degraded scenarios
-4. Extract and compare metrics
-5. Generate evaluation reports
+- Day-to-day SITL: `HEADLESS=1` + C++ square / VIO scripts as above.
+- **Real hardware:** `docs/real-drone-readiness.md`.
+- Unscheduled ideas: `docs/evaluation-roadmap.md` (Future exploration).
 
 ## References
 

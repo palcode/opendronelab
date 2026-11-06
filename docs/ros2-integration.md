@@ -2,6 +2,9 @@
 
 This document describes the ROS 2 integration with PX4 v1.17.0 for OpenDroneLab.
 
+
+> **Flight path note:** Production square missions use `drone_flight_cpp` / `scripts/run-baseline.sh`. `drone_mission_manager` is the Phase 2 hover path. VIO/EV: `vio.launch.py` / `vio_ev.launch.py`. Hardware: `docs/real-drone-readiness.md`.
+
 ## Architecture
 
 The integration uses the **Micro XRCE-DDS** bridge to connect PX4's internal uORB topics to ROS 2:

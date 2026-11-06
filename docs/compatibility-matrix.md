@@ -252,34 +252,14 @@ This matrix pins the exact software versions for the OpenDroneLab development en
 6. Verify QGroundControl connection
 7. Update this matrix with actual tested versions and outcomes
 
-## Future Migration Path
+## Future exploration
 
-**Target Stack (post-Phase 6):**
-- **ROS 2 Lyrical Luth** (LTS, released 2026-05-22, Ubuntu 26.04 Tier 1) — [announcement](https://discourse.openrobotics.org/t/ros-2-lyrical-luth-released/55021)
-- **Gazebo Jetty** (LTS; recommended with Lyrical via `ros-lyrical-ros-gz`) — [Gazebo ROS install](https://gazebosim.org/docs/latest/ros_installation/)
-- **PX4** with Jetty SITL once the Ubuntu 26.04 toolchain is supported
+Stay on **ROS 2 Jazzy + Gazebo Harmonic + PX4 v1.17** in the Ubuntu 24.04
+container. A later move to Lyrical/Jetty, image multi-stage rebuilds, or
+optional tools (Pegasus, Aerostack2, rocker, XTDrone, `robot_localization`) is
+**not scheduled** — see `docs/evaluation-roadmap.md`. Real hardware bring-up
+is tracked in `docs/real-drone-readiness.md`, not here.
 
-**Verified status (2026-11-04):**
-- Lyrical is **already released** (not TBD). Jetty is available through ROS vendor packages on resolute.
-- **Real blockers for a 26.04-native migration:**
-  1. PX4 ubuntu.sh / CI still only lists Ubuntu 24.04 and 22.04; **"Ubuntu 26.04 is not yet supported"** ([PX4 Ubuntu Dev Env](https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu)).
-  2. Standalone `gz-jetty` packages for resolute are still missing from OSRF apt ([gz-sim #3833](https://github.com/gazebosim/gz-sim/issues/3833)), though `ros-lyrical-gz-*-vendor` already vendors gz-sim 10.x.
-- PX4-Autopilot PR #25521: Jetty build support merged in main; v1.17.x remains Harmonic-oriented.
-
-**Migration Checklist:**
-1. Wait for PX4 native Ubuntu 26.04 support (or keep the 24.04 container)
-2. Prefer ROS Jetty vendor packages; track #3833 for standalone `gz-jetty`
-3. Test px4_msgs / uXRCE on Lyrical
-4. Update Dockerfile toward `ros-lyrical-ros-base` + Jetty vendors when PX4 is ready
-5. Rerun Phase 0-4 acceptance tests on the new stack
-
-**Decision:** Stay on Jazzy/Harmonic in the Ubuntu 24.04 container. The Ubuntu 26.04 host already runs that container; no host OS change is required for a future Lyrical migration.
-
-**Related Projects for Evaluation:**
-- **Pegasus Simulator (BSD-3):** PX4 on Isaac Sim. Isaac Sim is free for internal R&D ([License FAQ](https://docs.isaacsim.omniverse.nvidia.com/latest/common/license-faq.html)); Pegasus v5.1.0 targets Isaac Sim 5.1 / PX4 1.14.3 / Ubuntu 22.04 — separate from this stack.
-- **Aerostack2:** ROS 2 multi-drone framework (reference architecture for SLAM/planning)
-
-See `docs/evaluation-roadmap.md` for detailed migration timeline and alternative tool assessments.
 
 ## References
 

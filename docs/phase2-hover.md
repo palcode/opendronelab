@@ -36,7 +36,7 @@ docker run -dit --name odl-sim \
 
 ## Overview
 
-Phase 2 builds the containerized development environment and validates the complete simulation stack with a basic hover test. This matches the `phase1-hover` scenario defined in `simulation/scenarios/phase1-hover.yaml`.
+Phase 2 builds the containerized development environment and validates the complete simulation stack with a basic hover test. Procedure below; there is no separate scenario YAML runner.
 
 **Test Profile:**
 - Vehicle: X500 quadrotor
@@ -294,7 +294,7 @@ Instead of PX4 console commands, use QGC:
 
 ## Pass Criteria
 
-Based on `simulation/scenarios/phase1-hover.yaml`:
+Hover profile:
 
 - ✅ PX4 SITL launches without errors
 - ✅ Gazebo Harmonic displays X500 model
@@ -483,4 +483,3 @@ echo $__NV_PRIME_RENDER_OFFLOAD
 - PX4 Autopilot v1.17.0: https://github.com/PX4/PX4-Autopilot/tree/v1.17.0
 - PX4 Gazebo Simulation: https://docs.px4.io/v1.17/en/sim_gazebo_gz/
 - Gazebo Harmonic: https://gazebosim.org/docs/harmonic
-- Scenario definition: `simulation/scenarios/phase1-hover.yaml`

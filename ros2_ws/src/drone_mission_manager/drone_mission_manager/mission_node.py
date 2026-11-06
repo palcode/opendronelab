@@ -12,6 +12,8 @@ Hard safety limits:
 - Max XY drift: 2m from hover start (aborts to land if exceeded)
 
 Never disables PX4 failsafes.
+
+For the production 10 m square path use drone_flight_cpp (scripts/run-baseline.sh), not this hover node.
 """
 import math
 import time
