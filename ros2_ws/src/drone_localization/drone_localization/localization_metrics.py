@@ -402,9 +402,10 @@ def main(args=None):
         origin_align=not parsed.no_origin_align,
     )
 
-    # Airborne: NED z more negative than -0.5 m (above ~0.5 m AGL).
-    airborne_mask = (est_aligned[:, 2] < -0.5) & (est_aligned[:, 2] > -20.0)
-    print(f'Airborne samples: {np.sum(airborne_mask)} / {len(airborne_mask)}')
+    # Airborne from GT z only. Using the estimate z keeps post-land VIO
+    # samples when OpenVINS fails to settle (run2: +48s at z≈-2.4 → false 4 m APE).
+    airborne_mask = (gt_aligned[:, 2] < -0.5) & (gt_aligned[:, 2] > -20.0)
+    print(f'Airborne samples (GT z): {np.sum(airborne_mask)} / {len(airborne_mask)}')
 
     print('Computing metrics...')
     metrics = compute_metrics(gt_aligned, est_aligned, airborne_mask)
