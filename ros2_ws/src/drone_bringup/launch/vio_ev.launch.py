@@ -2,11 +2,14 @@
 
 Start SITL with EV enabled explicitly, e.g.:
   docker rm -f odl-sim
-  PX4_PARAM_EKF2_EV_CTRL=3 HEADLESS=1 GZ_SEED=1234 WORLD=vio_test \\
+  PX4_PARAM_EKF2_EV_CTRL=3 HEADLESS=1 GZ_SEED=1234 WORLD=vio_test \
     MODEL=gz_x500_mono_cam ./scripts/launch-sitl.sh
 
 EKF2_EV_CTRL=3 = horizontal + vertical position from vision (no yaw bit).
 Leave EKF2_HGT_REF at baro (1) unless you intentionally switch height ref.
+
+vision_px4_bridge aligns OpenVINS (Z-up, arbitrary yaw) to PX4 local NED using
+vehicle_local_position before publishing; timestamps use the PX4 clock domain.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription

@@ -1,6 +1,6 @@
 # Real-drone readiness (Phase 4b placeholders)
 
-VIO Umeyama xy after GT-airborne rescore: **0.64 / 0.36 / 1.11 m** (run2 “4 m” was post-land scoring). One EV attempt aborted; keep `EKF2_EV_CTRL=0`.
+VIO Umeyama xy after GT-airborne rescore: **0.64 / 0.36 / 1.11 m** (run2 “4 m” was post-land scoring). EV bridge now yaw/origin/time-aligns OV→PX4 NED; keep default `EKF2_EV_CTRL=0` (opt-in only).
 
 ## Topic remaps (hardware TBD)
 

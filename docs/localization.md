@@ -440,7 +440,7 @@ horizontal stayed near the GPS baseline.
 `scripts/run-vio-baseline.sh` automates this (restarts `vio.launch.py` between
 runs; records with `--no-raw-camera` to keep bags small).
 
-### External vision into EKF2 (attempted 2026-11-06) — blocked
+### External vision into EKF2 (opt-in)
 
 Dedicated overlay only (GPS defaults unchanged):
 
@@ -451,18 +451,24 @@ PX4_PARAM_EKF2_EV_CTRL=3 HEADLESS=1 GZ_SEED=1234 WORLD=vio_test \
 # then: ros2 launch drone_bringup vio_ev.launch.py
 ```
 
-`vision_px4_bridge` publishes ENU→NED position (+ optional velocity) on
-`/fmu/in/vehicle_visual_odometry`. Verified live: `EKF2_EV_CTRL=3`, and during
-the flight `cs_ev_pos` / `cs_ev_hgt` were true for most estimator_status_flags
-samples (215–216 / 224).
+**Root cause (bags `131319` / `150333`, GPS-only refs `143702` / `143946`):**
+OpenVINS `/ov_msckf/odomimu` is gravity-aligned Z-up with **arbitrary horizontal
+axes** from VIO init — not geographic ENU. The old bridge did a blind
+`(y,x,-z)` swap and labeled `POSE_FRAME_NED`, so EKF2 treated a yaw-offset
+frame as True North. Offline, that unaligned EV disagreed with PX4 local NED by
+**~11–15 m** horizontal on healthy GPS-only flights; heading+origin alignment
+cuts that to **~0.6–0.8 m**. OpenVINS `header.stamp` is Gazebo sim time
+(~tens of seconds) while PX4 `vehicle_local_position.timestamp` is the PX4/uXRCE
+clock (~Unix µs in SITL); stamping EV with sim `now` put samples in the wrong
+time domain.
 
-**Outcome:** EV fusion engaged but **destabilized** the vehicle — altitude
-exceeded the square_flight 6 m guard (7.7 m), mission aborted. Same-bag scores
-(origin-align / Umeyama xy): EKF2+EV **356 / 30.6 m**, raw OpenVINS
-**312 / 19.9 m**. Likely frame/origin/time mismatch between the OpenVINS world
-and PX4 local NED when both GPS and EV are fused. GPS-only path remains the
-default (`EKF2_EV_CTRL=0` when `PX4_PARAM_EKF2_EV_CTRL` is unset). Leave EV as
-an opt-in experiment until the frame alignment is fixed.
+**Bridge fix:** `vision_px4_bridge` waits for valid
+`/fmu/out/vehicle_local_position_v1`, estimates a constant yaw offset
+(`heading_px4 - yaw_ov_ned`) plus translation, publishes aligned NED position
+(and optionally velocity), and sets `timestamp` / `timestamp_sample` from the
+PX4 clock minus OV message age on the sim clock. Re-aligns if OV jumps by
+`align_reset_jump_m` (default 5 m). Default `EKF2_EV_CTRL` remains **0**.
+
 
 Image: `opendronelab-dev:phase4c-vio` (= `:latest`), rollback `:phase4b-evo`.
 
@@ -534,5 +540,5 @@ Results: `vio_baseline_20261106_143651` + `vio_baseline_20261106_143936`.
 | 2 | `143946` | **0.358 m** |
 | 3 | `144250` | 1.112 m |
 
-**EV:** one opt-in attempt (`vio_ev` + bridge); mission aborted mid-square; EKF2/VIO Umeyama xy ~22 / 16 m. Leave `EKF2_EV_CTRL=0`. Frame/fusion still unsafe.
+**EV (pre-align fix):** opt-in attempts aborted mid-square (EKF2/VIO Umeyama xy ~22 / 16 m and earlier 30.6 / 19.9 m). Cause: OV arbitrary yaw published as NED + sim-time stamps. Bridge now aligns yaw/origin to PX4 local NED and uses PX4 timestamps; default `EKF2_EV_CTRL` stays 0.
 
