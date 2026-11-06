@@ -100,6 +100,11 @@ def extract_ground_truth_odometry(messages, convert_enu_to_ned=True):
     return np.array(timestamps, dtype=np.float64), np.array(positions, dtype=np.float64)
 
 
+def extract_odom_yaw_ned(messages):
+    """Yaw (rad, NED) from nav_msgs/Odometry in an ENU/Z-up world frame."""
+    return extract_ground_truth_yaw_ned(messages)
+
+
 def interpolate_trajectory(timestamps, positions, target_timestamps):
     """Interpolate trajectory to match target timestamps."""
     t_src = timestamps / 1e9
@@ -322,6 +327,25 @@ def main(args=None):
         help='Also write gt_ned.tum / est_ned.tum (scored samples) here '
              'for an external evo cross-check (scripts/evo-check.sh)',
     )
+    parser.add_argument(
+        '--estimate-topic',
+        default='/fmu/out/vehicle_local_position_v1',
+        help='Estimate topic: vehicle_local_position_v1 (NED) or '
+             'nav_msgs/Odometry (ENU/Z-up, e.g. /ov_msckf/odomimu)',
+    )
+    parser.add_argument(
+        '--estimate-frame',
+        choices=('ned', 'enu'),
+        default=None,
+        help='Frame of --estimate-topic positions. Default: ned for '
+             'vehicle_local_position*, enu for other odometry topics.',
+    )
+    parser.add_argument(
+        '--metrics-name',
+        default='metrics.json',
+        help='Metrics JSON filename inside --output-dir '
+             '(use metrics_vio.json when scoring OpenVINS on the same bag)',
+    )
     parsed = parser.parse_args(args)
 
     bag_path = Path(parsed.bag_path)
@@ -331,10 +355,21 @@ def main(args=None):
         print(f'Error: Bag path does not exist: {bag_path}')
         return 1
 
+    est_topic = parsed.estimate_topic
+    if parsed.estimate_frame is None:
+        est_frame = (
+            'ned'
+            if 'vehicle_local_position' in est_topic
+            else 'enu'
+        )
+    else:
+        est_frame = parsed.estimate_frame
+
     print(f'Reading bag: {bag_path}')
-    est_msgs = read_bag_messages(bag_path, '/fmu/out/vehicle_local_position_v1')
+    print(f'Estimate topic: {est_topic} (frame={est_frame})')
+    est_msgs = read_bag_messages(bag_path, est_topic)
     if not est_msgs:
-        print('Error: No vehicle_local_position_v1 messages found')
+        print(f'Error: No messages on {est_topic}')
         return 1
 
     gt_msgs = read_bag_messages(bag_path, '/ground_truth/odometry')
@@ -346,7 +381,16 @@ def main(args=None):
         f'Found {len(est_msgs)} estimated and {len(gt_msgs)} ground truth samples'
     )
 
-    est_timestamps, est_positions = extract_vehicle_local_position(est_msgs)
+    if est_frame == 'ned' and 'vehicle_local_position' in est_topic:
+        est_timestamps, est_positions = extract_vehicle_local_position(est_msgs)
+        est_is_px4 = True
+    else:
+        # nav_msgs/Odometry in ENU/Z-up (OpenVINS odomimu, GT-style)
+        convert = est_frame == 'enu'
+        est_timestamps, est_positions = extract_ground_truth_odometry(
+            est_msgs, convert_enu_to_ned=convert
+        )
+        est_is_px4 = False
     gt_timestamps, gt_positions = extract_ground_truth_odometry(gt_msgs)
 
     print('Aligning trajectories...')
@@ -365,8 +409,10 @@ def main(args=None):
     print('Computing metrics...')
     metrics = compute_metrics(gt_aligned, est_aligned, airborne_mask)
     metrics['origin_aligned'] = not parsed.no_origin_align
+    metrics['estimate_topic'] = est_topic
+    metrics['estimate_frame'] = est_frame
 
-    metrics_path = output_dir / 'metrics.json'
+    metrics_path = output_dir / parsed.metrics_name
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=2)
     print(f'Metrics saved to: {metrics_path}')
@@ -375,10 +421,16 @@ def main(args=None):
         gt_yaw = interpolate_yaw(
             gt_timestamps, extract_ground_truth_yaw_ned(gt_msgs), aligned_ts
         )
-        est_yaw = extract_heading_ned(est_msgs)
-        # Same overlap window align_trajectories applied to the estimate.
-        window = (est_timestamps >= aligned_ts[0]) & (est_timestamps <= aligned_ts[-1])
-        est_yaw = est_yaw[window]
+        if est_is_px4:
+            est_yaw = extract_heading_ned(est_msgs)
+            window = (est_timestamps >= aligned_ts[0]) & (
+                est_timestamps <= aligned_ts[-1]
+            )
+            est_yaw = est_yaw[window]
+        else:
+            est_yaw = interpolate_yaw(
+                est_timestamps, extract_odom_yaw_ned(est_msgs), aligned_ts
+            )
         gt_tum, est_tum = export_tum_pair(
             parsed.tum_dir,
             aligned_ts[airborne_mask],

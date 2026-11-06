@@ -1,0 +1,13 @@
+# Optional PX4 params overlay for external-vision fusion (NOT applied by default).
+# GPS baseline must keep EKF2_EV_CTRL=0. To experiment after OpenVINS tracks:
+#   1) Publish geometry_msgs/PoseWithCovarianceStamped or PX4
+#      vehicle_visual_odometry from /ov_msckf/odomimu (frame conversions apply).
+#   2) Set these via QGC / param set, then reboot the estimator:
+# EKF2_EV_CTRL  :  horizontal position (1) + vertical (2) + yaw (4) as needed
+# EKF2_HGT_REF  :  3 = vision (only if trusting VIO height)
+# EKF2_EV_DELAY :  ms delay estimate
+#
+# OpenDroneLab does not change SITL defaults here. Use a dedicated session and
+# restore GPS defaults afterwards. See docs/localization.md § OpenVINS.
+EKF2_EV_CTRL 0
+EKF2_HGT_REF 1
