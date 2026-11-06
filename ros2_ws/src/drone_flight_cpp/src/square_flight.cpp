@@ -5,11 +5,23 @@
 // abort above max_altitude + 0.5 m, then land.
 //
 // Structure: an external mode ("Square Flight") streams the position
-// setpoints; a mode executor arms, runs the mode, lands and waits for
-// disarm. Executor activation is ActivateImmediately, so PX4 never
-// sits in OFFBOARD after landing (the Python node's Hold workaround is
-// not needed; the startup Hold switch is kept for runs that follow a
-// Python run).
+// setpoints; a mode executor arms, runs PX4's built-in takeoff, then
+// the mode, then lands and waits for disarm.
+//
+// Takeoff-before-mode matches the px4-ros2-interface-lib examples and
+// integration tests. Sending TrajectorySetpointType position setpoints
+// alone while landed does not clear COM_DISARM_PRFLT (10 s): the mode
+// activates, but the vehicle never leaves the ground and PX4 auto-
+// disarms ("Disarmed by auto preflight disarming").
+//
+// TrajectorySetpointType is the lib's *experimental* trajectory API
+// (see setpoint_types/experimental/trajectory.hpp); MulticopterGoto
+// is preferred for new work, but Trajectory matches the Python node's
+// TrajectorySetpoint + yaw=0 profile used for the RMSE gate.
+//
+// ActivateImmediately: PX4 never sits in OFFBOARD after landing. The
+// startup Hold switch still covers runs that follow a Python flight or
+// an orphaned custom nav_state.
 #include <px4_ros2/components/mode.hpp>
 #include <px4_ros2/components/mode_executor.hpp>
 #include <px4_ros2/components/node_with_mode.hpp>
@@ -101,7 +113,10 @@ public:
       return;
     }
     const Eigen::Vector3f & wp = wps_[idx_];
-    setpoint_->updatePosition(wp);  // yaw unset (NaN); Python sent yaw 0
+    // Match Python square_flight: position + yaw 0 (updatePosition leaves yaw NaN).
+    px4_ros2::TrajectorySetpoint sp;
+    sp.withPosition(wp).withYaw(0.f);
+    setpoint_->update(sp);
     if ((pos - wp).norm() < p_.tolerance) {
       if (!arrived_) {
         arrived_ = true;
@@ -142,6 +157,9 @@ public:
       owned_mode),
     node_(owned_mode.node())
   {
+    rclcpp::QoS qos = rclcpp::QoS(10).best_effort().transient_local();
+    hold_pub_ = node_.create_publisher<px4_msgs::msg::VehicleCommand>(
+      "/fmu/in/vehicle_command", qos);
   }
 
   void onActivate() override
@@ -166,23 +184,38 @@ public:
           }
           return finish("arm", r);
         }
-        RCLCPP_INFO(node_.get_logger(), "Armed, flying square");
-        scheduleMode(ownedMode().id(), [this](px4_ros2::Result r2) {
-          mission_ok_ = (r2 == px4_ros2::Result::Success);
-          if (!mission_ok_) {
-            RCLCPP_ERROR(node_.get_logger(), "Square mode ended: %s", resultToString(r2));
-          }
-          land([this](px4_ros2::Result r3) {
-            if (r3 != px4_ros2::Result::Success) {return finish("land", r3);}
-            waitUntilDisarmed([this](px4_ros2::Result r4) {
-              if (r4 != px4_ros2::Result::Success) {return finish("disarm", r4);}
-              RCLCPP_INFO(node_.get_logger(), "Mission complete (disarmed)");
-              done_ = true;
-              g_exit_code = mission_ok_ ? 0 : 1;
-              g_done = true;
+        RCLCPP_INFO(node_.get_logger(), "Armed, taking off");
+        // NAV_TAKEOFF altitude is AMSL; Gazebo default home ref_alt is ~0 m, so
+        // the mission altitude (5 m) is a good AGL target here. Heading 0 matches
+        // the Python node's yaw=0 setpoints.
+        float alt_amsl = 5.f;
+        try {
+          alt_amsl = static_cast<float>(node_.get_parameter("altitude").as_double());
+        } catch (const std::exception &) {}
+        takeoff(
+          [this](px4_ros2::Result r_to) {
+            if (r_to != px4_ros2::Result::Success) {return finish("takeoff", r_to);}
+            RCLCPP_INFO(node_.get_logger(), "Takeoff complete, flying square");
+            scheduleMode(ownedMode().id(), [this](px4_ros2::Result r2) {
+              mission_ok_ = (r2 == px4_ros2::Result::Success);
+              if (!mission_ok_) {
+                RCLCPP_ERROR(node_.get_logger(), "Square mode ended: %s", resultToString(r2));
+              }
+              land([this](px4_ros2::Result r3) {
+                if (r3 != px4_ros2::Result::Success) {return finish("land", r3);}
+                waitUntilDisarmed([this](px4_ros2::Result r4) {
+                  if (r4 != px4_ros2::Result::Success) {return finish("disarm", r4);}
+                  RCLCPP_INFO(node_.get_logger(), "Mission complete (disarmed)");
+                  // Leave Hold so the next run (Python or C++) passes preflight.
+                  requestHold();
+                  done_ = true;
+                  g_exit_code = mission_ok_ ? 0 : 1;
+                  g_done = true;
+                });
+              });
             });
-          });
-        });
+          },
+          alt_amsl, 0.f);
       });
   }
 
@@ -192,7 +225,21 @@ public:
       RCLCPP_WARN(
         node_.get_logger(), "Executor deactivated (%s)",
         reason == DeactivateReason::FailsafeActivated ? "failsafe" : "other");
+      done_ = true;
+      g_exit_code = 1;
+      g_done = true;
     }
+  }
+
+  void requestHold()
+  {
+    px4_msgs::msg::VehicleCommand c{};
+    c.timestamp = node_.get_clock()->now().nanoseconds() / 1000;
+    c.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE;
+    c.param1 = 1.f; c.param2 = 4.f; c.param3 = 3.f;
+    c.target_system = 1; c.target_component = 1;
+    c.source_system = 1; c.source_component = 1; c.from_external = true;
+    hold_pub_->publish(c);
   }
 
 private:
@@ -208,6 +255,7 @@ private:
   bool started_{false}, done_{false}, mission_ok_{false};
   int arm_attempts_{0};
   rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr hold_pub_;
 };
 
 // Wait for valid local position and passing preflight checks before
@@ -236,8 +284,12 @@ static bool waitReady()
         return true;
       }
       if (!logged) {RCLCPP_WARN(n->get_logger(), "Waiting for preflight checks to pass..."); logged = true;}
-      if (st->nav_state == 14 && st->arming_state != 2 && (hold_req++ % 20) == 0) {
-        RCLCPP_INFO(n->get_logger(), "Disarmed in OFFBOARD; switching to Hold");
+      // OFFBOARD (14) or an orphaned custom/external mode both block the next
+      // arm while disarmed; Hold is armable.
+      if (st->arming_state != 2 && (hold_req++ % 20) == 0) {
+        RCLCPP_INFO(
+          n->get_logger(), "Disarmed with preflight failing (nav_state=%u); switching to Hold",
+          st->nav_state);
         px4_msgs::msg::VehicleCommand c{};
         c.timestamp = n->get_clock()->now().nanoseconds() / 1000;
         c.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE;
