@@ -32,7 +32,7 @@ echo "summary_dir=${SUMMARY_DIR}" | tee "${REPO_DIR}/logs/vio-baseline-${STAMP}.
 
 _restart_vio() {
     echo "[INFO] (Re)starting vio.launch.py..."
-    docker exec "${CONTAINER_NAME}" bash -lc 'pkill -f "ros2 launch drone_bringup vio" >/dev/null 2>&1 || true; pkill -f run_subscribe_msckf >/dev/null 2>&1 || true; pkill -f ground_truth_publisher >/dev/null 2>&1 || true; pkill -f image_bridge >/dev/null 2>&1 || true; pkill -f parameter_bridge >/dev/null 2>&1 || true; true'
+    docker exec "${CONTAINER_NAME}" bash -lc 'pkill -f "[r]os2 launch drone_bringup vio" >/dev/null 2>&1 || true; pkill -f "[r]un_subscribe_msckf" >/dev/null 2>&1 || true; pkill -f "[g]round_truth_publisher" >/dev/null 2>&1 || true; pkill -f "[i]mage_bridge" >/dev/null 2>&1 || true; pkill -f "[p]arameter_bridge" >/dev/null 2>&1 || true; true'
     sleep 3
     docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
         -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
