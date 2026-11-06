@@ -1,0 +1,42 @@
+%YAML:1.0
+# PLACEHOLDER — replace before hardware bring-up.
+# Publish a sensor_msgs/Imu topic that shares a clock with the camera.
+# Do NOT invent a vendor model or serial device here.
+# Prefer a real IMU driver topic over /fmu/out/sensor_combined unless you
+# have verified type/stamp alignment with the camera.
+
+imu0:
+  T_i_b:
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]
+  # Noise: REPLACE with Allan-variance (or vendor) values for your IMU.
+  accelerometer_noise_density: 0.0
+  accelerometer_random_walk: 0.0
+  gyroscope_noise_density: 0.0
+  gyroscope_random_walk: 0.0
+  rostopic: /REPLACE_ME/imu
+  time_offset: 0.0
+  update_rate: 0
+  model: "kalibr"
+  Tw:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  R_IMUtoGYRO:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  Ta:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  R_IMUtoACC:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  Tg:
+    - [0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0]

@@ -305,7 +305,7 @@ Logged for later; none of these is adopted yet. Each needs Pallab's approval bef
 7. ✅ EV fusion **opt-in** via `vision_px4_bridge` (`6f4c42e`, `727b98e`): bag `20261106_155243` completed square; EKF2/VIO Umeyama xy **0.210 / 0.237 m**; origin H/V **0.288 / 0.077 m**; `cs_ev_pos`/`cs_ev_hgt` engaged. **Default remains `EKF2_EV_CTRL=0` (GPS-only).**
 
 **Next (bring-up prep, not Phase 5+ infra):**
-1. Real-hardware hooks / remaps / checklist (`docs/real-drone-readiness.md`) — placeholders only until an airframe exists
+1. ✅ Real-hardware hooks / remaps / checklist (`docs/real-drone-readiness.md` + `config/openvins/hardware_placeholder/` + `use_sim_bridges` launch args) — placeholders only until an airframe exists
 2. Do **not** flash, invent IDs, or enable EV by default
 
 **Phase 5 (Reliability) — deferred:**
@@ -341,4 +341,4 @@ All proposals respect existing safety rules:
 ---
 
 **Last Updated:** 2026-11-06 (Asia/Calcutta) — Phase 4b sim closed; EV opt-in verified  
-**Next Review:** Hardware bring-up checklist / fill OpenVINS calib placeholders when an airframe exists. Phase 5+ items stay deferred until Pallab asks. Keep `EKF2_EV_CTRL=0` as the default path.
+**Next Review:** Fill OpenVINS hardware_placeholder calib when an airframe exists; then VIO-only bags before any EV. Phase 5+ stay deferred until Pallab asks. Keep `EKF2_EV_CTRL=0` as the default path.

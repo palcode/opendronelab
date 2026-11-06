@@ -1,0 +1,22 @@
+%YAML:1.0
+# PLACEHOLDER — replace before hardware bring-up.
+# Fill intrinsics/distortion/T_cam_imu from Kalibr (or equivalent).
+# Do NOT copy Gazebo sim numbers. Do NOT invent a camera model name.
+
+cam0:
+  # 4x4 T_cam_imu: REPLACE with calibrated extrinsics (IMU → optical).
+  T_cam_imu:
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]
+  cam_overlaps: []
+  camera_model: pinhole
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0]
+  distortion_model: radtan
+  # [fx, fy, cx, cy] — REPLACE from CameraInfo / Kalibr (zeros are invalid).
+  intrinsics: [0.0, 0.0, 0.0, 0.0]
+  # [width, height] — REPLACE
+  resolution: [0, 0]
+  rostopic: /REPLACE_ME/image_raw
+  timeshift_cam_imu: 0.0
