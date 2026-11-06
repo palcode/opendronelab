@@ -386,3 +386,9 @@ For perception use `MODEL=gz_x500_mono_cam WORLD=detection_test`. Prefer `HEADLE
 `WORLD=vio_test MODEL=gz_x500_mono_cam` — textured corridor along Gazebo +Y for
 OpenVINS. See `docs/localization.md` § OpenVINS. Keep `ENABLE_GST_CAMERA` unset
 (GstCamera leak).
+
+GPS-only is the default (`EKF2_EV_CTRL=0`). Opt-in external vision: recreate
+`odl-sim` with `PX4_PARAM_EKF2_EV_CTRL=3` and `ros2 launch drone_bringup vio_ev.launch.py`
+(`vision_px4_bridge` aligns OV→PX4 NED). Verified SITL bag `20261106_155243`
+(EKF2/VIO Umeyama xy 0.210/0.237 m). Do not leave EV enabled on the default
+GPS baseline container.

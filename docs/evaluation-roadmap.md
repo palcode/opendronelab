@@ -25,17 +25,9 @@ This document tracks proposed improvements and optimizations for OpenDroneLab ba
 
 **Run Results:** _(To be filled after container build)_
 
-### 📋 3. Cross-Check with evo
-**Status:** Deferred (Phase 4b validation)  
-**Proposal:** Compare custom MCAP metrics against [evo](https://github.com/MichaelGrupp/evo):
-1. Export estimated and ground-truth trajectories to TUM format
-2. Run `evo_ape tum groundtruth.txt estimate.txt --plot`
-3. Compare ATE/RPE numbers with `localization_metrics` output
-4. Document any discrepancies
-
-**Decision:** Defer to Phase 4b. Current metrics are sufficient for baseline. evo adds python dependency (pip install evo-1.x) but provides industry-standard validation. Consider integration after baseline validation is complete.
-
-**Fallback:** If metrics diverge significantly, consider wrapping evo directly instead of maintaining custom implementation.
+### ✅ 3. Cross-Check with evo
+**Status:** Adopted (Phase 4b, image `:phase4b-evo`)  
+**Details:** `scripts/evo-check.sh` runs evo 1.38.1 as an external CLI against TUM exports from `localization_metrics`. Results documented in `docs/localization.md` (matches custom ATE to ~1e-8 m with shared origin alignment). Custom metrics kept for vertical/mean/max and in-package tests.
 
 ---
 
@@ -102,8 +94,8 @@ RUN sudo pip3 install --break-system-packages --ignore-installed "numpy<2"
 
 **Decision:** Defer to post-Phase 4a. Git remote is cleanest; requires Origin repo creation and laptop git config.
 
-### ✅ 6. Rename Agent Title
-**Status:** Investigating (may not be possible from agent)  
+### 📋 6. Rename Agent Title
+**Status:** Deferred (only if Pallab asks)  
 **Proposal:** Rename chat title from "Phase 0" to "Phase 4a: Localization Baseline"
 
 **Outcome:** Tool available (`cursor-cloud-rename-chat`) but only use when user asks. Title may have been set by user. Will not rename autonomously per agent guidelines.
@@ -293,7 +285,7 @@ Logged for later; none of these is adopted yet. Each needs Pallab's approval bef
 | Item | Phase | Plan / caveats |
 |------|-------|----------------|
 | [robot_localization](https://github.com/cra-ros-pkg/robot_localization) `ekf_node` | 4b/5 | Second estimator fusing IMU + GPS + baro next to EKF2, **for comparison only** (EKF2 stays the flight estimator). Before adopting: confirm the licence file in the repo and that `ros-jazzy-robot-localization` exists in the Jazzy apt repo. |
-| [OpenVINS](https://github.com/rpng/open_vins) | GPS-denied | **Adopted 2026-11-06:** isolated GPL-3 pin `0bd027a`. 3-run `vio_test` mean Umeyama xy **3.47 m** (2/3 healthy, healthy mean **1.06 m**). EV→EKF2 bridge works but destabilized SITL — left opt-in/off. |
+| [OpenVINS](https://github.com/rpng/open_vins) | GPS-denied | **Adopted 2026-11-06:** isolated GPL-3 pin `0bd027a`. GT-airborne rescore Umeyama xy **0.643 / 0.358 / 1.112 m** (bags `143702`/`143946`/`144250`). EV→EKF2 via `vision_px4_bridge` **works as opt-in** (verify bag `20261106_155243`: square OK, EKF2/VIO Umeyama xy **0.210 / 0.237 m**); default `EKF2_EV_CTRL=0`. |
 | [Aerostack2](https://github.com/aerostack2/aerostack2) | 7+ (multi-vehicle) | Study its behaviour-tree and mission patterns only. Not adopted: it targets ROS 2 Humble / Ubuntu 22.04, not Jazzy / 24.04. |
 | [Pegasus Simulator](https://github.com/PegasusSimulator/PegasusSimulator) | Optional | Separate experiment only (Isaac Sim 5.1, PX4 1.14.3, Ubuntu 22.04). Whether it fits in the RTX 5060's 8 GB VRAM is **unverified**. |
 | [osrf/rocker](https://github.com/osrf/rocker) | Tooling | Look at its `--nvidia` and X11 handling as a way to simplify `launch-sitl.sh` / `dev-shell.sh`. Keep our scoped `xhost +SI:localuser:$USER` policy (no `xhost +`). |
@@ -303,27 +295,29 @@ Logged for later; none of these is adopted yet. Each needs Pallab's approval bef
 
 ## Implementation Priority
 
-**Now (Phase 4a completion):**
-1. ✅ Strengthen unit tests
-2. ✅ X11 security audit
-3. Document remaining items in this roadmap
+**Simulation roadmap (Phase 4a / 4b) — complete on main tip `727b98e`:**
+1. ✅ Unit tests + X11 audit
+2. ✅ evo cross-check (`:phase4b-evo`)
+3. ✅ GPU YOLOX (`:phase4-gpu` / `:latest` = `phase4c-vio`)
+4. ✅ `HEADLESS=1` + GstCamera leak workaround
+5. ✅ OpenVINS isolated (GPL-3 `0bd027a`, `vio_test`)
+6. ✅ 3-run VIO GT-airborne rescore: Umeyama xy **0.643 / 0.358 / 1.112 m**
+7. ✅ EV fusion **opt-in** via `vision_px4_bridge` (`6f4c42e`, `727b98e`): bag `20261106_155243` completed square; EKF2/VIO Umeyama xy **0.210 / 0.237 m**; origin H/V **0.288 / 0.077 m**; `cs_ev_pos`/`cs_ev_hgt` engaged. **Default remains `EKF2_EV_CTRL=0` (GPS-only).**
 
-**Phase 4b (Localization Improvements):**
-1. ✅ Cross-check metrics with evo (`:phase4b-evo`)
-2. ✅ GPU inference assessment (`:phase4-gpu`)
-3. ✅ Headless sim + GstCamera memory fix
-4. ✅ OpenVINS bring-up (isolated GPL-3 process, `vio_test` world)
-5. ✅ 3-run VIO baseline (2/3 healthy); EV overlay attempted — blocked (destabilized)
+**Next (bring-up prep, not Phase 5+ infra):**
+1. Real-hardware hooks / remaps / checklist (`docs/real-drone-readiness.md`) — placeholders only until an airframe exists
+2. Do **not** flash, invent IDs, or enable EV by default
 
-**Phase 5 (Reliability):**
-1. Dockerfile optimization (numpy pin, multi-stage build)
-2. Laptop/repo drift workflow
-3. Headless mode implementation
+**Phase 5 (Reliability) — deferred:**
+1. Dockerfile numpy pin / multi-stage rebuild (#4, #8)
+2. Laptop↔repo Origin drift workflow (#5) — GitHub `origin` already in use on this laptop; Origin draft stays unpublished
+3. Chat rename (#6) only if Pallab asks
 
-**Phase 6+ (Automation):**
-1. Image build optimizations (BuildKit cache)
-2. CI integration with reproducible baselines
-3. Evaluate Pegasus/Aerostack2 if needed
+**Phase 6+ (Automation / extras) — deferred:**
+1. BuildKit / CI reproducible baselines
+2. ROS 2 Lyrical + Gazebo Jetty (#10)
+3. Pegasus / Aerostack2 / rocker / XTDrone / `robot_localization` comparison
+4. Foxglove desktop (layout JSON already in-tree for bags)
 
 ---
 
@@ -346,5 +340,5 @@ All proposals respect existing safety rules:
 
 ---
 
-**Last Updated:** 2026-11-06 (OpenVINS bring-up on vio_test; Umeyama 0.150 m)  
-**Next Review:** Fix EV frame/time alignment before re-enabling EKF2_EV_CTRL experiments
+**Last Updated:** 2026-11-06 (Asia/Calcutta) — Phase 4b sim closed; EV opt-in verified  
+**Next Review:** Hardware bring-up checklist / fill OpenVINS calib placeholders when an airframe exists. Phase 5+ items stay deferred until Pallab asks. Keep `EKF2_EV_CTRL=0` as the default path.

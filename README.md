@@ -1,6 +1,6 @@
 # OpenDroneLab
 
-**Status:** Phase 4a complete; C++ square flight + camera-world memory fix on main  
+**Status:** Phase 4a/4b sim complete on main; GPS-only default; EV opt-in verified in SITL  
 **Last Updated:** 2026-11-06
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
@@ -221,7 +221,7 @@ Detailed guides will be added in future phases.
 - [x] **Phase 3:** Camera and perception (Complete)
 - [x] **Phase 4a:** Localization baseline with EKF2 evaluation
 - [x] **C++ flight + camera memory:** OFFBOARD port gated; GstCamera leak workaround
-- [x] **Phase 4b:** OpenVINS (isolated GPL-3, `vio_test`); 3-run mean Umeyama xy 3.47 m (2/3 healthy); EV overlay blocked
+- [x] **Phase 4b:** OpenVINS + opt-in EV (`vio_test`); VIO Umeyama xy 0.64/0.36/1.11 m; EV verify 0.21/0.24 m (default `EKF2_EV_CTRL=0`)
 - [ ] **Phase 5:** Simulation-only resilience experiments
 - [ ] **Phase 6:** Automated evaluation
 - [ ] **Phase 7+:** Future enhancements
