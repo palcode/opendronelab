@@ -501,3 +501,7 @@ ros2 run drone_flight_cpp square_flight_cpp
 ```
 
 **C++ vs Python gate (2026-11-06, fresh `GZ_SEED=1234`):** bags `20261106_111112` / `_111323` / `_111533`. Per-run H/V RMSE: 0.293/0.062, 0.253/0.064, 0.262/0.071. Mean H **0.270 m** (allowed 0.237–0.297), mean V **0.066 m** (allowed 0.045–0.085). All three armed, flew, landed, re-armed. evo matched our metrics. An earlier ModeExecutor + PX4-takeoff attempt failed the gate (mean H 0.383 m) and was dropped.
+
+### Retest 2026-11-06 (Asia/Calcutta)
+
+`vio_baseline_20261106_134009` after static-init + feature-wait: **1/3 healthy** (run2 Umeyama xy 4.67 m; run1 14.7 m; run3 zero OV odom). EV skipped. Details: `docs/real-drone-readiness.md`.
