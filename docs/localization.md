@@ -467,7 +467,15 @@ time domain.
 (`heading_px4 - yaw_ov_ned`) plus translation, publishes aligned NED position
 (and optionally velocity), and sets `timestamp` / `timestamp_sample` from the
 PX4 clock minus OV message age on the sim clock. Re-aligns if OV jumps by
-`align_reset_jump_m` (default 5 m). Default `EKF2_EV_CTRL` remains **0**.
+`align_reset_jump_m` (default 5 m), but only while `|z_ned| < align_max_abs_z`
+(default 1.5 m) so post-land OV divergence cannot yank EKF2. Default
+`EKF2_EV_CTRL` remains **0**.
+
+**Verification (2026-11-06 Asia/Calcutta, one opt-in flight):** bag
+`20261106_155243`, results `vio_ev_align_20261106_155243`. Square completed.
+`cs_ev_pos`/`cs_ev_hgt` true for 115/128 flags. EKF2 Umeyama xy **0.210 m**,
+VIO Umeyama xy **0.237 m** (GT-airborne mask). Pre-fix EV attempts were ~22/16 m
+and aborted.
 
 
 Image: `opendronelab-dev:phase4c-vio` (= `:latest`), rollback `:phase4b-evo`.
@@ -540,5 +548,5 @@ Results: `vio_baseline_20261106_143651` + `vio_baseline_20261106_143936`.
 | 2 | `143946` | **0.358 m** |
 | 3 | `144250` | 1.112 m |
 
-**EV (pre-align fix):** opt-in attempts aborted mid-square (EKF2/VIO Umeyama xy ~22 / 16 m and earlier 30.6 / 19.9 m). Cause: OV arbitrary yaw published as NED + sim-time stamps. Bridge now aligns yaw/origin to PX4 local NED and uses PX4 timestamps; default `EKF2_EV_CTRL` stays 0.
+**EV:** after yaw/origin/time align (`6f4c42e` + near-ground re-align guard), one opt-in flight completed the square — EKF2/VIO Umeyama xy **0.210 / 0.237 m** (bag `20261106_155243`). Default `EKF2_EV_CTRL` stays 0.
 

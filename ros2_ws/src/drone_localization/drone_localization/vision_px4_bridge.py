@@ -102,6 +102,7 @@ class VisionPx4Bridge(Node):
         self.declare_parameter('publish_velocity', True)
         self.declare_parameter('publish_orientation', False)
         self.declare_parameter('align_reset_jump_m', 5.0)
+        self.declare_parameter('align_max_abs_z', 1.5)  # only (re)align near ground
         # When False, orientation is NaN so EKF2 should use EV_CTRL without yaw.
 
         qos_px4 = QoSProfile(
@@ -125,6 +126,7 @@ class VisionPx4Bridge(Node):
         self._pub_vel = bool(self.get_parameter('publish_velocity').value)
         self._pub_ori = bool(self.get_parameter('publish_orientation').value)
         self._jump_m = float(self.get_parameter('align_reset_jump_m').value)
+        self._align_max_abs_z = float(self.get_parameter('align_max_abs_z').value)
 
         self._reset_counter = 0
         self._last_ov_ned: Optional[np.ndarray] = None
@@ -169,9 +171,23 @@ class VisionPx4Bridge(Node):
             or not math.isfinite(self._px4_heading)
         ):
             return False
-        self._yaw_off, self._translation = compute_ned_alignment(
-            ov_ned, ov_ned_yaw, self._px4_pos, self._px4_heading
-        )
+        # Refuse in-air / post-land divergent re-align (OV can jump tens of meters).
+        if abs(self._px4_pos[2]) > self._align_max_abs_z:
+            return False
+        if self._yaw_off is None:
+            yaw_off, translation = compute_ned_alignment(
+                ov_ned, ov_ned_yaw, self._px4_pos, self._px4_heading
+            )
+        else:
+            # Keep yaw after an OV reset; only refresh translation.
+            yaw_off = self._yaw_off
+            xr, yr = rotate_yaw_xy(ov_ned[0], ov_ned[1], yaw_off)
+            translation = (
+                self._px4_pos[0] - xr,
+                self._px4_pos[1] - yr,
+                self._px4_pos[2] - ov_ned[2],
+            )
+        self._yaw_off, self._translation = yaw_off, translation
         self.get_logger().info(
             f'Aligned OV→PX4 NED: yaw_off={math.degrees(self._yaw_off):.1f} deg, '
             f't=({self._translation[0]:.3f},{self._translation[1]:.3f},'
