@@ -1,4 +1,4 @@
-"""Launch the C++ square flight (px4-ros2-interface-lib)."""
+"""Launch the C++ square flight (classic OFFBOARD, matches Python)."""
 from launch import LaunchDescription
 from launch_ros.actions import Node
 

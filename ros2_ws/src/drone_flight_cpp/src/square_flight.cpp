@@ -1,328 +1,348 @@
-// C++ port of drone_localization/square_flight.py using px4-ros2-interface-lib.
+// C++ port of drone_localization/square_flight.py.
 //
-// Same profile: 10 m square at 5 m (NED z=-5), position setpoints, 0.5 m
-// waypoint tolerance, 3 s hold per corner, 180 s timeout, soft altitude
-// abort above max_altitude + 0.5 m, then land.
+// Same OFFBOARD profile as Python: stream OffboardControlMode +
+// TrajectorySetpoint at 20 Hz, engage OFFBOARD, arm, climb via the first
+// waypoint (0, 0, -altitude), fly the 10 m square with yaw=0, land, then Hold.
 //
-// Structure: an external mode ("Square Flight") streams the position
-// setpoints; a mode executor arms, runs PX4's built-in takeoff, then
-// the mode, then lands and waits for disarm.
-//
-// Takeoff-before-mode matches the px4-ros2-interface-lib examples and
-// integration tests. Sending TrajectorySetpointType position setpoints
-// alone while landed does not clear COM_DISARM_PRFLT (10 s): the mode
-// activates, but the vehicle never leaves the ground and PX4 auto-
-// disarms ("Disarmed by auto preflight disarming").
-//
-// TrajectorySetpointType is the lib's *experimental* trajectory API
-// (see setpoint_types/experimental/trajectory.hpp); MulticopterGoto
-// is preferred for new work, but Trajectory matches the Python node's
-// TrajectorySetpoint + yaw=0 profile used for the RMSE gate.
-//
-// ActivateImmediately: PX4 never sits in OFFBOARD after landing. The
-// startup Hold switch still covers runs that follow a Python flight or
-// an orphaned custom nav_state.
-#include <px4_ros2/components/mode.hpp>
-#include <px4_ros2/components/mode_executor.hpp>
-#include <px4_ros2/components/node_with_mode.hpp>
-#include <px4_ros2/control/setpoint_types/experimental/trajectory.hpp>
-#include <px4_ros2/odometry/local_position.hpp>
-
+// Why not ModeExecutor + TrajectorySetpointType for the climb:
+// PX4 only sets vehicle_constraints.want_takeoff from a position/velocity
+// setpoint when flag_control_offboard_enabled is true (classic OFFBOARD).
+// External modes never set that flag, so arm → scheduleMode stays on the
+// ground until COM_DISARM_PRFLT (10 s). PX4's built-in takeoff clears the
+// timer but inserts a different climb than Python and failed the RMSE gate.
+// Matching Python's OFFBOARD climb is the smallest fix that both leaves the
+// ground and keeps the climb samples in the same envelope as the baseline.
+#include <px4_msgs/msg/offboard_control_mode.hpp>
+#include <px4_msgs/msg/trajectory_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-#include <Eigen/Core>
 #include <array>
-#include <atomic>
 #include <chrono>
-#include <cstdlib>
+#include <cmath>
+#include <optional>
 #include <stdexcept>
+#include <limits>
 #include <string>
-#include <thread>
+#include <vector>
 
 using namespace std::chrono_literals;  // NOLINT
 
-static const std::string kModeName = "Square Flight";
-
-struct Params
-{
-  float side{10.f};
-  float altitude{5.f};
-  float max_altitude{6.f};
-  double hold_s{3.0};
-  double timeout_s{180.0};
-  float tolerance{0.5f};
-};
-
-static int g_exit_code = 1;
-// Set when the executor is done; main() then destroys the node (which
-// unregisters the mode/executor from PX4) BEFORE rclcpp::shutdown(). A
-// stale registration is flagged unresponsive and blocks the next arm.
-static std::atomic<bool> g_done{false};
-
-class SquareMode : public px4_ros2::ModeBase
+class SquareFlightNode : public rclcpp::Node
 {
 public:
-  explicit SquareMode(rclcpp::Node & node)
-  : ModeBase(node, kModeName)
+  SquareFlightNode()
+  : Node("square_flight_cpp")
   {
-    p_.side = static_cast<float>(node.declare_parameter("square_side", 10.0));
-    p_.altitude = static_cast<float>(node.declare_parameter("altitude", 5.0));
-    p_.max_altitude = static_cast<float>(node.declare_parameter("max_altitude", 6.0));
-    p_.hold_s = node.declare_parameter("corner_hold_time", 3.0);
-    p_.timeout_s = node.declare_parameter("mission_timeout", 180.0);
-    p_.tolerance = static_cast<float>(node.declare_parameter("waypoint_tolerance", 0.5));
-    if (p_.altitude > p_.max_altitude) {
+    square_side_ = declare_parameter("square_side", 10.0);
+    altitude_ = declare_parameter("altitude", 5.0);
+    max_altitude_ = declare_parameter("max_altitude", 6.0);
+    corner_hold_time_ = declare_parameter("corner_hold_time", 3.0);
+    mission_timeout_ = declare_parameter("mission_timeout", 180.0);
+    waypoint_tolerance_ = declare_parameter("waypoint_tolerance", 0.5);
+
+    if (altitude_ > max_altitude_) {
       throw std::runtime_error("Target altitude exceeds safety limit");
     }
-    const float z = -p_.altitude;
-    wps_ = {{
-      {0.f, 0.f, z}, {p_.side, 0.f, z}, {p_.side, p_.side, z}, {0.f, p_.side, z}, {0.f, 0.f, z}}};
-    setpoint_ = std::make_shared<px4_ros2::TrajectorySetpointType>(*this);
-    local_pos_ = std::make_shared<px4_ros2::OdometryLocalPosition>(*this);
-    setSetpointUpdateRate(20.f);  // match the Python node's 20 Hz loop
+
+    const float z = static_cast<float>(-altitude_);
+    const float side = static_cast<float>(square_side_);
+    waypoints_ = {
+      {0.f, 0.f, z},
+      {side, 0.f, z},
+      {side, side, z},
+      {0.f, side, z},
+      {0.f, 0.f, z},
+    };
+
+    // PX4 v1.17 + px4_msgs release/1.17: BEST_EFFORT + TRANSIENT_LOCAL
+    rclcpp::QoS qos_px4(10);
+    qos_px4.best_effort();
+    qos_px4.transient_local();
+
+    offboard_control_mode_pub_ =
+      create_publisher<px4_msgs::msg::OffboardControlMode>("/fmu/in/offboard_control_mode", qos_px4);
+    trajectory_setpoint_pub_ =
+      create_publisher<px4_msgs::msg::TrajectorySetpoint>("/fmu/in/trajectory_setpoint", qos_px4);
+    vehicle_command_pub_ =
+      create_publisher<px4_msgs::msg::VehicleCommand>("/fmu/in/vehicle_command", qos_px4);
+
+    status_sub_ = create_subscription<px4_msgs::msg::VehicleStatus>(
+      "/fmu/out/vehicle_status_v1", qos_px4,
+      [this](px4_msgs::msg::VehicleStatus::SharedPtr msg) {vehicle_status_ = msg;});
+    position_sub_ = create_subscription<px4_msgs::msg::VehicleLocalPosition>(
+      "/fmu/out/vehicle_local_position_v1", qos_px4,
+      [this](px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {vehicle_local_position_ = msg;});
+
+    timer_ = create_wall_timer(50ms, std::bind(&SquareFlightNode::controlLoop, this));
+
     RCLCPP_INFO(
-      node.get_logger(), "Square flight (C++): side=%.1fm, alt=%.1fm, hold=%.1fs, timeout=%.0fs",
-      p_.side, p_.altitude, p_.hold_s, p_.timeout_s);
-  }
-
-  void onActivate() override
-  {
-    RCLCPP_INFO(node().get_logger(), "Square mode active");
-    idx_ = 0;
-    arrived_ = false;
-    start_ = node().get_clock()->now();
-  }
-
-  void onDeactivate() override {}
-
-  void updateSetpoint(float) override
-  {
-    const rclcpp::Time now = node().get_clock()->now();
-    const Eigen::Vector3f pos = local_pos_->positionNed();
-    if ((now - start_).seconds() > p_.timeout_s) {
-      RCLCPP_ERROR(node().get_logger(), "Mission timeout (%.0fs), landing", p_.timeout_s);
-      completed(px4_ros2::Result::Timeout);
-      return;
-    }
-    if (pos.z() < -p_.max_altitude - 0.5f) {
-      RCLCPP_ERROR(node().get_logger(), "Altitude %.1fm exceeds max, landing", -pos.z());
-      completed(px4_ros2::Result::Rejected);
-      return;
-    }
-    const Eigen::Vector3f & wp = wps_[idx_];
-    // Match Python square_flight: position + yaw 0 (updatePosition leaves yaw NaN).
-    px4_ros2::TrajectorySetpoint sp;
-    sp.withPosition(wp).withYaw(0.f);
-    setpoint_->update(sp);
-    if ((pos - wp).norm() < p_.tolerance) {
-      if (!arrived_) {
-        arrived_ = true;
-        arrival_ = now;
-        RCLCPP_INFO(
-          node().get_logger(), "Reached waypoint %zu: (%.1f, %.1f, %.1f)", idx_, wp.x(), wp.y(),
-          wp.z());
-      }
-      if ((now - arrival_).seconds() >= p_.hold_s) {
-        arrived_ = false;
-        if (++idx_ >= wps_.size()) {
-          RCLCPP_INFO(node().get_logger(), "Square complete, landing");
-          completed(px4_ros2::Result::Success);
-          return;
-        }
-        RCLCPP_INFO(node().get_logger(), "Moving to waypoint %zu", idx_);
-      }
-    }
+      get_logger(),
+      "Square flight (C++ OFFBOARD): side=%.1fm, alt=%.1fm, hold=%.1fs, timeout=%.0fs",
+      square_side_, altitude_, corner_hold_time_, mission_timeout_);
   }
 
 private:
-  Params p_;
-  std::array<Eigen::Vector3f, 5> wps_;
-  std::shared_ptr<px4_ros2::TrajectorySetpointType> setpoint_;
-  std::shared_ptr<px4_ros2::OdometryLocalPosition> local_pos_;
-  size_t idx_{0};
-  bool arrived_{false};
-  rclcpp::Time start_{}, arrival_{};
-};
+  enum class State { Init, Preflight, Arming, Flying, Landing, Complete };
 
-class SquareExecutor : public px4_ros2::ModeExecutorBase
-{
-public:
-  explicit SquareExecutor(px4_ros2::ModeBase & owned_mode)
-  : ModeExecutorBase(
-      px4_ros2::ModeExecutorBase::Settings{}.activate(
-        px4_ros2::ModeExecutorBase::Settings::Activation::ActivateImmediately),
-      owned_mode),
-    node_(owned_mode.node())
+  uint64_t nowUs() const
   {
-    rclcpp::QoS qos = rclcpp::QoS(10).best_effort().transient_local();
-    hold_pub_ = node_.create_publisher<px4_msgs::msg::VehicleCommand>(
-      "/fmu/in/vehicle_command", qos);
+    return static_cast<uint64_t>(get_clock()->now().nanoseconds() / 1000);
   }
 
-  void onActivate() override
+  void publishOffboardControlMode()
   {
-    if (started_) {return;}
-    started_ = true;
-    // Give PX4 ~2 s to receive the mode's first arming-check replies
-    // (arming immediately after registration is rejected as "unresponsive"),
-    // matching the Python node's 2 s setpoint pre-stream.
-    RCLCPP_INFO(node_.get_logger(), "Executor active, arming in 2 s");
-    timer_ = node_.create_wall_timer(2s, [this]() {timer_->cancel(); tryArm();});
+    px4_msgs::msg::OffboardControlMode msg{};
+    msg.timestamp = nowUs();
+    msg.position = true;
+    msg.velocity = false;
+    msg.acceleration = false;
+    msg.attitude = false;
+    msg.body_rate = false;
+    offboard_control_mode_pub_->publish(msg);
   }
 
-  void tryArm()
+  void publishTrajectorySetpoint(float x, float y, float z, float yaw)
   {
-    arm([this](px4_ros2::Result r) {
-        if (r != px4_ros2::Result::Success) {
-          if (++arm_attempts_ < 5) {
-            RCLCPP_WARN(node_.get_logger(), "Arm %s, retrying in 1 s", resultToString(r));
-            timer_ = node_.create_wall_timer(1s, [this]() {timer_->cancel(); tryArm();});
-            return;
-          }
-          return finish("arm", r);
-        }
-        RCLCPP_INFO(node_.get_logger(), "Armed, taking off");
-        // NAV_TAKEOFF altitude is AMSL; Gazebo default home ref_alt is ~0 m, so
-        // the mission altitude (5 m) is a good AGL target here. Heading 0 matches
-        // the Python node's yaw=0 setpoints.
-        float alt_amsl = 5.f;
-        try {
-          alt_amsl = static_cast<float>(node_.get_parameter("altitude").as_double());
-        } catch (const std::exception &) {}
-        takeoff(
-          [this](px4_ros2::Result r_to) {
-            if (r_to != px4_ros2::Result::Success) {return finish("takeoff", r_to);}
-            RCLCPP_INFO(node_.get_logger(), "Takeoff complete, flying square");
-            scheduleMode(ownedMode().id(), [this](px4_ros2::Result r2) {
-              mission_ok_ = (r2 == px4_ros2::Result::Success);
-              if (!mission_ok_) {
-                RCLCPP_ERROR(node_.get_logger(), "Square mode ended: %s", resultToString(r2));
+    px4_msgs::msg::TrajectorySetpoint msg{};
+    msg.timestamp = nowUs();
+    msg.position = {x, y, z};
+    msg.yaw = yaw;
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    msg.velocity = {nan, nan, nan};
+    msg.acceleration = {nan, nan, nan};
+    msg.jerk = {nan, nan, nan};
+    msg.yawspeed = nan;
+    trajectory_setpoint_pub_->publish(msg);
+  }
+
+  void publishVehicleCommand(uint32_t command, float p1 = 0.f, float p2 = 0.f, float p3 = 0.f)
+  {
+    px4_msgs::msg::VehicleCommand msg{};
+    msg.timestamp = nowUs();
+    msg.command = command;
+    msg.param1 = p1;
+    msg.param2 = p2;
+    msg.param3 = p3;
+    msg.target_system = 1;
+    msg.target_component = 1;
+    msg.source_system = 1;
+    msg.source_component = 1;
+    msg.from_external = true;
+    vehicle_command_pub_->publish(msg);
+  }
+
+  void engageOffboardMode()
+  {
+    publishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1.f, 6.f);
+  }
+
+  void engageHoldMode()
+  {
+    // AUTO_LOITER (Hold): armable after an offboard landing.
+    publishVehicleCommand(
+      px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1.f, 4.f, 3.f);
+  }
+
+  void arm()
+  {
+    publishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.f);
+  }
+
+  void land()
+  {
+    publishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_NAV_LAND);
+  }
+
+  float distanceToWaypoint(const std::array<float, 3> & wp) const
+  {
+    if (!vehicle_local_position_) {
+      return std::numeric_limits<float>::infinity();
+    }
+    const float dx = vehicle_local_position_->x - wp[0];
+    const float dy = vehicle_local_position_->y - wp[1];
+    const float dz = vehicle_local_position_->z - wp[2];
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
+  }
+
+  void controlLoop()
+  {
+    if (!vehicle_status_ || !vehicle_local_position_) {
+      return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+
+    if (mission_start_ && state_ != State::Landing && state_ != State::Complete) {
+      const double elapsed =
+        std::chrono::duration<double>(now - *mission_start_).count();
+      if (elapsed > mission_timeout_) {
+        RCLCPP_ERROR(get_logger(), "Mission timeout (%.0fs), landing", mission_timeout_);
+        land();
+        offboard_setpoint_counter_ = 0;
+        state_ = State::Landing;
+        return;
+      }
+    }
+
+    if (state_ == State::Flying &&
+      vehicle_local_position_->z < static_cast<float>(-max_altitude_ - 0.5))
+    {
+      RCLCPP_ERROR(
+        get_logger(), "Altitude %.1fm exceeds max %.1fm, landing",
+        -vehicle_local_position_->z, max_altitude_);
+      land();
+      offboard_setpoint_counter_ = 0;
+      state_ = State::Landing;
+      return;
+    }
+
+    switch (state_) {
+      case State::Init:
+        if (vehicle_local_position_->z_valid && vehicle_local_position_->xy_valid) {
+          if (vehicle_status_->pre_flight_checks_pass) {
+            RCLCPP_INFO(get_logger(), "Preflight checks passed, starting mission");
+            mission_start_ = now;
+            state_ = State::Preflight;
+            offboard_setpoint_counter_ = 0;
+          } else {
+            if (!preflight_fail_logged_) {
+              RCLCPP_WARN(get_logger(), "Waiting for preflight checks to pass...");
+              preflight_fail_logged_ = true;
+            }
+            // Left in OFFBOARD by a previous run while disarmed: switch to Hold.
+            if (vehicle_status_->nav_state == 14 && vehicle_status_->arming_state != 2) {
+              if ((++hold_requests_ % 20) == 1) {
+                RCLCPP_INFO(get_logger(), "Disarmed in OFFBOARD; switching to Hold");
+                engageHoldMode();
               }
-              land([this](px4_ros2::Result r3) {
-                if (r3 != px4_ros2::Result::Success) {return finish("land", r3);}
-                waitUntilDisarmed([this](px4_ros2::Result r4) {
-                  if (r4 != px4_ros2::Result::Success) {return finish("disarm", r4);}
-                  RCLCPP_INFO(node_.get_logger(), "Mission complete (disarmed)");
-                  // Leave Hold so the next run (Python or C++) passes preflight.
-                  requestHold();
-                  done_ = true;
-                  g_exit_code = mission_ok_ ? 0 : 1;
-                  g_done = true;
-                });
-              });
-            });
-          },
-          alt_amsl, 0.f);
-      });
-  }
+            }
+          }
+        }
+        break;
 
-  void onDeactivate(DeactivateReason reason) override
-  {
-    if (started_ && !done_) {
-      RCLCPP_WARN(
-        node_.get_logger(), "Executor deactivated (%s)",
-        reason == DeactivateReason::FailsafeActivated ? "failsafe" : "other");
-      done_ = true;
-      g_exit_code = 1;
-      g_done = true;
+      case State::Preflight:
+        // Stream setpoints for 2 s before engaging OFFBOARD (PX4 requirement).
+        publishOffboardControlMode();
+        publishTrajectorySetpoint(0.f, 0.f, 0.f, 0.f);
+        ++offboard_setpoint_counter_;
+        if (offboard_setpoint_counter_ > 40) {
+          RCLCPP_INFO(get_logger(), "Switching to offboard mode");
+          engageOffboardMode();
+          state_ = State::Arming;
+          offboard_setpoint_counter_ = 0;
+        }
+        break;
+
+      case State::Arming:
+        publishOffboardControlMode();
+        publishTrajectorySetpoint(0.f, 0.f, 0.f, 0.f);
+        ++offboard_setpoint_counter_;
+        if (offboard_setpoint_counter_ % 20 == 0) {
+          if (vehicle_status_->nav_state != 14) {
+            engageOffboardMode();
+          }
+          if (vehicle_status_->arming_state != 2) {
+            arm();
+          }
+        }
+        if (vehicle_status_->nav_state == 14 && vehicle_status_->arming_state == 2) {
+          RCLCPP_INFO(get_logger(), "Armed and in offboard mode");
+          corner_index_ = 0;
+          corner_arrival_.reset();
+          state_ = State::Flying;
+        }
+        break;
+
+      case State::Flying: {
+        const auto & wp = waypoints_[corner_index_];
+        publishOffboardControlMode();
+        publishTrajectorySetpoint(wp[0], wp[1], wp[2], 0.f);
+        const float distance = distanceToWaypoint(wp);
+        if (distance < static_cast<float>(waypoint_tolerance_)) {
+          if (!corner_arrival_) {
+            corner_arrival_ = now;
+            RCLCPP_INFO(
+              get_logger(), "Reached waypoint %zu: (%.1f, %.1f, %.1f)", corner_index_, wp[0],
+              wp[1], wp[2]);
+          }
+          if (std::chrono::duration<double>(now - *corner_arrival_).count() >= corner_hold_time_) {
+            corner_arrival_.reset();
+            ++corner_index_;
+            if (corner_index_ >= waypoints_.size()) {
+              RCLCPP_INFO(get_logger(), "Square complete, landing");
+              land();
+              offboard_setpoint_counter_ = 0;
+              state_ = State::Landing;
+            } else {
+              RCLCPP_INFO(get_logger(), "Moving to waypoint %zu", corner_index_);
+            }
+          }
+        }
+        break;
+      }
+
+      case State::Landing:
+        // Stop streaming setpoints so PX4 can leave OFFBOARD for AUTO_LAND.
+        if (offboard_setpoint_counter_ % 40 == 0) {
+          land();
+        }
+        ++offboard_setpoint_counter_;
+        if (vehicle_status_->arming_state != 2) {
+          RCLCPP_INFO(get_logger(), "Mission complete (disarmed)");
+          engageHoldMode();
+          state_ = State::Complete;
+        }
+        break;
+
+      case State::Complete:
+        rclcpp::shutdown();
+        break;
     }
   }
 
-  void requestHold()
-  {
-    px4_msgs::msg::VehicleCommand c{};
-    c.timestamp = node_.get_clock()->now().nanoseconds() / 1000;
-    c.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE;
-    c.param1 = 1.f; c.param2 = 4.f; c.param3 = 3.f;
-    c.target_system = 1; c.target_component = 1;
-    c.source_system = 1; c.source_component = 1; c.from_external = true;
-    hold_pub_->publish(c);
-  }
+  double square_side_{10.0};
+  double altitude_{5.0};
+  double max_altitude_{6.0};
+  double corner_hold_time_{3.0};
+  double mission_timeout_{180.0};
+  double waypoint_tolerance_{0.5};
 
-private:
-  void finish(const char * step, px4_ros2::Result r)
-  {
-    done_ = true;
-    RCLCPP_ERROR(node_.get_logger(), "%s failed: %s", step, resultToString(r));
-    g_exit_code = 1;
-    g_done = true;
-  }
+  std::vector<std::array<float, 3>> waypoints_;
+  State state_{State::Init};
+  size_t corner_index_{0};
+  int offboard_setpoint_counter_{0};
+  int hold_requests_{0};
+  bool preflight_fail_logged_{false};
+  std::optional<std::chrono::steady_clock::time_point> mission_start_;
+  std::optional<std::chrono::steady_clock::time_point> corner_arrival_;
 
-  rclcpp::Node & node_;
-  bool started_{false}, done_{false}, mission_ok_{false};
-  int arm_attempts_{0};
+  px4_msgs::msg::VehicleStatus::SharedPtr vehicle_status_;
+  px4_msgs::msg::VehicleLocalPosition::SharedPtr vehicle_local_position_;
+
+  rclcpp::Publisher<px4_msgs::msg::OffboardControlMode>::SharedPtr offboard_control_mode_pub_;
+  rclcpp::Publisher<px4_msgs::msg::TrajectorySetpoint>::SharedPtr trajectory_setpoint_pub_;
+  rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr vehicle_command_pub_;
+  rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr status_sub_;
+  rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr position_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
-  rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr hold_pub_;
 };
-
-// Wait for valid local position and passing preflight checks before
-// registering, like the Python node's INIT state. Switches a disarmed
-// vehicle left in OFFBOARD (nav_state 14) to Hold.
-static bool waitReady()
-{
-  auto n = std::make_shared<rclcpp::Node>("square_flight_cpp_wait");
-  rclcpp::QoS qos = rclcpp::QoS(10).best_effort().transient_local();
-  px4_msgs::msg::VehicleStatus::SharedPtr st;
-  px4_msgs::msg::VehicleLocalPosition::SharedPtr lp;
-  auto s1 = n->create_subscription<px4_msgs::msg::VehicleStatus>(
-    "/fmu/out/vehicle_status_v1", qos, [&](px4_msgs::msg::VehicleStatus::SharedPtr m) {st = m;});
-  auto s2 = n->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
-    "/fmu/out/vehicle_local_position_v1", qos,
-    [&](px4_msgs::msg::VehicleLocalPosition::SharedPtr m) {lp = m;});
-  auto cmd = n->create_publisher<px4_msgs::msg::VehicleCommand>("/fmu/in/vehicle_command", qos);
-  bool logged = false;
-  int hold_req = 0;
-  const auto deadline = std::chrono::steady_clock::now() + 120s;
-  while (rclcpp::ok() && std::chrono::steady_clock::now() < deadline) {
-    rclcpp::spin_some(n);
-    if (st && lp && lp->xy_valid && lp->z_valid) {
-      if (st->pre_flight_checks_pass) {
-        RCLCPP_INFO(n->get_logger(), "Preflight checks passed, starting mission");
-        return true;
-      }
-      if (!logged) {RCLCPP_WARN(n->get_logger(), "Waiting for preflight checks to pass..."); logged = true;}
-      // OFFBOARD (14) or an orphaned custom/external mode both block the next
-      // arm while disarmed; Hold is armable.
-      if (st->arming_state != 2 && (hold_req++ % 20) == 0) {
-        RCLCPP_INFO(
-          n->get_logger(), "Disarmed with preflight failing (nav_state=%u); switching to Hold",
-          st->nav_state);
-        px4_msgs::msg::VehicleCommand c{};
-        c.timestamp = n->get_clock()->now().nanoseconds() / 1000;
-        c.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE;
-        c.param1 = 1.f; c.param2 = 4.f; c.param3 = 3.f;
-        c.target_system = 1; c.target_component = 1;
-        c.source_system = 1; c.source_component = 1; c.from_external = true;
-        cmd->publish(c);
-      }
-    }
-    std::this_thread::sleep_for(50ms);
-  }
-  RCLCPP_ERROR(n->get_logger(), "Vehicle not ready within 120 s");
-  return false;
-}
-
-using SquareNode = px4_ros2::NodeWithModeExecutor<SquareExecutor, SquareMode>;
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  if (!waitReady()) {rclcpp::shutdown(); return 1;}
+  int exit_code = 0;
   try {
-    auto node = std::make_shared<SquareNode>("square_flight_cpp", std::getenv("ODL_PX4_ROS2_DEBUG") != nullptr);
-    rclcpp::executors::SingleThreadedExecutor exec;
-    exec.add_node(node);
-    while (rclcpp::ok() && !g_done) {exec.spin_once(50ms);}
-    exec.remove_node(node);
-    node.reset();  // unregisters from PX4 while the context is still valid
-    std::this_thread::sleep_for(200ms);
+    auto node = std::make_shared<SquareFlightNode>();
+    rclcpp::spin(node);
   } catch (const std::exception & e) {
     RCLCPP_ERROR(rclcpp::get_logger("square_flight_cpp"), "%s", e.what());
-    g_exit_code = 1;
+    exit_code = 1;
   }
-  if (rclcpp::ok()) {rclcpp::shutdown();}
-  return g_exit_code;
+  if (rclcpp::ok()) {
+    rclcpp::shutdown();
+  }
+  return exit_code;
 }
