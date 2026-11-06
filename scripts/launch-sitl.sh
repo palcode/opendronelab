@@ -141,6 +141,20 @@ if [ -n "${HEADLESS}" ]; then
     EXTRA_ARGS+=(-e HEADLESS=1)
     WORLD_MSG="${WORLD_MSG} (headless)"
 fi
+# Optional EV-fusion param overlays. Unset keeps SITL defaults (EKF2_EV_CTRL=0).
+# Example: PX4_PARAM_EKF2_EV_CTRL=3 ./scripts/launch-sitl.sh
+if [ -n "${PX4_PARAM_EKF2_EV_CTRL:-}" ]; then
+    EXTRA_ARGS+=(-e "PX4_PARAM_EKF2_EV_CTRL=${PX4_PARAM_EKF2_EV_CTRL}")
+    echo "[INFO] PX4_PARAM_EKF2_EV_CTRL=${PX4_PARAM_EKF2_EV_CTRL}"
+    WORLD_MSG="${WORLD_MSG} (EV_CTRL=${PX4_PARAM_EKF2_EV_CTRL})"
+fi
+if [ -n "${PX4_PARAM_EKF2_HGT_REF:-}" ]; then
+    EXTRA_ARGS+=(-e "PX4_PARAM_EKF2_HGT_REF=${PX4_PARAM_EKF2_HGT_REF}")
+    echo "[INFO] PX4_PARAM_EKF2_HGT_REF=${PX4_PARAM_EKF2_HGT_REF}"
+fi
+if [ -n "${PX4_PARAM_EKF2_EV_DELAY:-}" ]; then
+    EXTRA_ARGS+=(-e "PX4_PARAM_EKF2_EV_DELAY=${PX4_PARAM_EKF2_EV_DELAY}")
+fi
 if [ "${MEM_LIMIT}" != "0" ]; then
     EXTRA_ARGS+=(--memory "${MEM_LIMIT}" --memory-swap "${MEM_LIMIT}")
 fi

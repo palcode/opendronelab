@@ -418,10 +418,51 @@ results `/data/results/vio_20261106_123621`.
 | OpenVINS | RPE RMSE (1 m, Umeyama) | **0.101 m** |
 | OpenVINS | Horiz RMSE (origin-align only) | 10.6 m (yaw-free; not comparable) |
 
-A 3-run VIO mean gate is follow-up. External-vision fusion into EKF2
-(`EKF2_EV_CTRL`) is **not** enabled by default; see
-`config/px4/ekf2_external_vision.params` for a sketch. GPS baseline params stay
-unchanged (`EKF2_EV_CTRL=0`).
+### Three-run VIO baseline (2026-11-06, Asia/Calcutta)
+
+Same SITL (`GZ_SEED=1234`, `WORLD=vio_test`), C++ square, OpenVINS restarted
+between runs. Results: `/data/results/vio_baseline_20261106_125200`.
+**Matching alignment:** report both origin-align (`localization_metrics`) and
+evo Umeyama SE3 for **both** EKF2 and OpenVINS.
+
+| Run | Bag | EKF2 origin H/V | EKF2 Umeyama xy/3D | VIO origin H/V | VIO Umeyama xy/3D | Healthy? |
+|-----|-----|-----------------|--------------------|----------------|-------------------|----------|
+| 1 | `20261106_125231` | 0.282 / 0.068 | 0.257 / 0.266 | 22.1 / 1.27 | **8.28 / 13.6** | no (bad init/track) |
+| 2 | `20261106_125624` | 0.246 / 0.587 | 0.231 / 0.552 | 13.0 / 5.53 | **1.50 / 4.86** | yes |
+| 3 | `20261106_130126` | 0.257 / 0.070 | 0.238 / 0.247 | 10.6 / 0.22 | **0.620 / 0.638** | yes |
+| **mean (all 3)** | | **0.262 / 0.242** | **0.242 / 0.355** | 15.2 / 2.34 | **3.47 / 6.35** | 2/3 |
+| **mean (healthy 2+3)** | | 0.252 / 0.328 | 0.235 / 0.399 | — | **1.06 / 2.75** | |
+
+Healthy = VIO Umeyama xy RMSE < 5 m and >500 airborne samples. Run 1 failed
+that bar. EKF2 vertical on run 2 was inflated on the long-lived sim (0.587 m);
+horizontal stayed near the GPS baseline.
+
+`scripts/run-vio-baseline.sh` automates this (restarts `vio.launch.py` between
+runs; records with `--no-raw-camera` to keep bags small).
+
+### External vision into EKF2 (attempted 2026-11-06) — blocked
+
+Dedicated overlay only (GPS defaults unchanged):
+
+```bash
+docker rm -f odl-sim
+PX4_PARAM_EKF2_EV_CTRL=3 HEADLESS=1 GZ_SEED=1234 WORLD=vio_test \
+  MODEL=gz_x500_mono_cam ./scripts/launch-sitl.sh
+# then: ros2 launch drone_bringup vio_ev.launch.py
+```
+
+`vision_px4_bridge` publishes ENU→NED position (+ optional velocity) on
+`/fmu/in/vehicle_visual_odometry`. Verified live: `EKF2_EV_CTRL=3`, and during
+the flight `cs_ev_pos` / `cs_ev_hgt` were true for most estimator_status_flags
+samples (215–216 / 224).
+
+**Outcome:** EV fusion engaged but **destabilized** the vehicle — altitude
+exceeded the square_flight 6 m guard (7.7 m), mission aborted. Same-bag scores
+(origin-align / Umeyama xy): EKF2+EV **356 / 30.6 m**, raw OpenVINS
+**312 / 19.9 m**. Likely frame/origin/time mismatch between the OpenVINS world
+and PX4 local NED when both GPS and EV are fused. GPS-only path remains the
+default (`EKF2_EV_CTRL=0` when `PX4_PARAM_EKF2_EV_CTRL` is unset). Leave EV as
+an opt-in experiment until the frame alignment is fixed.
 
 Image: `opendronelab-dev:phase4c-vio` (= `:latest`), rollback `:phase4b-evo`.
 

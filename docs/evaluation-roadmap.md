@@ -293,7 +293,7 @@ Logged for later; none of these is adopted yet. Each needs Pallab's approval bef
 | Item | Phase | Plan / caveats |
 |------|-------|----------------|
 | [robot_localization](https://github.com/cra-ros-pkg/robot_localization) `ekf_node` | 4b/5 | Second estimator fusing IMU + GPS + baro next to EKF2, **for comparison only** (EKF2 stays the flight estimator). Before adopting: confirm the licence file in the repo and that `ros-jazzy-robot-localization` exists in the Jazzy apt repo. |
-| [OpenVINS](https://github.com/rpng/open_vins) | GPS-denied | **Adopted 2026-11-06 (bring-up):** GPL-3 separate process at `/data/ros2_build/openvins`, pin `0bd027a` (PR #500). Live square on `vio_test`: Umeyama horiz APE **0.150 m** vs EKF2 **0.283 m** on the same bag. EV→EKF2 still optional/off. |
+| [OpenVINS](https://github.com/rpng/open_vins) | GPS-denied | **Adopted 2026-11-06:** isolated GPL-3 pin `0bd027a`. 3-run `vio_test` mean Umeyama xy **3.47 m** (2/3 healthy, healthy mean **1.06 m**). EV→EKF2 bridge works but destabilized SITL — left opt-in/off. |
 | [Aerostack2](https://github.com/aerostack2/aerostack2) | 7+ (multi-vehicle) | Study its behaviour-tree and mission patterns only. Not adopted: it targets ROS 2 Humble / Ubuntu 22.04, not Jazzy / 24.04. |
 | [Pegasus Simulator](https://github.com/PegasusSimulator/PegasusSimulator) | Optional | Separate experiment only (Isaac Sim 5.1, PX4 1.14.3, Ubuntu 22.04). Whether it fits in the RTX 5060's 8 GB VRAM is **unverified**. |
 | [osrf/rocker](https://github.com/osrf/rocker) | Tooling | Look at its `--nvidia` and X11 handling as a way to simplify `launch-sitl.sh` / `dev-shell.sh`. Keep our scoped `xhost +SI:localuser:$USER` policy (no `xhost +`). |
@@ -313,7 +313,7 @@ Logged for later; none of these is adopted yet. Each needs Pallab's approval bef
 2. ✅ GPU inference assessment (`:phase4-gpu`)
 3. ✅ Headless sim + GstCamera memory fix
 4. ✅ OpenVINS bring-up (isolated GPL-3 process, `vio_test` world)
-5. 📋 3-run VIO baseline gate + optional `EKF2_EV_CTRL` overlay
+5. ✅ 3-run VIO baseline (2/3 healthy); EV overlay attempted — blocked (destabilized)
 
 **Phase 5 (Reliability):**
 1. Dockerfile optimization (numpy pin, multi-stage build)
@@ -347,4 +347,4 @@ All proposals respect existing safety rules:
 ---
 
 **Last Updated:** 2026-11-06 (OpenVINS bring-up on vio_test; Umeyama 0.150 m)  
-**Next Review:** Phase 4b follow-up (3-run VIO gate; optional EKF2_EV_CTRL overlay)
+**Next Review:** Fix EV frame/time alignment before re-enabling EKF2_EV_CTRL experiments

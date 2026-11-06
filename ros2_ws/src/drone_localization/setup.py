@@ -24,6 +24,7 @@ setup(
             'square_flight = drone_localization.square_flight:main',
             'localization_metrics = drone_localization.localization_metrics:main',
             'ground_truth_publisher = drone_localization.ground_truth_publisher:main',
+            'vision_px4_bridge = drone_localization.vision_px4_bridge:main',
         ],
     },
 )
