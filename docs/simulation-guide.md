@@ -379,3 +379,10 @@ Simulation runs faster without rendering overhead.
 
 For perception use `MODEL=gz_x500_mono_cam WORLD=detection_test`. Prefer `HEADLESS=1` and keep the default `MEM_LIMIT=12g`. PX4's `GstCameraSystem` RTP plugin is **off by default** (`config/gz-server.config`) because it leaks ~105 MB/s on this host when nvh264enc stalls; see `docs/perception.md`. ROS camera topics still come from `ros_gz_image`.
 
+
+
+## Phase 4b VIO world
+
+`WORLD=vio_test MODEL=gz_x500_mono_cam` — textured corridor along Gazebo +Y for
+OpenVINS. See `docs/localization.md` § OpenVINS. Keep `ENABLE_GST_CAMERA` unset
+(GstCamera leak).

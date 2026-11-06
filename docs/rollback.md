@@ -91,6 +91,22 @@ docker tag opendronelab-dev:phase4-gpu opendronelab-dev:latest
 Note: an existing `odl-sim` container keeps the image it was created from, so
 use `docker rm -f odl-sim` before the next launch to pick up a new `:latest`.
 
+
+## Applied 2026-11-06 (later)
+
+**Dev image (`opendronelab-dev:phase4c-vio` → `:latest`, ID `46a2186aea3b`, 11.2 GB)**
+
+Adds `libceres-dev` (+ glog/gflags/boost bits) for OpenVINS. OpenVINS itself is
+**not** in the image: it builds into `/data/ros2_build/openvins` via
+`scripts/build-openvins.sh` (GPL-3 isolated). Previous `:latest` remains
+`:phase4b-evo` (`71f579d53bcf`).
+
+Undo (no sudo):
+```bash
+docker tag opendronelab-dev:phase4b-evo opendronelab-dev:latest
+docker rm -f odl-sim && ./scripts/launch-sitl.sh
+```
+
 **Official image** `px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9`
 (4.84 GB, smoke test only). Already removed from <host> (2026-11-06). If
 re-pulled, remove with

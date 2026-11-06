@@ -344,6 +344,87 @@ Commands per bag (see the script): `evo_ape tum gt_ned.tum est_ned.tum -r trans_
 
 **Ground truth bridge:** `localization.launch.py` bridges `/clock` for `use_sim_time` and starts `ground_truth_publisher`, which reads `/world/default/pose/info` directly via gz-transport. Override with `gz_pose_topic:=/world/default/dynamic_pose/info` if needed. Model frame defaults to `x500_0` (also matches `x500_0/base_link`).
 
+
+
+## OpenVINS Visual-Inertial Odometry (Phase 4b, 2026-11-06)
+
+[OpenVINS](https://github.com/rpng/open_vins) (GPL-3) runs as a **separate process** in an
+isolated colcon workspace at `/data/ros2_build/openvins` (built by
+`scripts/build-openvins.sh`). First-party packages never link against it — same
+isolation spirit as evo in `/opt/evo`.
+
+**Pin:** `0bd027a997f3ca911b3df504d20b00b60f371b31` (rpng/open_vins PR [#500](https://github.com/rpng/open_vins/pull/500)
+tip — ROS 2 Jazzy / Ubuntu 24.04 + Ceres 2.x). Upstream `master` still had ROS1-style
+`.h` includes on 2026-11-06; the build fails if `HEAD !=` pin after checkout.
+LICENSE checked at clone time (GPL-3).
+
+### Topics and frames
+
+| Role | Topic | Notes |
+|------|-------|-------|
+| Camera | `/camera/image_raw` | `ros_gz_image` from mono_cam; **GstCamera left off** |
+| CameraInfo | `/camera/camera_info` | Matches SDF (`fx≈539.94`, 1280×960, no distortion) |
+| IMU | `/sim/imu` | Gazebo `imu_sensor` via `ros_gz_bridge` (~250 Hz), same sim clock as camera |
+| VIO odom | `/ov_msckf/odomimu` | Gravity-aligned Z-up (ENU-like) |
+| GT | `/ground_truth/odometry` | Gazebo ENU |
+
+Do **not** feed `/fmu/out/sensor_combined` into OpenVINS: it is `px4_msgs`, boot-time
+stamped, and not aligned to the Gazebo camera clock.
+
+**Frames:** PX4 yaw 0 faces Gazebo **+Y (North)**; mono_cam looks along body +X, so
+along +Y world. Use `WORLD=vio_test` (textured corridor + checker tiles along +Y).
+`detection_test` places COCO props on +X (camera-right at yaw 0) and is nearly
+featureless for VIO. Kalibr `T_cam_imu` maps IMU/FLU → ROS optical using the SDF
+joint `(0.12, 0.03, 0.242)` m.
+
+### Bring-up
+
+```bash
+docker rm -f odl-sim
+HEADLESS=1 MEM_LIMIT=12g GZ_SEED=1234 WORLD=vio_test MODEL=gz_x500_mono_cam \
+  ./scripts/launch-sitl.sh
+./scripts/start-dds-agent.sh
+# once per image/data tree:
+docker exec -u $(id -u):$(id -g) -e HOME=/tmp odl-sim \
+  bash -lc '/workspace/scripts/build-openvins.sh'
+docker exec -u $(id -u):$(id -g) -e HOME=/tmp odl-sim \
+  bash -lc '/workspace/scripts/build-workspace.sh'
+# QGC required to arm under headless PX4
+docker exec -u $(id -u):$(id -g) -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
+  -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST odl-sim bash -lc "
+  set +u
+  source /opt/ros/jazzy/setup.bash
+  source /data/ros2_build/deps/install/setup.bash
+  source /data/ros2_build/ws/install/setup.bash
+  source /data/ros2_build/openvins/install/setup.bash
+  set -u
+  ros2 launch drone_bringup vio.launch.py gz_world:=vio_test"
+./scripts/run-vio-eval.sh 100
+```
+
+Config lives in `config/openvins/gz_x500_mono_cam/` (first-party YAML only).
+
+### First evaluation flight (2026-11-06, Asia/Calcutta)
+
+Fresh `GZ_SEED=1234`, `WORLD=vio_test`, C++ square, bag `20261106_123624`,
+results `/data/results/vio_20261106_123621`.
+
+| Estimator | Metric | Value |
+|-----------|--------|-------|
+| PX4 EKF2 (GPS) | Horiz RMSE (origin-align) | **0.283 m** |
+| PX4 EKF2 | Vert RMSE | **0.067 m** |
+| OpenVINS | Horiz APE RMSE (evo Umeyama SE3, xy) | **0.150 m** |
+| OpenVINS | 3D APE RMSE (evo Umeyama) | **0.154 m** |
+| OpenVINS | RPE RMSE (1 m, Umeyama) | **0.101 m** |
+| OpenVINS | Horiz RMSE (origin-align only) | 10.6 m (yaw-free; not comparable) |
+
+A 3-run VIO mean gate is follow-up. External-vision fusion into EKF2
+(`EKF2_EV_CTRL`) is **not** enabled by default; see
+`config/px4/ekf2_external_vision.params` for a sketch. GPS baseline params stay
+unchanged (`EKF2_EV_CTRL=0`).
+
+Image: `opendronelab-dev:phase4c-vio` (= `:latest`), rollback `:phase4b-evo`.
+
 ## References
 
 - **PX4 EKF2:** https://docs.px4.io/v1.17/en/advanced_config/tuning_the_ecl_ekf.html

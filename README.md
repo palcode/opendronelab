@@ -221,7 +221,7 @@ Detailed guides will be added in future phases.
 - [x] **Phase 3:** Camera and perception (Complete)
 - [x] **Phase 4a:** Localization baseline with EKF2 evaluation
 - [x] **C++ flight + camera memory:** OFFBOARD port gated; GstCamera leak workaround
-- [ ] **Phase 4b:** VIO / localization improvements (OpenVINS — not started)
+- [x] **Phase 4b:** OpenVINS bring-up (isolated GPL-3, `vio_test`, Umeyama 0.150 m; 3-run gate follow-up)
 - [ ] **Phase 5:** Simulation-only resilience experiments
 - [ ] **Phase 6:** Automated evaluation
 - [ ] **Phase 7+:** Future enhancements
