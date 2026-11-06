@@ -369,4 +369,4 @@ ros2 run drone_flight_cpp square_flight_cpp        # or: ros2 launch drone_fligh
 FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp" ./scripts/run-baseline.sh 3
 ```
 
-Status (2026-11-06): reworked off ModeExecutor takeoff onto Python-matched OFFBOARD climb; gate rerun pending.
+Status (2026-11-06): **3-run gate PASSED — merged to main.** Bags `20261106_111112` / `_111323` / `_111533` (results `/data/results/20261106_111112` area via run-baseline). Per-run H/V RMSE: 0.293/0.062, 0.253/0.064, 0.262/0.071. Mean H **0.270 m** (gate 0.267 ± 0.03), mean V **0.066 m** (gate 0.065 ± 0.02). All three armed, flew, landed, re-armed. Fresh `GZ_SEED=1234` SITL (a long-lived sim inflated both C++ and Python RMSE). evo cross-check matched our metrics to ~0.00% on all three bags. Earlier ModeExecutor+PX4-takeoff attempt (`0a78a58`, mean H 0.383) stays as history on the branch; flight path is now classic OFFBOARD matching Python.
