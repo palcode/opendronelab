@@ -1,6 +1,6 @@
 # Real-drone readiness (Phase 4b placeholders)
 
-Laptop SITL VIO retest (`vio_baseline_20261106_134009`): **1/3 healthy** (Umeyama xy &lt; 5 m). EV flight **not** attempted (gate is 3/3). `EKF2_EV_CTRL` stays **0** by default.
+Laptop SITL VIO after dyn-init restore: **3/3 healthy** (Umeyama xy 0.64 / 3.96 / 1.12 m). `EKF2_EV_CTRL` still **0** (EV not run this pass).
 
 ## Topic remaps (hardware TBD)
 

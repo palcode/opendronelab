@@ -509,3 +509,16 @@ ros2 run drone_flight_cpp square_flight_cpp
 ### Init debug 2026-11-06 (Asia/Calcutta)
 
 Bag compare `123624` (0.15 m) vs `134009` retest: successful inits occur ~0.25 s before liftoff under **dynamic** init; static-only (`init_dyn_use: false`, thresh 1.0) yielded run3 with **zero** `/ov_msckf/odomimu` despite takeoff `|a-g|~2.4`. Restored known-good init block from the 0.15 m run (dyn init on, thresh 0.5, window 1.5, online extrinsics/timeoffset).
+
+### Dyn-init restore verify 2026-11-06 (Asia/Calcutta)
+
+After restoring known-good dyn init: **3/3 healthy** (Umeyama xy &lt; 5 m). EV not attempted (init-debug scope).
+
+| Run | Bag | VIO Umeyama xy / 3D | Healthy |
+|-----|-----|---------------------|---------|
+| 1 | `20261106_143702` | **0.636 / 0.660** | yes |
+| 2 | `20261106_143946` | **3.964 / 4.220** | yes |
+| 3 | `20261106_144250` | **1.115 / 1.127** | yes |
+
+Results: `vio_baseline_20261106_143651` + `vio_baseline_20261106_143936`.
+
