@@ -505,3 +505,7 @@ ros2 run drone_flight_cpp square_flight_cpp
 ### Retest 2026-11-06 (Asia/Calcutta)
 
 `vio_baseline_20261106_134009` after static-init + feature-wait: **1/3 healthy** (run2 Umeyama xy 4.67 m; run1 14.7 m; run3 zero OV odom). EV skipped. Details: `docs/real-drone-readiness.md`.
+
+### Init debug 2026-11-06 (Asia/Calcutta)
+
+Bag compare `123624` (0.15 m) vs `134009` retest: successful inits occur ~0.25 s before liftoff under **dynamic** init; static-only (`init_dyn_use: false`, thresh 1.0) yielded run3 with **zero** `/ov_msckf/odomimu` despite takeoff `|a-g|~2.4`. Restored known-good init block from the 0.15 m run (dyn init on, thresh 0.5, window 1.5, online extrinsics/timeoffset).
