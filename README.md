@@ -1,7 +1,7 @@
 # OpenDroneLab
 
-**Status:** Phase 4a Complete - Localization Baseline  
-**Last Updated:** 2026-11-04
+**Status:** Phase 4a complete; C++ square flight + camera-world memory fix on main  
+**Last Updated:** 2026-11-06
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
 
@@ -15,7 +15,9 @@ Build a modular, reproducible software environment for developing and evaluating
 ✅ **Phase 1 Complete:** Docker image built, PX4 v1.17.0 SITL verified with Gazebo Harmonic  
 ✅ **Phase 2 Complete:** ROS 2 Jazzy integration with PX4 via uXRCE-DDS, offboard control packages  
 ✅ **Phase 3 Complete:** Camera integration, edge detection, YOLOX object detection  
-✅ **Phase 4a Complete:** Localization baseline (EKF2 vs Gazebo ground truth, 3-run square flight, horizontal RMSE 0.27 m, vertical 0.07 m)
+✅ **Phase 4a Complete:** Localization baseline (EKF2 vs Gazebo GT; Python square mean H/V RMSE 0.267/0.065 m)
+✅ **C++ square flight:** `drone_flight_cpp` on main (classic OFFBOARD, mean H/V 0.270/0.066 m vs Python gate)
+✅ **Camera-world memory:** PX4 `GstCameraSystem` disabled by default (`config/gz-server.config`); detection still works
 
 **Verified on HP OMEN Laptop (Nov 3-4, 2026):**
 - Container-based PX4 SITL with GUI forwarding (XWayland) ✅
@@ -114,7 +116,10 @@ open-drone-lab/
 │   ├── fetch-models.sh          # Download YOLOX model (Phase 3 ✓)
 │   ├── bench-detector.py        # YOLOX CPU vs CUDA benchmark (Phase 4 ✓)
 │   ├── memory-logger.sh         # Host/GPU memory logger with pidfile
+│   ├── run-baseline.sh          # N-run square + bag + metrics (C++ default)
+│   ├── evo-check.sh             # External evo APE cross-check
 │   └── stop-all.sh              # Stop helpers + odl-sim
+├── config/                      # Gazebo server.config overlays (GstCamera off by default)
 ├── docker/                      # Container configs
 │   ├── Dockerfile.dev           # Dev image: PX4/Gazebo/ROS 2 + GPU ORT (Phase 4 ✓)
 │   └── constraints.txt          # pip pins (numpy<2, onnxruntime-gpu==1.28.0)
@@ -123,7 +128,9 @@ open-drone-lab/
 │       ├── drone_telemetry/     # PX4 telemetry subscriber
 │       ├── drone_mission_manager/ # Offboard mission controller
 │       ├── drone_perception/    # Computer vision pipeline (Phase 3 ✓)
-│       └── drone_bringup/       # Launch files (telemetry, mission, perception)
+│       ├── drone_localization/  # GT bridge, metrics, Python square_flight (Phase 4a ✓)
+│       ├── drone_flight_cpp/    # C++ OFFBOARD square_flight (default baseline)
+│       └── drone_bringup/       # Launch files (telemetry, mission, perception, detection)
 ├── simulation/                  # Gazebo scenarios
 │   └── scenarios/               # Test scenario definitions
 ├── experiments/                 # Test scenarios (Phase 5+)
@@ -156,7 +163,7 @@ cat docs/architecture.md
 
 **Repository Path:** `~/workspace/dronelab` (used in all container volume mounts)
 
-### Phase 1: Host Setup (Pending Approval)
+### Phase 1: Host Setup (Complete on <host>)
 
 ⚠️ **IMPORTANT:** Review `docs/setup-host.md` before proceeding.
 
@@ -213,7 +220,8 @@ Detailed guides will be added in future phases.
 - [x] **Phase 2:** ROS 2 integration and telemetry (Complete)
 - [x] **Phase 3:** Camera and perception (Complete)
 - [x] **Phase 4a:** Localization baseline with EKF2 evaluation
-- [ ] **Phase 4b:** Localization improvements (future)
+- [x] **C++ flight + camera memory:** OFFBOARD port gated; GstCamera leak workaround
+- [ ] **Phase 4b:** VIO / localization improvements (OpenVINS — not started)
 - [ ] **Phase 5:** Simulation-only resilience experiments
 - [ ] **Phase 6:** Automated evaluation
 - [ ] **Phase 7+:** Future enhancements

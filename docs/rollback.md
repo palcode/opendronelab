@@ -92,7 +92,8 @@ Note: an existing `odl-sim` container keeps the image it was created from, so
 use `docker rm -f odl-sim` before the next launch to pick up a new `:latest`.
 
 **Official image** `px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9`
-(4.84 GB, smoke test only). Remove with
+(4.84 GB, smoke test only). Already removed from <host> (2026-11-06). If
+re-pulled, remove with
 `docker image rm px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9`.
 
 **Docker log limits applied 2026-11-05** (json-file, 50m x 3; backup

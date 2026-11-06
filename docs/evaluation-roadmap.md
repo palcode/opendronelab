@@ -148,6 +148,11 @@ python3 -c "import onnxruntime; print(onnxruntime.get_available_providers())"
 
 If CUDAExecutionProvider available, implement behind flag. Document in `docs/perception.md`.
 
+### ✅ 7b. Camera-world Gazebo memory (GstCameraSystem)
+**Status:** Adopted 2026-11-06  
+**Cause:** PX4 `libGstCameraSystem.so` unbounded GStreamer `appsrc` when `nvh264enc` stalls (~105 MB/s at 1280×960@30). See PX4#27296 / #27873.  
+**Fix:** `config/gz-server.config` omits the plugin; `launch-sitl.sh` installs it unless `ENABLE_GST_CAMERA=1`. `ros_gz_image` / YOLOX unchanged and verified (person/car/chair). Details in `docs/perception.md`.
+
 ### 📋 8. Docker Image Optimization
 **Status:** Deferred (Phase 5 or next major rebuild)  
 **Current State:** ~4GB image, ~15 min build time (no caching)
@@ -196,9 +201,9 @@ If CUDAExecutionProvider available, implement behind flag. Document in `docs/per
 
 **Decision:** Defer to Phase 5. Current build works; optimize when rebuilding for other reasons.
 
-### 📋 9. Headless Simulation Mode
-**Status:** Deferred (document for Phase 6 CI)  
-**Proposal:** Add `HEADLESS=1` flag for CI and baseline runs:
+### ✅ 9. Headless Simulation Mode
+**Status:** Adopted — `HEADLESS=1` in `scripts/launch-sitl.sh` (used for baselines and the camera-memory A/B).  
+**Original proposal:** Add `HEADLESS=1` flag for CI and baseline runs:
 
 ```bash
 # In launch-sitl.sh:
@@ -340,4 +345,4 @@ All proposals respect existing safety rules:
 ---
 
 **Last Updated:** 2026-11-06 (deferred items from second research review; GPU detection done)  
-**Next Review:** Phase 4b kickoff
+**Next Review:** Phase 4b kickoff (OpenVINS / VIO — not started; camera-world memory done 2026-11-06)

@@ -16,7 +16,7 @@ PX4 publishes `px4io/px4-sitl-gazebo-ros2` (Ubuntu 24.04, ROS 2 Jazzy, Gazebo Ha
 
 **Version mismatch, by necessity:** Docker Hub has only six tags for this repo: `latest`, `v1.18.0-beta1-660-g61907962c9`, and their `-amd64` / `-arm64` variants. **There is no v1.17.x tag**, so this is the closest versioned tag. It is a PX4 `main` build (v1.18.0-beta1 + 660 commits), newer than our v1.17.0. Two visible differences from v1.17.0: its uORB/ROS topics use newer message versions (e.g. `/fmu/out/vehicle_status_v4`, `/fmu/out/home_position_v2`; ours are `_v1`), and it keeps `Preflight Fail: No connection to the GCS` without QGC, so it never logs "Ready for takeoff!" headless. Do not mix its `px4_msgs` with our workspace.
 
-The image also ships `px4_ros2_py` (Python bindings of the PX4 ROS 2 Interface Library) under `/opt/px4_ros2/install`, which is worth checking before the planned C++ rewrite of `square_flight`.
+The image also ships `px4_ros2_py` under `/opt/px4_ros2/install`. The C++ square flight on main does **not** use that library (classic OFFBOARD via `px4_msgs` only).
 
 ## Smoke test
 
@@ -42,3 +42,7 @@ docker tag  px4io/px4-sitl-gazebo-ros2@<index-digest> px4io/px4-sitl-gazebo-ros2
 ```
 
 Then update `IMAGE_TAG` / `IMAGE_DIGEST` in `scripts/smoke-official-image.sh` and this table. Prefer a `v1.17.x` tag if PX4 ever publishes one.
+
+## Laptop status (2026-11-06)
+
+The smoke image was **removed** from <host> after the smoke test to free disk (`docker image rm` of the `px4io/px4-sitl-gazebo-ros2:...` tag). Re-pull only if you need to re-run `./scripts/smoke-official-image.sh`. It is not required for day-to-day OpenDroneLab work (`opendronelab-dev:latest` = `:phase4b-evo`).

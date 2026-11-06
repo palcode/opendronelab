@@ -9,8 +9,9 @@ NUM_RUNS="${1:-1}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULTS_DIR="/data/results/${TIMESTAMP}"
 BAG_DURATION=120
-# Flight command (override for the C++ node: FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp")
-FLIGHT_CMD="${FLIGHT_CMD:-ros2 run drone_localization square_flight}"
+# Default: C++ OFFBOARD square (drone_flight_cpp). Python reference:
+#   FLIGHT_CMD="ros2 run drone_localization square_flight" ./scripts/run-baseline.sh N
+FLIGHT_CMD="${FLIGHT_CMD:-ros2 run drone_flight_cpp square_flight_cpp}"
 
 echo "================================================================"
 echo "  Localization Baseline Evaluation"

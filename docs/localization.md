@@ -270,7 +270,7 @@ This outputs:
 
 Runs are highly repeatable (horizontal RMSE spread < 0.002 m). The largest horizontal error occurs on the leg after a corner turn, where the estimate lags the true path by a few tens of cm. Plots (`trajectory.png`, `error_plot.png`) and `metrics.json` are saved in each bag directory under `dronelab-data/bags/`.
 
-**Resources during runs (plain world):** the odl-sim container used about 0.8-1.4 GiB of RAM (peak 1.41 GiB) and 150-215% CPU, and the Gazebo server RSS was about 0.8-0.9 GB, stable. This was logged every 30 s to `logs/phase4-memory.log`. (The camera/detection world showed Gazebo growing to 16.5 GB and being OOM-killed; that is not yet investigated, so baselines use the plain world.)
+**Resources during runs (plain world):** the odl-sim container used about 0.8-1.4 GiB of RAM (peak 1.41 GiB) and 150-215% CPU, and the Gazebo server RSS was about 0.8-0.9 GB, stable. This was logged every 30 s to `logs/phase4-memory.log`. (The camera/detection world used to OOM at ~16.5 GB RSS because of PX4's `GstCameraSystem` RTP plugin; fixed 2026-11-06 by omitting that plugin from `config/gz-server.config` — see `docs/perception.md`. Localization baselines still use the plain `gz_x500` / default world.)
 
 **Unit tests** (`pytest test/test_metrics.py -v`, run inside odl-sim after `build-workspace.sh`):
 
@@ -360,13 +360,22 @@ Commands per bag (see the script): `evo_ape tum gt_ned.tum est_ned.tum -r trans_
 - `./scripts/memory-logger.sh` logs container memory/CPU, Gazebo RSS and GPU temperature/power; `./scripts/stop-all.sh` stops it, any bag recording and the sim.
 - **Fixed random seed:** `GZ_SEED=1234 HEADLESS=1 MODEL=gz_x500 ./scripts/launch-sitl.sh`. PX4's `px4-rc.gzsim` has no seed option, so the launcher builds PX4, sources `gz_env.sh`, starts `gz sim --seed N -r -s <world>.sdf` itself (server log at `/tmp/gz-server.log` in the container), and PX4 attaches to the running world ("gazebo already running world") and spawns the model. This fixes Gazebo's own random seed; whether every noise source (PX4-side sensor noise, timing) becomes repeatable run to run has not been measured yet.
 
-### C++ flight node (`drone_flight_cpp`, branch `cpp-flight-node`)
+### Square flight nodes (Python reference + C++ default)
 
-`square_flight_cpp` is a C++ port of `square_flight` that uses the **same classic OFFBOARD path** as Python (`OffboardControlMode` + `TrajectorySetpoint` + `VehicleCommand` at 20 Hz). Build still pins [px4-ros2-interface-lib](https://github.com/Auterion/px4-ros2-interface-lib) **release/1.17 @ `4a3370f`** via `build-workspace.sh` (message-set check); the flight node itself no longer links that lib for climb/flight — ModeExecutor + `TrajectorySetpointType` cannot clear `COM_DISARM_PRFLT` because PX4 only sets `want_takeoff` from position setpoints when `flag_control_offboard_enabled` is true (external modes never set it). PX4's built-in takeoff (`0a78a58`) cleared the timer but failed the RMSE gate (different climb). This node mirrors Python: pre-stream 2 s → OFFBOARD → arm → climb on waypoint 0 `(0,0,-5)` → square (yaw 0) → land → Hold.
+Two implementations share the same classic OFFBOARD profile (`OffboardControlMode` + `TrajectorySetpoint` + `VehicleCommand` at 20 Hz): pre-stream 2 s → OFFBOARD → arm → climb on waypoint 0 `(0,0,-5)` → 10 m square at 5 m (yaw 0) → land → Hold. Neither uses PX4's built-in takeoff, nor Auterion `px4_ros2_cpp` ModeExecutor (external modes never set `flag_control_offboard_enabled`, so `COM_DISARM_PRFLT` fires after ~10 s on the ground).
+
+| Node | Package | Role |
+|------|---------|------|
+| `square_flight_cpp` | `drone_flight_cpp` | **Default** for `run-baseline.sh` (merged to main at `6c8f29a`) |
+| `square_flight` | `drone_localization` | Python reference / RMSE gate baseline (mean H 0.267 m, V 0.065 m) |
 
 ```bash
-ros2 run drone_flight_cpp square_flight_cpp        # or: ros2 launch drone_flight_cpp square_flight_cpp.launch.py
-FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp" ./scripts/run-baseline.sh 3
+# Default baseline (C++)
+./scripts/run-baseline.sh 3
+# Python reference
+FLIGHT_CMD="ros2 run drone_localization square_flight" ./scripts/run-baseline.sh 3
+ros2 run drone_flight_cpp square_flight_cpp
+# or: ros2 launch drone_flight_cpp square_flight_cpp.launch.py
 ```
 
-Status (2026-11-06): **3-run gate PASSED — merged to main.** Bags `20261106_111112` / `_111323` / `_111533` (results `/data/results/20261106_111112` area via run-baseline). Per-run H/V RMSE: 0.293/0.062, 0.253/0.064, 0.262/0.071. Mean H **0.270 m** (gate 0.267 ± 0.03), mean V **0.066 m** (gate 0.065 ± 0.02). All three armed, flew, landed, re-armed. Fresh `GZ_SEED=1234` SITL (a long-lived sim inflated both C++ and Python RMSE). evo cross-check matched our metrics to ~0.00% on all three bags. Earlier ModeExecutor+PX4-takeoff attempt (`0a78a58`, mean H 0.383) stays as history on the branch; flight path is now classic OFFBOARD matching Python.
+**C++ vs Python gate (2026-11-06, fresh `GZ_SEED=1234`):** bags `20261106_111112` / `_111323` / `_111533`. Per-run H/V RMSE: 0.293/0.062, 0.253/0.064, 0.262/0.071. Mean H **0.270 m** (allowed 0.237–0.297), mean V **0.066 m** (allowed 0.045–0.085). All three armed, flew, landed, re-armed. evo matched our metrics. An earlier ModeExecutor + PX4-takeoff attempt failed the gate (mean H 0.383 m) and was dropped.
