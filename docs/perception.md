@@ -231,6 +231,27 @@ installs into the dev user's home and other UIDs still load numpy 2.x.
 
 
 
+## Gazebo camera-world memory (GstCameraSystem)
+
+**Symptom (2026-11-04):** with `MODEL=gz_x500_mono_cam` and `WORLD=detection_test`, the Gazebo server (`ruby` / `gz sim -s`) grew until OOM at about 16.5 GB RSS. The plain `gz_x500` default world stayed ~1.1 GB and flat.
+
+**Root cause (confirmed 2026-11-06):** PX4's world plugin `libGstCameraSystem.so` (injected via `gz_bridge/server.config`). It subscribes to the first camera and pushes frames into a GStreamer `appsrc` for RTP/H.264 on `udp://127.0.0.1:5600`. On this host the default `nvh264enc` path fails to negotiate; with `block=false` and no queue bound, `appsrc` accepts every frame forever. Growth rate matches `width × height × 3 × fps` ≈ **105 MB/s** at 1280×960@30 (PX4 issues [#27296](https://github.com/PX4/PX4-Autopilot/issues/27296), fix PR [#27873](https://github.com/PX4/PX4-Autopilot/pull/27873) not in our v1.17.0 tree).
+
+**Not the cause:** the Gazebo camera sensor itself, `ros_gz_image` / `image_bridge`, or the YOLOX detector. Those keep working after the plugin is removed.
+
+**OpenDroneLab fix:** `scripts/launch-sitl.sh` installs `config/gz-server.config` (PX4's plugin list **without** `GstCameraSystem`) over both PX4 `server.config` copies before Gazebo starts. Set `ENABLE_GST_CAMERA=1` to install `config/gz-server-with-gst.config` instead (expect the leak until an upstream GstCamera fix is present). OpenDroneLab uses `ros_gz_image` for `/camera/image_raw`, so the RTP plugin is unused.
+
+**Measured 2026-11-06** (`HEADLESS=1`, `GZ_SEED=1234`, `MEM_LIMIT=12g`, memory logger every 15 s):
+
+| Setup | gz RSS | Growth | Notes |
+|-------|--------|--------|-------|
+| `gz_x500` / default | ~241 MB flat | ~0 | Control, ~5 min |
+| `gz_x500_mono_cam` / `detection_test` **with** GstCamera | 0.2 → 11.6 GB in ~2 min | **~105 MB/s** | Stopped near the 12g cap |
+| Same world **without** GstCamera | ~1.35 GB flat | ~0 | Camera topic still publishing |
+| Without GstCamera + detection launch | gz ~1.41 GB flat; container ~1.94 GB flat | ~0 | person 0.83, car 0.73, chair 0.51 |
+
+Keep `MEM_LIMIT` (default 12g) so a future regression kills the container, not the desktop.
+
 ## Detector GPU runtime (Phase 4)
 
 The `opendronelab-dev:phase4-gpu` image installs `onnxruntime-gpu[cuda,cudnn]==1.28.0`

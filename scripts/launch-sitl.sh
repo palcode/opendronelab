@@ -5,6 +5,9 @@
 # HEADLESS=1 runs Gazebo without its GUI. MEM_LIMIT (default 12g) caps RAM.
 # GZ_SEED=<int> starts Gazebo with a fixed random seed.
 # ODL_ROS_DOMAIN_ID (default 42) + localhost-only discovery keep ROS on this host.
+# ENABLE_GST_CAMERA=1 keeps PX4's GstCameraSystem RTP plugin (leaks ~105 MB/s
+# on this host when nvh264enc stalls; default installs config/gz-server.config
+# without that plugin — ros_gz_image still provides /camera/image_raw).
 # These env options apply when the container is created; to change them on an
 # existing container, remove it first: docker rm -f odl-sim
 # WORLD (optional) is a world *name* (stem). The SDF must be at
@@ -33,6 +36,9 @@ ODL_ROS_DOMAIN_ID="${ODL_ROS_DOMAIN_ID:-42}"
 # px4-rc.gzsim has no seed option, so we start the Gazebo server ourselves
 # with --seed and PX4 attaches to the already-running world.
 GZ_SEED="${GZ_SEED:-}"
+# Opt into PX4 GstCameraSystem RTP/H.264 (udp://127.0.0.1:5600). Off by default
+# because a stalled nvh264enc pipeline leaks host RAM (PX4#27296 / #27873).
+ENABLE_GST_CAMERA="${ENABLE_GST_CAMERA:-}"
 
 _container_cmd() {
     docker inspect --format '{{.Config.Cmd}}' "${CONTAINER_NAME}" 2>/dev/null || echo ""
@@ -78,10 +84,25 @@ xhost +SI:localuser:"$(whoami)"
 # Create data directory if it doesn't exist
 mkdir -p "${DATA_DIR}"
 
+# Install Gazebo server.config into the PX4 tree before gz starts. gz_env.sh
+# always points GZ_SIM_SERVER_CONFIG_PATH at these two copies.
+if [ -n "${ENABLE_GST_CAMERA}" ]; then
+    GZ_SERVER_CFG="${WORKSPACE_DIR}/config/gz-server-with-gst.config"
+    GZ_SERVER_MSG="gst-camera=on"
+else
+    GZ_SERVER_CFG="${WORKSPACE_DIR}/config/gz-server.config"
+    GZ_SERVER_MSG="gst-camera=off"
+fi
+if [ ! -f "${GZ_SERVER_CFG}" ]; then
+    echo "[ERROR] Missing Gazebo server config: ${GZ_SERVER_CFG}" >&2
+    exit 1
+fi
+INSTALL_GZ_CFG="cp -f /workspace/config/$(basename "${GZ_SERVER_CFG}") src/modules/simulation/gz_bridge/server.config && cp -f /workspace/config/$(basename "${GZ_SERVER_CFG}") Tools/simulation/gz/server.config &&"
+
 # Optional world: name only. Copy SDF into PX4 worlds dir inside the start command.
 WORLD_ARGS=()
 WORLD_MSG=""
-START_CMD="make px4_sitl ${MODEL}"
+START_CMD="${INSTALL_GZ_CFG}make px4_sitl ${MODEL}"
 if [ -n "${WORLD}" ]; then
     WORLD_SDF="${WORKSPACE_DIR}/worlds/${WORLD}.sdf"
     if [ ! -f "${WORLD_SDF}" ]; then
@@ -95,7 +116,7 @@ if [ -n "${WORLD}" ]; then
     WORLD_MSG=" with world '${WORLD}'"
     # gz_env.sh overwrites PX4_GZ_WORLDS to the PX4 source worlds dir, so place
     # our SDF there at start. Internal <world name> must equal ${WORLD}.
-    START_CMD="mkdir -p /data/gz_fuel_cache && cp -f /workspace/worlds/${WORLD}.sdf Tools/simulation/gz/worlds/${WORLD}.sdf && make px4_sitl ${MODEL}"
+    START_CMD="${INSTALL_GZ_CFG}mkdir -p /data/gz_fuel_cache && cp -f /workspace/worlds/${WORLD}.sdf Tools/simulation/gz/worlds/${WORLD}.sdf && make px4_sitl ${MODEL}"
 fi
 
 EXTRA_ARGS=()
@@ -126,6 +147,7 @@ fi
 
 # Launch new container (docker run flags identical to the verified p4 host pattern;
 # only additive -e flags when WORLD is set).
+WORLD_MSG="${WORLD_MSG} (${GZ_SERVER_MSG})"
 echo "[INFO] Launching new SITL container '${CONTAINER_NAME}' with model '${MODEL}'${WORLD_MSG}..."
 docker run -dit \
     --name "${CONTAINER_NAME}" \

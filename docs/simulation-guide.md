@@ -374,3 +374,8 @@ Simulation runs faster without rendering overhead.
 - **PX4 SITL Simulation:** https://docs.px4.io/main/en/simulation/
 - **QGroundControl User Guide:** https://docs.qgroundcontrol.com/
 - **ROS 2 PX4 Integration:** https://docs.px4.io/main/en/ros2/user_guide.html
+
+## Camera world and memory
+
+For perception use `MODEL=gz_x500_mono_cam WORLD=detection_test`. Prefer `HEADLESS=1` and keep the default `MEM_LIMIT=12g`. PX4's `GstCameraSystem` RTP plugin is **off by default** (`config/gz-server.config`) because it leaks ~105 MB/s on this host when nvh264enc stalls; see `docs/perception.md`. ROS camera topics still come from `ros_gz_image`.
+
