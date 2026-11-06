@@ -196,6 +196,20 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && sudo pip3 install --break-system-packages --ignore-installed \
         -c /tmp/constraints.txt "numpy<2"
 
+# OpenVINS build deps (GPL-3 stack is built later into /data, not linked into
+# first-party packages). Ceres is required by ov_init / ov_msckf.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+    libceres-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libboost-dev \
+    libboost-filesystem-dev \
+    libboost-system-dev \
+    libboost-date-time-dev \
+    libboost-thread-dev
+
 # Phase 4b analysis tools.
 # evo (GPL-3) lives in its own venv and is used ONLY as an external CLI
 # (scripts/evo-check.sh). Our packages must never `import evo`; the system
@@ -244,7 +258,10 @@ RUN if python3 -c "import evo" 2>/dev/null; then echo "evo leaked into system py
     && evo_ape --help >/dev/null && evo_rpe --help >/dev/null \
     && /opt/evo/bin/python -c "import importlib.metadata as m, numpy; assert numpy.__version__.startswith('1.'), numpy.__version__; print('smoke_ok evo', m.version('evo'), 'venv-numpy', numpy.__version__)" \
     && python3 -c "import numpy; assert numpy.__version__.startswith('1.'); print('smoke_ok system-numpy', numpy.__version__)" \
-    && mcap --version
+    && mcap --version \
+    && pkg-config --exists eigen3 \
+    && test -f /usr/include/ceres/ceres.h \
+    && echo "smoke_ok openvins-deps ceres+eigen"
 USER $USERNAME
 
 # Default command
@@ -253,4 +270,4 @@ CMD ["/bin/bash"]
 # Labels
 LABEL org.opencontainers.image.title="OpenDroneLab Dev Container"
 LABEL org.opencontainers.image.description="PX4 SITL development with Gazebo Harmonic and ROS 2 Jazzy"
-LABEL org.opencontainers.image.version="0.3.0"
+LABEL org.opencontainers.image.version="0.4.0"
