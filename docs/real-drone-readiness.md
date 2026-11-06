@@ -1,6 +1,6 @@
 # Real-drone readiness (Phase 4b placeholders)
 
-Laptop SITL VIO after dyn-init restore: **3/3 healthy** (Umeyama xy 0.64 / 3.96 / 1.12 m). `EKF2_EV_CTRL` still **0** (EV not run this pass).
+VIO Umeyama xy after GT-airborne rescore: **0.64 / 0.36 / 1.11 m** (run2 “4 m” was post-land scoring). One EV attempt aborted; keep `EKF2_EV_CTRL=0`.
 
 ## Topic remaps (hardware TBD)
 

@@ -522,3 +522,17 @@ After restoring known-good dyn init: **3/3 healthy** (Umeyama xy &lt; 5 m). EV n
 
 Results: `vio_baseline_20261106_143651` + `vio_baseline_20261106_143936`.
 
+### Run2 "4 m drift" 2026-11-06 (Asia/Calcutta)
+
+**Cause:** scoring bug, not in-flight VIO. Airborne mask used **estimate** NED z; after land, OpenVINS on run2 stayed `z < -0.5` for ~48 s (8748 extra samples) and inflated Umeyama xy from **0.36 m → 3.96 m**.
+
+**Fix:** `localization_metrics` airborne mask uses **GT** z (`1c14b4f`). Rescore `vio_rescore_gt_airborne_20261106`:
+
+| Run | Bag | Umeyama xy (GT airborne) |
+|-----|-----|--------------------------|
+| 1 | `143702` | 0.643 m |
+| 2 | `143946` | **0.358 m** |
+| 3 | `144250` | 1.112 m |
+
+**EV:** one opt-in attempt (`vio_ev` + bridge); mission aborted mid-square; EKF2/VIO Umeyama xy ~22 / 16 m. Leave `EKF2_EV_CTRL=0`. Frame/fusion still unsafe.
+
