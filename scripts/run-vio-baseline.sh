@@ -112,8 +112,10 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     echo "  VIO baseline run ${run}/${NUM_RUNS}"
     echo "================================================================"
     _restart_vio
-    # Give OV a few seconds of static features before arming
-    sleep 8
+    # Wait until KLT is producing disparity stats (features), not a fixed sleep.
+    # Init itself should happen on takeoff jerk (init_dyn_use=false).
+    "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 60
+    sleep 2
     RUN_OUT="${SUMMARY_DIR}/run${run}"
     docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${RUN_OUT}"
 
