@@ -255,7 +255,7 @@ Keep `MEM_LIMIT` (default 12g) so a future regression kills the container, not t
 
 ## Detector GPU runtime (Phase 4)
 
-The `opendronelab-dev:phase4-gpu` image installs `onnxruntime-gpu[cuda,cudnn]==1.28.0`
+The GPU ORT stack (since `:phase4-gpu`, now in `:phase5-clean` / `:latest`) installs `onnxruntime-gpu[cuda,cudnn]==1.28.0`
 (CUDA 13 / cuDNN 9 via nvidia-* pip wheels; no CUDA toolkit in the image). The
 detector calls `ort.preload_dlls()` so the CUDA EP can find those libs, then
 prefers `CUDAExecutionProvider` and falls back to CPU. Pinning lives in

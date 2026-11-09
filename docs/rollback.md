@@ -4,6 +4,16 @@ How to undo every host change made for OpenDroneLab, newest first. Every `sudo` 
 
 Before any future host change: take a snapshot of the state you might roll back to, e.g. `apt list --installed > ~/workspace/dronelab-data/apt-baseline-$(date +%F).txt`, and back up any file you are about to edit (`sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak-$(date +%F)`).
 
+
+## Available local tags (2026-11-09)
+
+On <host> after Pallab-approved cleanup:
+
+- `opendronelab-dev:latest` = `:phase5-clean` (`f3f06169d036`)
+- `opendronelab-dev:phase4c-vio` (`46a2186aea3b`) — **only** rollback
+- `ubuntu:24.04` (`fe81560990fa`) — Dockerfile `FROM` base
+
+Removed (do not reference for undo): `:phase4b-evo`, `:phase4-gpu`, `:phase3`, `:phase3-edge`, `:phase3-pre`, `:phase2`, `odl-xtest:latest`, `nvidia/cuda:13.2.1-base-ubuntu24.04`. Build cache was left untouched.
 ## Project-level (no sudo)
 
 ```bash
@@ -62,7 +72,7 @@ Check first that nothing else needs them (`apt rdepends --installed <pkg>`).
 
 ## Applied 2026-11-05
 
-**Dev image (`opendronelab-dev:phase4-gpu` → `:latest`)**
+**Dev image (`opendronelab-dev:phase4-gpu`)** — historical; **tag deleted 2026-11-09.**
 
 GPU onnxruntime (1.28.0 + nvidia-* CUDA 13 / cuDNN 9 pip wheels), BuildKit
 cache mounts, digest-pinned `ubuntu:24.04`, `docker/constraints.txt`, and a
@@ -77,19 +87,9 @@ docker tag opendronelab-dev:phase3 opendronelab-dev:latest
 
 ## Applied 2026-11-06
 
-**Dev image (`opendronelab-dev:phase4b-evo` → `:latest`, ID `71f579d53bcf`, 11.1 GB)**
-
-Adds evo 1.38.1 in an isolated venv (`/opt/evo`, CLI only), `python3-venv`, and
-the mcap CLI 0.4.0 (sha256-verified binary). System numpy stays 1.26.4. The
-previous `:latest` is still tagged `:phase4-gpu` (`a89f7f07c456`).
-
-Undo (no sudo):
-```bash
-docker tag opendronelab-dev:phase4-gpu opendronelab-dev:latest
-# then recreate odl-sim: docker rm -f odl-sim && ./scripts/launch-sitl.sh
-```
-Note: an existing `odl-sim` container keeps the image it was created from, so
-use `docker rm -f odl-sim` before the next launch to pick up a new `:latest`.
+**Dev image (`opendronelab-dev:phase4b-evo`, ID `71f579d53bcf`)** — historical;
+**tag deleted on this host 2026-11-09.** Do not use as rollback. Current rollback
+is `:phase4c-vio` only (see phase5-clean section above/below).
 
 
 ## Applied 2026-11-06 (later)
@@ -112,11 +112,11 @@ docker rm -f odl-sim   # next launch-sitl picks up :latest
 Adds `libceres-dev` (+ glog/gflags/boost bits) for OpenVINS. OpenVINS itself is
 **not** in the image: it builds into `/data/ros2_build/openvins` via
 `scripts/build-openvins.sh` (GPL-3 isolated). Previous `:latest` remains
-`:phase4b-evo` (`71f579d53bcf`).
+`(former predecessor `:phase4b-evo` was removed from this host 2026-11-09).
 
-Undo (no sudo):
+**Only available rollback from `:phase5-clean` / `:latest`:**
 ```bash
-docker tag opendronelab-dev:phase4b-evo opendronelab-dev:latest
+docker tag opendronelab-dev:phase4c-vio opendronelab-dev:latest
 docker rm -f odl-sim && ./scripts/launch-sitl.sh
 ```
 
