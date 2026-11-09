@@ -33,4 +33,8 @@ if docker ps --format '{{.Names}}' | grep -q '^odl-sim$'; then
     fi
 fi
 pkill -f "${REPO_DIR}/scripts/record-bag.sh" 2>/dev/null || true
+# Cap BuildKit cache at 20 GB when over (never touches images).
+if [ "${SKIP_BUILD_CACHE_PRUNE:-0}" != "1" ]; then
+    "${REPO_DIR}/scripts/prune-build-cache.sh" || true
+fi
 echo "[INFO] stop-all done."
