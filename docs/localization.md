@@ -570,3 +570,36 @@ Results: `vio_baseline_20261106_143651` + `vio_baseline_20261106_143936`.
 
 **EV:** after yaw/origin/time align (`6f4c42e` + near-ground re-align guard), one opt-in flight completed the square — EKF2/VIO Umeyama xy **0.210 / 0.237 m** (bag `20261106_155243`). Default `EKF2_EV_CTRL` stays 0.
 
+## Regression threshold calibration (2026-11-09 Asia/Calcutta)
+
+Three seeded flights per scenario (`GZ_SEED=1234`, VIO shadow, `EKF2_EV_CTRL=0`,
+GstCamera off, no raw camera). Calibration dir:
+`/data/results/threshold_cal_20261109/`. Formula per metric:
+`round_up(max(mean + 3σ, 1.5 × worst))`, never looser than the previous gate.
+
+| Scenario | Rep | EKF2 xy / 3D | VIO xy / 3D | Origin H / V | Notes |
+|----------|-----|--------------|-------------|--------------|-------|
+| baseline | 1 | 0.259 / 0.268 | **3.844 / 3.890** | 0.284 / 0.070 | **Flaky VIO** — excluded from VIO gate |
+| baseline | 2 | 0.256 / 0.268 | 0.458 / 0.461 | 0.279 / 0.079 | |
+| baseline | 3 | 0.257 / 0.266 | 0.435 / 0.442 | 0.276 / 0.076 | |
+| low_texture | 1 | 0.249 / 0.255 | 0.336 / 0.357 | 0.264 / 0.061 | |
+| low_texture | 2 | 0.249 / 0.256 | **nan / nan** | 0.265 / 0.075 | **OV unscored** (`ov_published=false`) — excluded from VIO gate |
+| low_texture | 3 | 0.246 / 0.254 | 0.358 / 0.363 | 0.262 / 0.062 | |
+| faster_motion | 1 | 0.398 / 0.405 | 0.151 / 0.155 | 0.413 / 0.082 | |
+| faster_motion | 2 | 0.383 / 0.390 | 0.131 / 0.137 | 0.394 / 0.077 | |
+| faster_motion | 3 | 0.380 / 0.386 | 0.271 / 0.279 | 0.389 / 0.069 | |
+| wind | 1 | 0.262 / 0.270 | 0.332 / 0.347 | 0.293 / 0.065 | |
+| wind | 2 | 0.258 / 0.268 | 0.629 / 0.636 | 0.286 / 0.068 | |
+| wind | 3 | 0.263 / 0.271 | 1.086 / 1.109 | 0.292 / 0.064 | |
+
+**Old → new gates (selected):**
+
+| Scenario | VIO xy old → new | VIO 3D old → new | EKF2 xy old → new |
+|----------|------------------|------------------|-------------------|
+| baseline | 2.0 → **0.70** | 2.2 → **0.70** | 0.60 → **0.40** |
+| low_texture | 2.5 → **0.55** | 2.7 → **0.56** | 0.60 → **0.38** |
+| faster_motion | 2.0 → **0.42** | 2.2 → **0.44** | 0.60 → **0.60** |
+| wind | 2.0 → **1.85** | 2.2 → **1.90** | 0.60 → **0.40** |
+| defaults origin V | 0.25 → **0.13** | | |
+
+Flaky runs are reported above; gates were **not** widened to absorb them.

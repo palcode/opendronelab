@@ -1,41 +1,59 @@
 # OpenDroneLab SITL regression gates (VIO shadow; EKF2_EV_CTRL=0).
-# Justified from verified 2026-11-09 Asia/Calcutta flights with margin.
+# Recalibrated 2026-11-09 Asia/Calcutta from 3× GZ_SEED=1234 flights per
+# scenario (threshold_cal_20261109). Per metric:
+#   gate = round_up(max(mean + 3σ, 1.5 × worst)), never looser than prior gates.
+# See docs/localization.md "Regression threshold calibration".
 #
-# Observed Umeyama xy (m):
-#   EKF2:  baseline/low_tex/wind ~0.25, faster_motion ~0.39  → gate 0.60
-#   VIO:   wind 0.32, faster 0.46, healthy baseline ≤1.1, low_tex 1.12
-#          → 2.0 for baseline/wind/fast; 2.5 for low_texture
-# Origin H tracks Umeyama xy; V is ~0.05–0.07 → gate 0.25.
-# Sample floors match the existing "healthy" bar (>500 airborne).
+# Flaky runs (NOT used to widen gates):
+#   baseline r1 VIO Umeyama xy 3.84 m (r2/r3 ~0.45) — genuine VIO outlier
+#   low_texture r2 VIO nan / ov_published=false — OV failed to score
 
 pytest_min_passed: 31
 
 defaults:
   mission: success
   ov_published: true
+  # Pooled healthy EKF2 (all 12 runs); faster_motion sets the xy/H floor.
   ekf2_umeyama_xy_rmse_max: 0.60
-  ekf2_umeyama_3d_rmse_max: 0.65
+  ekf2_umeyama_3d_rmse_max: 0.62
   ekf2_origin_h_rmse_max: 0.60
-  ekf2_origin_v_rmse_max: 0.25
+  ekf2_origin_v_rmse_max: 0.13
   ekf2_origin_samples_min: 500
-  vio_umeyama_xy_rmse_max: 2.0
-  vio_umeyama_3d_rmse_max: 2.2
+  # Default VIO covers wind-ish; scenarios tighten further.
+  vio_umeyama_xy_rmse_max: 1.85
+  vio_umeyama_3d_rmse_max: 1.90
   vio_origin_samples_min: 500
 
 scenarios:
   baseline:
-    # vio_test, default C++ square (no cruise_speed / yaw_spin)
-    vio_umeyama_xy_rmse_max: 2.0
-    vio_umeyama_3d_rmse_max: 2.2
+    # Healthy VIO from r2/r3 only (r1 excluded as outlier).
+    ekf2_umeyama_xy_rmse_max: 0.40
+    ekf2_umeyama_3d_rmse_max: 0.42
+    ekf2_origin_h_rmse_max: 0.44
+    ekf2_origin_v_rmse_max: 0.12
+    vio_umeyama_xy_rmse_max: 0.70
+    vio_umeyama_3d_rmse_max: 0.70
   low_texture:
-    # overlay + subtle tiles; after2 VIO xy 1.12 m
-    vio_umeyama_xy_rmse_max: 2.5
-    vio_umeyama_3d_rmse_max: 2.7
+    # Healthy VIO from r1/r3 only (r2 OV nan excluded).
+    ekf2_umeyama_xy_rmse_max: 0.38
+    ekf2_umeyama_3d_rmse_max: 0.40
+    ekf2_origin_h_rmse_max: 0.40
+    ekf2_origin_v_rmse_max: 0.12
+    vio_umeyama_xy_rmse_max: 0.55
+    vio_umeyama_3d_rmse_max: 0.56
   faster_motion:
-    # settle-zone fix: VIO xy 0.46, EKF2 0.39
-    vio_umeyama_xy_rmse_max: 2.0
-    vio_umeyama_3d_rmse_max: 2.2
+    # All 3 runs healthy; EKF2 xy hits the shared 0.60 floor.
+    ekf2_umeyama_xy_rmse_max: 0.60
+    ekf2_umeyama_3d_rmse_max: 0.62
+    ekf2_origin_h_rmse_max: 0.60
+    ekf2_origin_v_rmse_max: 0.13
+    vio_umeyama_xy_rmse_max: 0.42
+    vio_umeyama_3d_rmse_max: 0.44
   wind:
-    # vio_wind + gz-server-wind gusts; VIO xy 0.32
-    vio_umeyama_xy_rmse_max: 2.0
-    vio_umeyama_3d_rmse_max: 2.2
+    # VIO spread 0.33 / 0.63 / 1.09 — gate from all three (no outlier drop).
+    ekf2_umeyama_xy_rmse_max: 0.40
+    ekf2_umeyama_3d_rmse_max: 0.42
+    ekf2_origin_h_rmse_max: 0.44
+    ekf2_origin_v_rmse_max: 0.11
+    vio_umeyama_xy_rmse_max: 1.85
+    vio_umeyama_3d_rmse_max: 1.90

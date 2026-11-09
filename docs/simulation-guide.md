@@ -371,7 +371,7 @@ By default `scripts/record-bag.sh` (and therefore regression / VIO stress / eval
 SCENARIOS=faster_motion SKIP_PYTEST=1 ./scripts/run-regression.sh
 ```
 
-Sequence: pytest → fresh SITL per scenario (`GZ_SEED=1234`, `EKF2_EV_CTRL=0`, GstCamera off, VIO shadow) → `run-vio-stress.sh` → judge against `config/regression_thresholds.yaml`. Writes `/data/results/regression_<stamp>/{report.md,report.json}` and exits 1 on FAIL. Cleanup (`stop-all`) runs on exit or Ctrl-C. QGC must be available to arm.
+Sequence: pytest → fresh SITL per scenario (`GZ_SEED=1234`, `EKF2_EV_CTRL=0`, GstCamera off, VIO shadow) → `run-vio-stress.sh` → judge against `config/regression_thresholds.yaml` (2026-11-09 cal; see localization.md). Writes `/data/results/regression_<stamp>/{report.md,report.json}` and exits 1 on FAIL. Cleanup (`stop-all`) runs on exit or Ctrl-C. QGC must be available to arm.
 
 
 EKF2 origin H/V needs live `/ground_truth/odometry`. `run-vio-stress.sh` passes `start_ground_truth:=true` and fails if GT has no rate; `run-baseline.sh` auto-starts `localization.launch.py` with `WORLD`/`MODEL`-matched `gz_pose_topic` and `model_name`.
@@ -382,3 +382,9 @@ GPS-only is the default (`EKF2_EV_CTRL=0`). Opt-in external vision: recreate
 (`vision_px4_bridge` aligns OV→PX4 NED). Verified SITL bag `20261106_155243`
 (EKF2/VIO Umeyama xy 0.210/0.237 m). Do not leave EV enabled on the default
 GPS baseline container.
+
+## Build cache cap (20 GB)
+
+`scripts/stop-all.sh` calls `scripts/prune-build-cache.sh`, which runs
+`docker builder prune --keep-storage 20gb -f` **only** when BuildKit cache
+exceeds 20 GB. Images are never removed. Skip with `SKIP_BUILD_CACHE_PRUNE=1`.
