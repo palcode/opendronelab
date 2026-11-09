@@ -54,6 +54,27 @@ public:
     // If >0, only apply yaw_spin after this corner index (1 = after hover wp0).
     yaw_spin_after_wp_ = declare_parameter("yaw_spin_after_wp", 0);
 
+    // Bound aggressive stress params (PX4 MPC_XY_VEL_MAX is typically ~12; keep
+    // a safer sim cap so corners remain reachable). Clamp with warning.
+    constexpr double kMaxCruiseSpeed = 8.0;   // m/s
+    constexpr double kMaxYawSpinRate = 0.7;   // rad/s (~40 deg/s)
+    if (cruise_speed_ < 0.0) {
+      RCLCPP_WARN(get_logger(), "cruise_speed=%.2f < 0; clamping to 0", cruise_speed_);
+      cruise_speed_ = 0.0;
+    } else if (cruise_speed_ > kMaxCruiseSpeed) {
+      RCLCPP_WARN(
+        get_logger(), "cruise_speed=%.2f exceeds %.1f m/s; clamping",
+        cruise_speed_, kMaxCruiseSpeed);
+      cruise_speed_ = kMaxCruiseSpeed;
+    }
+    if (std::fabs(yaw_spin_rate_) > kMaxYawSpinRate) {
+      const double sign = yaw_spin_rate_ >= 0.0 ? 1.0 : -1.0;
+      RCLCPP_WARN(
+        get_logger(), "yaw_spin_rate=%.2f exceeds ±%.1f rad/s; clamping",
+        yaw_spin_rate_, kMaxYawSpinRate);
+      yaw_spin_rate_ = sign * kMaxYawSpinRate;
+    }
+
     if (altitude_ > max_altitude_) {
       throw std::runtime_error("Target altitude exceeds safety limit");
     }
