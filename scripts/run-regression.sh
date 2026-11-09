@@ -46,11 +46,16 @@ fi
 
 mkdir -p "${REPORT_HOST}" "${REPO_DIR}/logs"
 START_EPOCH="$(date +%s)"
+REG_STARTED_QGC=0
 
 cleanup() {
     local ec=$?
     "${REPO_DIR}/scripts/stop-all.sh" >/dev/null 2>&1 || true
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+    if [ "${REG_STARTED_QGC:-0}" = "1" ]; then
+        pkill -f 'QGroundControl-x86_64.AppImage' >/dev/null 2>&1 || true
+        echo "[REG] stopped QGC started by this regression run"
+    fi
     exit "${ec}"
 }
 trap cleanup EXIT INT TERM
@@ -89,7 +94,11 @@ pytest -q \
     set -e
     PASSED=$(grep -Eo '[0-9]+ passed' "${REPORT_HOST}/pytest.txt" | head -1 | awk '{print $1}')
     PASSED="${PASSED:-0}"
-    MIN_P=$(python3 -c "import yaml; print(yaml.safe_load(open('${THRESHOLDS}'))['pytest_min_passed'])")
+    MIN_P=$(docker run --rm --network none \
+        -v "${REPO_DIR}":/workspace:ro \
+        -e HOME=/tmp -u "$(id -u):$(id -g)" \
+        "${IMAGE_NAME}" \
+        python3 -c "import yaml; print(yaml.safe_load(open('/workspace/config/regression_thresholds.yaml'))['pytest_min_passed'])")
     PY_PASS=0
     if [ "${PY_EC}" -eq 0 ] && [ "${PASSED}" -ge "${MIN_P}" ]; then
         PY_PASS=1
@@ -101,10 +110,12 @@ else
     echo '{"step":"pytest","pass":true,"skipped":true}' > "${PYTEST_JSON}"
 fi
 
+REG_STARTED_QGC=0
 if [ "${#FLIGHTS[@]}" -gt 0 ] && ! pgrep -af QGroundControl >/dev/null 2>&1; then
     echo "[WARN] QGroundControl not detected; trying AppImage..."
     if [ -x "${HOME}/Applications/QGroundControl-x86_64.AppImage" ]; then
         nohup "${HOME}/Applications/QGroundControl-x86_64.AppImage" >/tmp/qgc-regression.log 2>&1 &
+        REG_STARTED_QGC=1
         sleep 5
     fi
 fi
@@ -221,11 +232,17 @@ run_flight() {
     cp -a "${summary_host}/metrics_vio.json" "${REPORT_HOST}/${scenario}/" 2>/dev/null || true
 
     set +e
-    python3 "${REPO_DIR}/scripts/judge-regression.py" \
-        --summary "${REPORT_HOST}/${scenario}/summary.json" \
-        --thresholds "${THRESHOLDS}" \
-        --scenario "${scenario}" \
-        --out "${REPORT_HOST}/judge_${scenario}.json"
+    docker run --rm --network none \
+        -v "${REPO_DIR}":/workspace:ro \
+        -v "${DATA_DIR}":/data \
+        -e HOME=/tmp \
+        -u "$(id -u):$(id -g)" \
+        "${IMAGE_NAME}" \
+        python3 /workspace/scripts/judge-regression.py \
+            --summary "/data/results/regression_${STAMP}/${scenario}/summary.json" \
+            --thresholds /workspace/config/regression_thresholds.yaml \
+            --scenario "${scenario}" \
+            --out "/data/results/regression_${STAMP}/judge_${scenario}.json"
     local jec=$?
     set -e
     if [ "${jec}" -ne 0 ]; then
@@ -246,6 +263,8 @@ END_EPOCH="$(date +%s)"
 ELAPSED=$((END_EPOCH - START_EPOCH))
 export REPORT_HOST STAMP ELAPSED GZ_SEED BAG_DURATION THRESHOLDS
 export N_FLIGHTS="${#FLIGHTS[@]}"
+# Preserve scenario order for the report (comma-separated).
+export FLIGHT_ORDER="$(IFS=,; echo "${FLIGHTS[*]}")"
 
 set +e
 python3 << 'PY'
