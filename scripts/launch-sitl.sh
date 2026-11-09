@@ -106,9 +106,19 @@ else
     GZ_SERVER_MSG="gst-camera=off"
 fi
 # WindEffects must be in server.config (not world SDF). WORLD=vio_wind or GZ_WIND=1.
-# Incompatible with ENABLE_GST_CAMERA in this tree (use steady <wind> only if both needed).
+# Incompatible with ENABLE_GST_CAMERA: gst config replaces the wind server config.
 GZ_WIND="${GZ_WIND:-}"
-if { [ "${WORLD}" = "vio_wind" ] || [ "${GZ_WIND}" = "1" ]; } && [ -z "${ENABLE_GST_CAMERA}" ]; then
+WANT_WIND=0
+if [ "${WORLD}" = "vio_wind" ] || [ "${GZ_WIND}" = "1" ]; then
+    WANT_WIND=1
+fi
+if [ "${WANT_WIND}" = "1" ] && [ -n "${ENABLE_GST_CAMERA}" ]; then
+    echo "[ERROR] WORLD=vio_wind / GZ_WIND=1 cannot combine with ENABLE_GST_CAMERA=1." >&2
+    echo "[ERROR] GstCamera server.config would silently drop WindEffects gusts." >&2
+    echo "[ERROR] Use steady <wind> in the SDF only, or disable GstCamera." >&2
+    exit 1
+fi
+if [ "${WANT_WIND}" = "1" ]; then
     GZ_SERVER_CFG="${WORKSPACE_DIR}/config/gz-server-wind.config"
     GZ_SERVER_MSG="${GZ_SERVER_MSG}, wind-effects=on"
 fi
