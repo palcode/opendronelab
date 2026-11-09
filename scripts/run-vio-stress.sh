@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# One scored VIO-shadow square flight for a stress scenario.
+# Prerequisites: odl-sim up with matching WORLD, QGC open, OpenVINS built.
+# Usage:
+#   WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture
+#   WORLD=vio_test SQUARE_SPEED=6 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 \
+#     ./scripts/run-vio-stress.sh faster_motion
+#   WORLD=vio_wind ./scripts/run-vio-stress.sh wind
+#
+# Env:
+#   BAG_DURATION (default 100)
+#   GZ_WORLD for vio.launch (default: $WORLD or vio_test)
+#   SQUARE_SPEED, SQUARE_YAW_SPIN, SQUARE_HOLD, SQUARE_TIMEOUT
+#   FLIGHT_CMD overrides the constructed flight command entirely
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CONTAINER_NAME="odl-sim"
+SCENARIO="${1:-stress}"
+BAG_DURATION="${BAG_DURATION:-100}"
+STAMP="$(date +%Y%m%d_%H%M%S)"
+SUMMARY_DIR="/data/results/vio_stress_${SCENARIO}_${STAMP}"
+GZ_WORLD="${GZ_WORLD:-${WORLD:-vio_test}}"
+
+SOURCE_CMD='set +u
+source /opt/ros/jazzy/setup.bash
+[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
+[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
+[ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
+set -u
+export ROS_DOMAIN_ID=42
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST'
+
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "[ERROR] ${CONTAINER_NAME} not running" >&2
+    exit 1
+fi
+
+# Build flight command from env (defaults = baseline square)
+if [ -z "${FLIGHT_CMD:-}" ]; then
+    ROS_ARGS=()
+    # rclcpp declare_parameter<double> rejects integer YAML; force decimals.
+    [ -n "${SQUARE_SPEED:-}" ] && ROS_ARGS+=(-p "cruise_speed:=${SQUARE_SPEED}")
+    [ -n "${SQUARE_YAW_SPIN:-}" ] && ROS_ARGS+=(-p "yaw_spin_rate:=${SQUARE_YAW_SPIN}")
+    [ -n "${SQUARE_HOLD:-}" ] && ROS_ARGS+=(-p "corner_hold_time:=${SQUARE_HOLD}")
+    [ -n "${SQUARE_TIMEOUT:-}" ] && ROS_ARGS+=(-p "mission_timeout:=${SQUARE_TIMEOUT}")
+    # Normalize bare integers to floats for all -p values we add
+    _norm=()
+    for a in "${ROS_ARGS[@]+"${ROS_ARGS[@]}"}"; do
+      if [[ "$a" =~ ^([^=]+:=)(-?[0-9]+)$ ]]; then
+        _norm+=("${BASH_REMATCH[1]}${BASH_REMATCH[2]}.0")
+      else
+        _norm+=("$a")
+      fi
+    done
+    ROS_ARGS=("${_norm[@]+"${_norm[@]}"}")
+    if [ "${#ROS_ARGS[@]}" -gt 0 ]; then
+        FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp --ros-args ${ROS_ARGS[*]}"
+    else
+        FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp"
+    fi
+fi
+
+echo "[INFO] scenario=${SCENARIO} world=${GZ_WORLD} flight=${FLIGHT_CMD}"
+echo "[INFO] results -> ${SUMMARY_DIR}"
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${SUMMARY_DIR}"
+mkdir -p "${REPO_DIR}/logs"
+echo "summary_dir=${SUMMARY_DIR}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-${STAMP}.log"
+
+# Restart VIO for a clean OpenVINS init
+echo "[INFO] (Re)starting vio.launch.py gz_world:=${GZ_WORLD}..."
+docker exec "${CONTAINER_NAME}" bash -lc 'pkill -f "[r]os2 launch drone_bringup vio" >/dev/null 2>&1 || true; pkill -f "[r]un_subscribe_msckf" >/dev/null 2>&1 || true; pkill -f "[g]round_truth_publisher" >/dev/null 2>&1 || true; pkill -f "[i]mage_bridge" >/dev/null 2>&1 || true; pkill -f "[p]arameter_bridge" >/dev/null 2>&1 || true; true'
+sleep 3
+docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
+    -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
+    bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=${GZ_WORLD} gz_model:=x500_mono_cam_0 > /tmp/vio-launch.log 2>&1"
+
+for i in $(seq 1 30); do
+    HAS_CAM=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+        bash -c "${SOURCE_CMD}; ros2 topic list" 2>/dev/null | grep -c '/camera/image_raw' || true)
+    HAS_IMU=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+        bash -c "${SOURCE_CMD}; ros2 topic list" 2>/dev/null | grep -c '/sim/imu' || true)
+    HAS_GT=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+        bash -c "${SOURCE_CMD}; ros2 topic list" 2>/dev/null | grep -c '/ground_truth/odometry' || true)
+    if [ "${HAS_CAM}" != "0" ] && [ "${HAS_IMU}" != "0" ] && [ "${HAS_GT}" != "0" ]; then
+        echo "[INFO] bridges up (cam/imu/gt) at try ${i}"
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        echo "[ERROR] vio bridges did not come up" >&2
+        docker exec "${CONTAINER_NAME}" tail -40 /tmp/vio-launch.log || true
+        exit 1
+    fi
+    sleep 2
+done
+
+# Feature wait is best-effort on low-texture (may never get disparity)
+if ! "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 45; then
+    echo "[WARN] OpenVINS feature wait timed out (expected on low_texture); continuing"
+fi
+sleep 2
+
+echo "[INFO] Recording ${BAG_DURATION}s..."
+"${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
+RECORD_PID=$!
+sleep 5
+
+echo "[INFO] Flight..."
+MISSION=fail
+# Faster/spin flights may need >120s wall timeout
+FLIGHT_WALL="${FLIGHT_WALL:-150}"
+if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    bash -c "${SOURCE_CMD}; timeout ${FLIGHT_WALL} ${FLIGHT_CMD}"; then
+    echo "[INFO] Mission OK"
+    MISSION=success
+else
+    echo "[WARN] Mission failed/timeout"
+fi
+echo "mission=${MISSION}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-mission.txt"
+wait "${RECORD_PID}" || true
+
+BAG=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -1')
+echo "[INFO] Scoring ${BAG} -> ${SUMMARY_DIR}"
+echo "${BAG}" > "${REPO_DIR}/logs/vio-stress-${SCENARIO}-bag.txt"
+
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -c "
+${SOURCE_CMD}
+mkdir -p ${SUMMARY_DIR}/tum_ekf2 ${SUMMARY_DIR}/tum_vio
+ros2 run drone_localization localization_metrics ${BAG} \
+  --output-dir ${SUMMARY_DIR} --metrics-name metrics_ekf2.json --tum-dir ${SUMMARY_DIR}/tum_ekf2
+ros2 run drone_localization localization_metrics ${BAG} \
+  --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
+  --output-dir ${SUMMARY_DIR} --metrics-name metrics_vio.json --tum-dir ${SUMMARY_DIR}/tum_vio
+evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_ekf2_ape_xy.txt
+evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.tum -r trans_part -a > ${SUMMARY_DIR}/evo_ekf2_ape_3d.txt
+evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_vio_ape_xy.txt || true
+evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a > ${SUMMARY_DIR}/evo_vio_ape_3d.txt || true
+python3 - <<'PY'
+import json, re, pathlib
+out = pathlib.Path('${SUMMARY_DIR}')
+def ape_rmse(path):
+    if not path.exists():
+        return float('nan')
+    t = path.read_text()
+    m = re.search(r'rmse\\s+([0-9.]+)', t)
+    return float(m.group(1)) if m else float('nan')
+ekf2 = json.loads((out/'metrics_ekf2.json').read_text())
+vio_path = out/'metrics_vio.json'
+vio = json.loads(vio_path.read_text()) if vio_path.exists() else {}
+# OV publish check from bag sample count
+summary = {
+  'scenario': '${SCENARIO}',
+  'gz_world': '${GZ_WORLD}',
+  'bag': '${BAG}',
+  'mission': '${MISSION}',
+  'ov_published': bool(vio.get('num_samples', 0) > 0),
+  'ekf2_origin_h_rmse': ekf2.get('horizontal_rmse'),
+  'ekf2_origin_v_rmse': ekf2.get('vertical_rmse'),
+  'ekf2_origin_samples': ekf2.get('num_samples'),
+  'vio_origin_h_rmse': vio.get('horizontal_rmse'),
+  'vio_origin_v_rmse': vio.get('vertical_rmse'),
+  'vio_origin_samples': vio.get('num_samples', 0),
+  'ekf2_umeyama_xy_rmse': ape_rmse(out/'evo_ekf2_ape_xy.txt'),
+  'ekf2_umeyama_3d_rmse': ape_rmse(out/'evo_ekf2_ape_3d.txt'),
+  'vio_umeyama_xy_rmse': ape_rmse(out/'evo_vio_ape_xy.txt'),
+  'vio_umeyama_3d_rmse': ape_rmse(out/'evo_vio_ape_3d.txt'),
+}
+(out/'summary.json').write_text(json.dumps(summary, indent=2))
+print(json.dumps(summary, indent=2))
+PY
+" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
+
+echo "[INFO] Stress scenario ${SCENARIO} complete: ${SUMMARY_DIR}"

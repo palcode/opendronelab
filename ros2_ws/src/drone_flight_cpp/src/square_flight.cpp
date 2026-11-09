@@ -2,7 +2,9 @@
 //
 // Same OFFBOARD profile as Python: stream OffboardControlMode +
 // TrajectorySetpoint at 20 Hz, engage OFFBOARD, arm, climb via the first
-// waypoint (0, 0, -altitude), fly the 10 m square with yaw=0, land, then Hold.
+// waypoint (0, 0, -altitude), fly the 10 m square (optional cruise_speed / yaw_spin_rate), land, then Hold.
+// Optional ROS params (defaults preserve baseline): cruise_speed (m/s), yaw_spin_rate (rad/s).
+// Env helpers in scripts/run-vio-stress.sh: SQUARE_SPEED, SQUARE_YAW_SPIN.
 //
 // Why not ModeExecutor + TrajectorySetpointType for the climb:
 // PX4 only sets vehicle_constraints.want_takeoff from a position/velocity
@@ -42,6 +44,10 @@ public:
     corner_hold_time_ = declare_parameter("corner_hold_time", 3.0);
     mission_timeout_ = declare_parameter("mission_timeout", 180.0);
     waypoint_tolerance_ = declare_parameter("waypoint_tolerance", 0.5);
+    // 0 = position-only (PX4 MPC cruise). >0 fills velocity toward the waypoint.
+    cruise_speed_ = declare_parameter("cruise_speed", 0.0);
+    // Continuous yaw rate (rad/s) while Flying; 0 keeps yaw=0 (baseline).
+    yaw_spin_rate_ = declare_parameter("yaw_spin_rate", 0.0);
 
     if (altitude_ > max_altitude_) {
       throw std::runtime_error("Target altitude exceeds safety limit");
@@ -80,8 +86,10 @@ public:
 
     RCLCPP_INFO(
       get_logger(),
-      "Square flight (C++ OFFBOARD): side=%.1fm, alt=%.1fm, hold=%.1fs, timeout=%.0fs",
-      square_side_, altitude_, corner_hold_time_, mission_timeout_);
+      "Square flight (C++ OFFBOARD): side=%.1fm, alt=%.1fm, hold=%.1fs, timeout=%.0fs, "
+      "cruise_speed=%.1fm/s, yaw_spin=%.2f rad/s",
+      square_side_, altitude_, corner_hold_time_, mission_timeout_, cruise_speed_,
+      yaw_spin_rate_);
   }
 
 private:
@@ -97,25 +105,66 @@ private:
     px4_msgs::msg::OffboardControlMode msg{};
     msg.timestamp = nowUs();
     msg.position = true;
-    msg.velocity = false;
+    msg.velocity = cruise_speed_ > 0.0;
     msg.acceleration = false;
     msg.attitude = false;
     msg.body_rate = false;
     offboard_control_mode_pub_->publish(msg);
   }
 
-  void publishTrajectorySetpoint(float x, float y, float z, float yaw)
+  void publishTrajectorySetpoint(
+    float x, float y, float z, float yaw,
+    float vx = std::numeric_limits<float>::quiet_NaN(),
+    float vy = std::numeric_limits<float>::quiet_NaN(),
+    float vz = std::numeric_limits<float>::quiet_NaN(),
+    float yawspeed = std::numeric_limits<float>::quiet_NaN())
   {
     px4_msgs::msg::TrajectorySetpoint msg{};
     msg.timestamp = nowUs();
     msg.position = {x, y, z};
     msg.yaw = yaw;
     const float nan = std::numeric_limits<float>::quiet_NaN();
-    msg.velocity = {nan, nan, nan};
+    msg.velocity = {vx, vy, vz};
     msg.acceleration = {nan, nan, nan};
     msg.jerk = {nan, nan, nan};
-    msg.yawspeed = nan;
+    msg.yawspeed = yawspeed;
     trajectory_setpoint_pub_->publish(msg);
+  }
+
+  void publishWaypointSetpoint(const std::array<float, 3> & wp)
+  {
+    float yaw = 0.f;
+    float yawspeed = std::numeric_limits<float>::quiet_NaN();
+    if (yaw_spin_rate_ != 0.0) {
+      const auto now = std::chrono::steady_clock::now();
+      if (!spin_start_) {
+        spin_start_ = now;
+      }
+      const double t = std::chrono::duration<double>(now - *spin_start_).count();
+      yaw = static_cast<float>(yaw_spin_rate_ * t);
+      yawspeed = static_cast<float>(yaw_spin_rate_);
+    }
+
+    float vx = std::numeric_limits<float>::quiet_NaN();
+    float vy = std::numeric_limits<float>::quiet_NaN();
+    float vz = std::numeric_limits<float>::quiet_NaN();
+    if (cruise_speed_ > 0.0 && vehicle_local_position_) {
+      const float dx = wp[0] - vehicle_local_position_->x;
+      const float dy = wp[1] - vehicle_local_position_->y;
+      const float dz = wp[2] - vehicle_local_position_->z;
+      const float dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist > 1e-3f) {
+        const float scale = static_cast<float>(cruise_speed_) / dist;
+        vx = dx * scale;
+        vy = dy * scale;
+        vz = dz * scale;
+      } else {
+        vx = 0.f;
+        vy = 0.f;
+        vz = 0.f;
+      }
+    }
+    publishTrajectorySetpoint(wp[0], wp[1], wp[2], yaw, vx, vy, vz, yawspeed);
   }
 
   void publishVehicleCommand(uint32_t command, float p1 = 0.f, float p2 = 0.f, float p3 = 0.f)
@@ -259,7 +308,7 @@ private:
       case State::Flying: {
         const auto & wp = waypoints_[corner_index_];
         publishOffboardControlMode();
-        publishTrajectorySetpoint(wp[0], wp[1], wp[2], 0.f);
+        publishWaypointSetpoint(wp);
         const float distance = distanceToWaypoint(wp);
         if (distance < static_cast<float>(waypoint_tolerance_)) {
           if (!corner_arrival_) {
@@ -309,6 +358,8 @@ private:
   double corner_hold_time_{3.0};
   double mission_timeout_{180.0};
   double waypoint_tolerance_{0.5};
+  double cruise_speed_{0.0};
+  double yaw_spin_rate_{0.0};
 
   std::vector<std::array<float, 3>> waypoints_;
   State state_{State::Init};
@@ -318,6 +369,7 @@ private:
   bool preflight_fail_logged_{false};
   std::optional<std::chrono::steady_clock::time_point> mission_start_;
   std::optional<std::chrono::steady_clock::time_point> corner_arrival_;
+  std::optional<std::chrono::steady_clock::time_point> spin_start_;
 
   px4_msgs::msg::VehicleStatus::SharedPtr vehicle_status_;
   px4_msgs::msg::VehicleLocalPosition::SharedPtr vehicle_local_position_;

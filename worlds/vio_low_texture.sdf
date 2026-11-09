@@ -1,0 +1,122 @@
+<?xml version="1.0" ?>
+<!--
+  VIO stress: low texture. Uniform ground, few large same-color walls.
+  No Fuel models / textures — built-in materials only.
+  World name MUST match stem (WORLD=vio_low_texture).
+  PX4 yaw 0 faces Gazebo +Y; keep sparse props along +Y.
+-->
+<sdf version="1.9">
+  <world name="vio_low_texture">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <scene>
+      <ambient>1.0 1.0 1.0</ambient>
+      <background>0.85 0.85 0.85</background>
+      <sky></sky>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.4 0.4 0.4 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.72 0.72 0.72 1</ambient>
+            <diffuse>0.72 0.72 0.72 1</diffuse>
+            <specular>0.05 0.05 0.05 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Sparse, nearly identical gray walls (few corners for KLT) -->
+    <model name="wall_L">
+      <static>true</static>
+      <pose>-4 8 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.4 12 3</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.4 12 3</size></box></geometry>
+          <material>
+            <ambient>0.65 0.65 0.65 1</ambient>
+            <diffuse>0.65 0.65 0.65 1</diffuse>
+            <specular>0.05 0.05 0.05 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_R">
+      <static>true</static>
+      <pose>4 8 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.4 12 3</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.4 12 3</size></box></geometry>
+          <material>
+            <ambient>0.65 0.65 0.65 1</ambient>
+            <diffuse>0.65 0.65 0.65 1</diffuse>
+            <specular>0.05 0.05 0.05 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- One distant darker slab so the scene is not 100% empty -->
+    <model name="slab_far">
+      <static>true</static>
+      <pose>0 16 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>6 0.4 1</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>6 0.4 1</size></box></geometry>
+          <material>
+            <ambient>0.55 0.55 0.55 1</ambient>
+            <diffuse>0.55 0.55 0.55 1</diffuse>
+            <specular>0.05 0.05 0.05 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397742</latitude_deg>
+      <longitude_deg>8.545594</longitude_deg>
+      <elevation>488.0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+  </world>
+</sdf>

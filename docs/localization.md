@@ -428,6 +428,29 @@ horizontal stayed near the GPS baseline.
 `scripts/run-vio-baseline.sh` automates this (restarts `vio.launch.py` between
 runs; records with `--no-raw-camera` to keep bags small).
 
+### VIO stress scenarios (2026-11-09, Asia/Calcutta)
+
+Harder worlds / motion next to `vio_test`. VIO in **shadow** only
+(`EKF2_EV_CTRL=0`), GstCamera off, `GZ_SEED=1234`, C++ square, GT-z airborne
+mask, evo Umeyama SE3. Runner: `scripts/run-vio-stress.sh`. Baseline reference
+(healthy): VIO Umeyama xy ~0.36–1.1 m; EKF2 ~0.2–0.3 m.
+
+| Scenario | World / knobs | Bag | OV init/publish? | EKF2 Umeyama xy / 3D | VIO Umeyama xy / 3D | Notes |
+|----------|---------------|-----|------------------|----------------------|---------------------|-------|
+| Low texture | `vio_low_texture` (fuel-free, sparse gray walls) | `20261109_125000` | features yes; **odom no** (≤36 feats, MLE/opt failed) | **0.248 / 0.256 m** | n/a | GPS square OK; stress hit as intended |
+| Faster motion | `vio_test` + `cruise_speed=6`, `yaw_spin_rate=0.7`, hold 0.5 s | `20261109_125644` | **yes** (19700 msgs) | **0.385 / 0.388 m** | **0.342 / 0.405 m** | Square stalled after wp0→wp1 (mission timeout 120 s); first attempt failed on integer `mission_timeout` param (retry used `120.0`) |
+| Wind | `vio_wind` steady wind (5, 2, 0) m/s | `20261109_130348` | **yes** (14914 msgs) | **0.262 / 0.269 m** | **0.320 / 0.324 m** | Climb arm→wp0 **11.3 s** vs ~7 s calm (motor aero feels wind). `WindEffects` plugin embedded in SDF crashed gz under PX4 server.config — omitted; steady `<wind>` kept |
+
+Results dirs: `/data/results/vio_stress_<scenario>_20261109_*`.
+
+**Square speed / yaw spin (defaults unchanged):**
+```bash
+ros2 run drone_flight_cpp square_flight_cpp --ros-args   -p cruise_speed:=6.0 -p yaw_spin_rate:=0.7 -p corner_hold_time:=0.5
+# or via env for the stress runner:
+SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 ./scripts/run-vio-stress.sh faster_motion
+```
+
+
 ### External vision into EKF2 (opt-in)
 
 Dedicated overlay only (GPS defaults unchanged):

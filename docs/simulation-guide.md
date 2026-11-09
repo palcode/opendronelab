@@ -341,7 +341,25 @@ For perception use `MODEL=gz_x500_mono_cam WORLD=detection_test`. Prefer `HEADLE
 
 `WORLD=vio_test MODEL=gz_x500_mono_cam` — textured corridor along Gazebo +Y for
 OpenVINS. See `docs/localization.md` § OpenVINS. Keep `ENABLE_GST_CAMERA` unset
-(GstCamera leak).
+
+### Harder VIO stress scenarios
+
+Three opt-in stresses reuse the same VIO-shadow scoring path (`EKF2_EV_CTRL=0`,
+GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
+`scripts/run-vio-stress.sh`.
+
+| Scenario | How to run |
+|----------|------------|
+| Low texture | `WORLD=vio_low_texture HEADLESS=1 GZ_SEED=1234 MODEL=gz_x500_mono_cam ./scripts/launch-sitl.sh` then `WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture` |
+| Faster motion | same SITL with `WORLD=vio_test`, then `WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion` |
+| Wind | `WORLD=vio_wind … ./scripts/launch-sitl.sh` then `WORLD=vio_wind ./scripts/run-vio-stress.sh wind` |
+
+- `vio_low_texture.sdf` — fuel-free uniform ground + sparse gray walls (no downloads).
+- Faster motion — C++ square params `cruise_speed` / `yaw_spin_rate` (defaults 0 = baseline). Env: `SQUARE_SPEED`, `SQUARE_YAW_SPIN`, `SQUARE_HOLD`.
+- `vio_wind.sdf` — `vio_test` plus steady Gazebo `<wind>` (5, 2, 0) m/s like PX4 `windy.sdf`. Embedding `WindEffects` crashed gz under our server.config; motor aero still reads world wind.
+
+Results table: `docs/localization.md` § VIO stress scenarios.
+
 
 GPS-only is the default (`EKF2_EV_CTRL=0`). Opt-in external vision: recreate
 `odl-sim` with `PX4_PARAM_EKF2_EV_CTRL=3` and `ros2 launch drone_bringup vio_ev.launch.py`
