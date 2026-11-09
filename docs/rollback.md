@@ -76,7 +76,7 @@ Check first that nothing else needs them (`apt rdepends --installed <pkg>`).
 
 GPU onnxruntime (1.28.0 + nvidia-* CUDA 13 / cuDNN 9 pip wheels), BuildKit
 cache mounts, digest-pinned `ubuntu:24.04`, `docker/constraints.txt`, and a
-build smoke test. `(Former `:phase3` rollback tag was removed 2026-11-09; use `:phase4c-vio`.)
+build smoke test. Former `:phase3` rollback tag was removed 2026-11-09; use `:phase4c-vio`.
 
 Undo: `:phase3` was removed 2026-11-09. Use `:phase4c-vio` only:
 ```bash
@@ -93,25 +93,21 @@ is `:phase4c-vio` only (see phase5-clean section above/below).
 
 ## Applied 2026-11-06 (later)
 
-**Dev image (`opendronelab-dev:phase5-clean` → `:latest`, ID `f3f06169d036`, 11.2 GB)**
-
-Exact pip pins (`docker/constraints.txt`: numpy==1.26.4, onnxruntime-gpu==1.28.0,
-evo==1.38.1, …), BuildKit apt/pip/ccache mounts, build-time `docker/smoke-check.sh`.
-Cold build ~612 s; cached late-layer rebuild ~4 s. Previous `:latest` remains
-`:phase4c-vio` (`46a2186aea3b`).
-
-```bash
-# Roll back to phase4c-vio:
-docker tag opendronelab-dev:phase4c-vio opendronelab-dev:latest
-docker rm -f odl-sim   # next launch-sitl picks up :latest
-```
-
 **Dev image (`opendronelab-dev:phase4c-vio`, ID `46a2186aea3b`, 11.2 GB)** — previous `:latest` before phase5-clean
 
 Adds `libceres-dev` (+ glog/gflags/boost bits) for OpenVINS. OpenVINS itself is
 **not** in the image: it builds into `/data/ros2_build/openvins` via
-`scripts/build-openvins.sh` (GPL-3 isolated). Previous `:latest` remains
-`(former predecessor `:phase4b-evo` was removed from this host 2026-11-09).
+`scripts/build-openvins.sh` (GPL-3 isolated). Former predecessor `:phase4b-evo`
+was removed from this host 2026-11-09.
+
+## Applied 2026-11-09
+
+**Dev image (`opendronelab-dev:phase5-clean` → `:latest`, ID `f3f06169d036`, 11.2 GB)**
+
+Exact pip pins (`docker/constraints.txt`: numpy==1.26.4, onnxruntime-gpu==1.28.0,
+evo==1.38.1, nvidia-* CUDA/cuDNN wheels, …), BuildKit apt/pip/ccache mounts,
+build-time `docker/smoke-check.sh`. Cold build ~612 s; cached late-layer rebuild ~4 s.
+Previous `:latest` remains `:phase4c-vio` (`46a2186aea3b`).
 
 **Only available rollback from `:phase5-clean` / `:latest`:**
 ```bash

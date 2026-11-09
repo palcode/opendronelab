@@ -1,7 +1,7 @@
 # OpenDroneLab
 
 **Status:** Phase 4a/4b sim complete; image `opendronelab-dev:phase5-clean` (=`:latest`); GPS-only default; EV opt-in  
-**Last Updated:** 2026-11-06
+**Last Updated:** 2026-11-09
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
 
@@ -107,7 +107,7 @@ dronelab/
 ├── docker/                      # Dockerfile.dev, constraints.txt (exact pins), smoke-check.sh
 ├── ros2_ws/src/
 │   ├── drone_flight_cpp/        # Production C++ square (OFFBOARD)
-│   ├── drone_localization/      # GT, metrics, Python square, vision_px4_bridge
+│   ├── drone_localization/      # GT, metrics, vision_px4_bridge
 │   ├── drone_perception/        # Edge + YOLOX
 │   ├── drone_bringup/           # Launch files (vio, vio_ev, detection, …)
 │   ├── drone_telemetry/         # Phase 2 telemetry
@@ -180,9 +180,7 @@ Detailed guides will be added in future phases.
 ✅ Repeatable test scenarios  
 ✅ Automated metrics and reports  
 
-## Scope
-
-### Regression (SITL)
+## Regression
 
 ```bash
 ./scripts/run-regression.sh
