@@ -5,6 +5,8 @@
 // waypoint (0, 0, -altitude), fly the 10 m square (optional cruise_speed / yaw_spin_rate), land, then Hold.
 // Optional ROS params (defaults preserve baseline): cruise_speed (m/s), yaw_spin_rate (rad/s).
 // Env helpers in scripts/run-vio-stress.sh: SQUARE_SPEED, SQUARE_YAW_SPIN.
+// Velocity FF tapers and yaw-spin pauses inside a settle zone so corners
+// remain reachable (faster_motion previously timed out on wp1).
 //
 // Why not ModeExecutor + TrajectorySetpointType for the climb:
 // PX4 only sets vehicle_constraints.want_takeoff from a position/velocity
@@ -21,6 +23,7 @@
 #include <px4_msgs/msg/vehicle_status.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -133,35 +136,56 @@ private:
 
   void publishWaypointSetpoint(const std::array<float, 3> & wp)
   {
+    // Settle zone: position-only (no vel FF, no yaw spin) so we can enter the
+    // waypoint ball. Full cruise_speed all the way in caused endless overshoot
+    // on faster_motion (never reached wp1 within 0.5 m before mission timeout).
+    const float settle_m = std::max(1.5f, static_cast<float>(2.0 * waypoint_tolerance_));
+    float dist = std::numeric_limits<float>::infinity();
+    float dx = 0.f, dy = 0.f, dz = 0.f;
+    if (vehicle_local_position_) {
+      dx = wp[0] - vehicle_local_position_->x;
+      dy = wp[1] - vehicle_local_position_->y;
+      dz = wp[2] - vehicle_local_position_->z;
+      dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    const bool settling = dist < settle_m;
+
     float yaw = 0.f;
     float yawspeed = std::numeric_limits<float>::quiet_NaN();
     if (yaw_spin_rate_ != 0.0) {
       const auto now = std::chrono::steady_clock::now();
-      if (!spin_start_) {
-        spin_start_ = now;
+      if (!spin_yaw_) {
+        spin_yaw_ = 0.f;
+        spin_last_ = now;
       }
-      const double t = std::chrono::duration<double>(now - *spin_start_).count();
-      yaw = static_cast<float>(yaw_spin_rate_ * t);
-      yawspeed = static_cast<float>(yaw_spin_rate_);
+      if (!settling) {
+        const double dt = std::chrono::duration<double>(now - *spin_last_).count();
+        spin_yaw_ = static_cast<float>(*spin_yaw_ + yaw_spin_rate_ * dt);
+        spin_last_ = now;
+        yaw = *spin_yaw_;
+        yawspeed = static_cast<float>(yaw_spin_rate_);
+      } else {
+        yaw = *spin_yaw_;
+        yawspeed = 0.f;
+        spin_last_ = now;
+      }
     }
 
     float vx = std::numeric_limits<float>::quiet_NaN();
     float vy = std::numeric_limits<float>::quiet_NaN();
     float vz = std::numeric_limits<float>::quiet_NaN();
     if (cruise_speed_ > 0.0 && vehicle_local_position_) {
-      const float dx = wp[0] - vehicle_local_position_->x;
-      const float dy = wp[1] - vehicle_local_position_->y;
-      const float dz = wp[2] - vehicle_local_position_->z;
-      const float dist = std::sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist > 1e-3f) {
-        const float scale = static_cast<float>(cruise_speed_) / dist;
-        vx = dx * scale;
-        vy = dy * scale;
-        vz = dz * scale;
-      } else {
+      if (settling || dist < 1e-3f) {
         vx = 0.f;
         vy = 0.f;
         vz = 0.f;
+      } else {
+        const float speed = std::min(
+          static_cast<float>(cruise_speed_), std::max(0.5f, dist));
+        const float scale = speed / dist;
+        vx = dx * scale;
+        vy = dy * scale;
+        vz = dz * scale;
       }
     }
     publishTrajectorySetpoint(wp[0], wp[1], wp[2], yaw, vx, vy, vz, yawspeed);
@@ -369,7 +393,8 @@ private:
   bool preflight_fail_logged_{false};
   std::optional<std::chrono::steady_clock::time_point> mission_start_;
   std::optional<std::chrono::steady_clock::time_point> corner_arrival_;
-  std::optional<std::chrono::steady_clock::time_point> spin_start_;
+  std::optional<float> spin_yaw_;
+  std::optional<std::chrono::steady_clock::time_point> spin_last_;
 
   px4_msgs::msg::VehicleStatus::SharedPtr vehicle_status_;
   px4_msgs::msg::VehicleLocalPosition::SharedPtr vehicle_local_position_;
