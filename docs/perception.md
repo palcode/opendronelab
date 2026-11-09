@@ -113,8 +113,9 @@ Metrics are logged at 1 Hz to the console.
 1. Rebuild the development image with camera packages:
    ```bash
    cd docker
-   docker build -t opendronelab-dev:latest -f Dockerfile.dev \
+   cd docker && DOCKER_BUILDKIT=1 docker build -t opendronelab-dev:phase5-clean -f Dockerfile.dev \
        --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .
+   docker tag opendronelab-dev:phase5-clean opendronelab-dev:latest
    ```
 
 2. Launch SITL with camera model:

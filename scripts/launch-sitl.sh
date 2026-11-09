@@ -21,7 +21,7 @@
 set -euo pipefail
 
 CONTAINER_NAME="odl-sim"
-IMAGE_NAME="opendronelab-dev:latest"
+IMAGE_NAME="${IMAGE_NAME:-opendronelab-dev:latest}"
 WORKSPACE_DIR="${WORKSPACE_DIR:-/home/$(whoami)/workspace/dronelab}"
 DATA_DIR="${DATA_DIR:-/home/$(whoami)/workspace/dronelab-data}"
 MODEL="${MODEL:-gz_x500}"

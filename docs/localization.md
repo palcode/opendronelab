@@ -466,7 +466,7 @@ VIO Umeyama xy **0.237 m** (GT-airborne mask). Pre-fix EV attempts were ~22/16 m
 and aborted.
 
 
-Image: `opendronelab-dev:phase4c-vio` (= `:latest`), rollback `:phase4b-evo`.
+Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
 
 ## References
 

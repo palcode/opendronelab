@@ -1,15 +1,26 @@
 # Pip constraints for the OpenDroneLab dev image.
-# Used with: pip install -c /tmp/constraints.txt ...
+# Applied to every pip install in docker/Dockerfile.dev (-c /tmp/constraints.txt).
+# Versions match the verified opendronelab-dev:phase4c-vio image (2026-11-09 freeze).
 #
 # numpy must stay on 1.x: Ubuntu noble's python3-opencv is built against numpy 1.x
 # and `import cv2` fails under numpy 2.x.
-numpy>=1.26.0,<2
+numpy==1.26.4
 #
-# GPU inference (Phase 4). onnxruntime-gpu replaces onnxruntime; do not install both.
-# 1.28.0 is the first release whose CUDA 12.8 arch list includes sm_120 (Blackwell);
-# the default PyPI wheel from 1.27+ is CUDA 13.0, which matches driver 595 (CUDA 13.2).
+# GPU inference. onnxruntime-gpu replaces onnxruntime; do not install both.
+# 1.28.0 is the first release whose CUDA wheels cover sm_120 (Blackwell);
+# CUDA 13 wheels match host driver 595 (CUDA 13.2).
 onnxruntime-gpu==1.28.0
 #
-# Trajectory evaluation (Phase 4b). evo is GPL-3: installed in /opt/evo (venv) and
-# called only as an external CLI (evo_ape / evo_rpe). Never import it from our packages.
+# Trajectory evaluation (GPL-3) — only installed into /opt/evo venv.
 evo==1.38.1
+#
+# Common deps that drift across apt+pip and have conflicted with ROS / OpenCV / evo.
+matplotlib==3.11.2
+pillow==13.0.0
+PyYAML==6.0.3
+packaging==26.3
+protobuf==7.36.2
+flatbuffers==25.12.19
+sympy==1.14.0
+# System python (apt scipy may differ); pin when pip installs/upgrades SciPy.
+SciPy==1.11.4

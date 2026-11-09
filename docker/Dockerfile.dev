@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # OpenDroneLab Development Container
 # Ubuntu 24.04 with PX4, Gazebo Harmonic, ROS 2 Jazzy, and Micro XRCE-DDS Agent
-# Built for non-root user matching host UID/GID for X11 authorization
+# Built for non-root user matching host UID/GID for X11 authorization.
+# Tag convention: opendronelab-dev:phase5-clean (exact pip pins + BuildKit caches).
 
 # Pin by digest of the locally present ubuntu:24.04 (tag kept for humans).
 # Digest verified 2026-11-05: docker images ubuntu:24.04 --digests
@@ -152,14 +153,18 @@ RUN (userdel -r ubuntu 2>/dev/null || true) \
 USER $USERNAME
 WORKDIR /home/$USERNAME
 
-# Clone and build Micro XRCE-DDS Agent v2.4.3 as user
-RUN git clone -b v2.4.3 --depth 1 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git \
+# Clone and build Micro XRCE-DDS Agent v2.4.3 as user (ccache speeds rebuilds)
+RUN --mount=type=cache,target=/home/dev/.ccache,uid=1000,gid=1000 \
+    export CCACHE_DIR=/home/dev/.ccache \
+    && export PATH="/usr/lib/ccache:$PATH" \
+    && git clone -b v2.4.3 --depth 1 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git \
     && cd Micro-XRCE-DDS-Agent \
     && mkdir build && cd build \
-    && cmake .. \
+    && cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache .. \
     && make -j$(nproc) \
     && sudo make install \
     && sudo ldconfig \
+    && ccache -s || true \
     && cd ../.. \
     && rm -rf Micro-XRCE-DDS-Agent
 
@@ -190,11 +195,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # onnxruntime (CPU-only); the two packages conflict.
 RUN --mount=type=cache,target=/root/.cache/pip \
     sudo pip3 install --break-system-packages --ignore-installed \
-        -c /tmp/constraints.txt "numpy<2" \
+        -c /tmp/constraints.txt "numpy==1.26.4" \
     && sudo pip3 install --break-system-packages \
         -c /tmp/constraints.txt "onnxruntime-gpu[cuda,cudnn]==1.28.0" \
     && sudo pip3 install --break-system-packages --ignore-installed \
-        -c /tmp/constraints.txt "numpy<2"
+        -c /tmp/constraints.txt "numpy==1.26.4"
 
 # OpenVINS build deps (GPL-3 stack is built later into /data, not linked into
 # first-party packages). Ceres is required by ov_init / ov_msckf.
@@ -220,7 +225,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3-venv
 RUN --mount=type=cache,target=/root/.cache/pip \
     sudo python3 -m venv /opt/evo \
-    && sudo /opt/evo/bin/pip install -c /tmp/constraints.txt evo \
+    && sudo /opt/evo/bin/pip install -c /tmp/constraints.txt "evo==1.38.1" \
     && sudo sh -c '/opt/evo/bin/pip freeze > /opt/evo/freeze.txt' \
     && for b in /opt/evo/bin/evo_*; do sudo ln -s "$b" /usr/local/bin/; done
 
@@ -240,28 +245,10 @@ RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 # Create workspace directories
 RUN mkdir -p /home/$USERNAME/workspace /home/$USERNAME/data
 
-# Build smoke test: imports used by the perception stack, numpy major == 1.
+# Build smoke test (exact pins). px4_msgs is not in the image (/data overlay).
+COPY smoke-check.sh /tmp/smoke-check.sh
 USER root
-RUN bash -lc 'set +u; source /opt/ros/jazzy/setup.bash; set -u; \
-    python3 -c "\
-import cv2, numpy, onnxruntime, rclpy; \
-assert numpy.__version__.startswith(\"1.\"), numpy.__version__; \
-print(\"smoke_ok\", \
-      \"cv2\", cv2.__version__, \
-      \"numpy\", numpy.__version__, \
-      \"onnxruntime\", onnxruntime.__version__, \
-      \"providers\", onnxruntime.get_available_providers(), \
-      \"rclpy\", rclpy.__name__)"'
-# Tool smoke test: evo must NOT be importable from system python (GPL-3
-# boundary), evo CLIs and mcap must run, and the evo venv keeps numpy 1.x.
-RUN if python3 -c "import evo" 2>/dev/null; then echo "evo leaked into system python" >&2; exit 1; fi \
-    && evo_ape --help >/dev/null && evo_rpe --help >/dev/null \
-    && /opt/evo/bin/python -c "import importlib.metadata as m, numpy; assert numpy.__version__.startswith('1.'), numpy.__version__; print('smoke_ok evo', m.version('evo'), 'venv-numpy', numpy.__version__)" \
-    && python3 -c "import numpy; assert numpy.__version__.startswith('1.'); print('smoke_ok system-numpy', numpy.__version__)" \
-    && mcap --version \
-    && pkg-config --exists eigen3 \
-    && test -f /usr/include/ceres/ceres.h \
-    && echo "smoke_ok openvins-deps ceres+eigen"
+RUN chmod +x /tmp/smoke-check.sh && /tmp/smoke-check.sh && rm -f /tmp/smoke-check.sh
 USER $USERNAME
 
 # Default command
@@ -270,4 +257,4 @@ CMD ["/bin/bash"]
 # Labels
 LABEL org.opencontainers.image.title="OpenDroneLab Dev Container"
 LABEL org.opencontainers.image.description="PX4 SITL development with Gazebo Harmonic and ROS 2 Jazzy"
-LABEL org.opencontainers.image.version="0.4.0"
+LABEL org.opencontainers.image.version="0.5.0-clean"

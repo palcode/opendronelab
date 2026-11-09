@@ -18,7 +18,7 @@ if [ ! -f /opt/ros/jazzy/setup.bash ]; then
     exit 1
 fi
 if [ ! -f /usr/include/ceres/ceres.h ]; then
-    echo "[ERROR] libceres-dev missing. Rebuild image as phase4c-vio." >&2
+    echo "[ERROR] libceres-dev missing. Rebuild image as phase5-clean (or phase4c-vio)." >&2
     exit 1
 fi
 

@@ -8,7 +8,7 @@ they are not flight certifications.
 
 | Area | What exists | Notes |
 |------|-------------|-------|
-| Host / image | `opendronelab-dev:latest` (= `phase4c-vio`), rollback tags in `docs/rollback.md` | No image rebuild required for day-to-day work |
+| Host / image | `opendronelab-dev:latest` (= `phase5-clean`), rollback `:phase4c-vio` | Exact pip pins + BuildKit caches; see `docker/constraints.txt` |
 | SITL | `scripts/launch-sitl.sh`, `HEADLESS=1`, `GZ_SEED`, `MEM_LIMIT` | GstCamera **off** unless `ENABLE_GST_CAMERA=1` |
 | Flight | **C++** `square_flight_cpp` (production); Python `square_flight` (RMSE reference) | Classic OFFBOARD; QGC on host to arm headless PX4 |
 | Early ROS | `drone_telemetry`, `drone_mission_manager` (hover) | Phase 2 path; still buildable |

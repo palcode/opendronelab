@@ -94,7 +94,20 @@ use `docker rm -f odl-sim` before the next launch to pick up a new `:latest`.
 
 ## Applied 2026-11-06 (later)
 
-**Dev image (`opendronelab-dev:phase4c-vio` → `:latest`, ID `46a2186aea3b`, 11.2 GB)**
+**Dev image (`opendronelab-dev:phase5-clean` → `:latest`, ID `f3f06169d036`, 11.2 GB)**
+
+Exact pip pins (`docker/constraints.txt`: numpy==1.26.4, onnxruntime-gpu==1.28.0,
+evo==1.38.1, …), BuildKit apt/pip/ccache mounts, build-time `docker/smoke-check.sh`.
+Cold build ~612 s; cached late-layer rebuild ~4 s. Previous `:latest` remains
+`:phase4c-vio` (`46a2186aea3b`).
+
+```bash
+# Roll back to phase4c-vio:
+docker tag opendronelab-dev:phase4c-vio opendronelab-dev:latest
+docker rm -f odl-sim   # next launch-sitl picks up :latest
+```
+
+**Dev image (`opendronelab-dev:phase4c-vio`, ID `46a2186aea3b`, 11.2 GB)** — previous `:latest` before phase5-clean
 
 Adds `libceres-dev` (+ glog/gflags/boost bits) for OpenVINS. OpenVINS itself is
 **not** in the image: it builds into `/data/ros2_build/openvins` via
