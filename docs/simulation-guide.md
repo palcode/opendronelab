@@ -341,6 +341,7 @@ For perception use `MODEL=gz_x500_mono_cam WORLD=detection_test`. Prefer `HEADLE
 
 `WORLD=vio_test MODEL=gz_x500_mono_cam` — textured corridor along Gazebo +Y for
 OpenVINS. See `docs/localization.md` § OpenVINS. Keep `ENABLE_GST_CAMERA` unset
+(GstCamera leak).
 
 ### Harder VIO stress scenarios
 
