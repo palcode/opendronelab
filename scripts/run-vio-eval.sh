@@ -38,6 +38,12 @@ if [ "${ODOM_N}" = "0" ]; then
     exit 1
 fi
 
+GT_N=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bash -c "${SOURCE_CMD}; ros2 topic list" | grep -c '/ground_truth/odometry' || true)
+if [ "${GT_N}" = "0" ]; then
+    echo "[ERROR] /ground_truth/odometry not listed. Pass start_ground_truth:=true to vio.launch.py" >&2
+    exit 1
+fi
+
 echo "[INFO] Recording VIO bag for ${BAG_DURATION}s..."
 "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
 RECORD_PID=$!

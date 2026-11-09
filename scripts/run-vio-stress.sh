@@ -102,6 +102,16 @@ for i in $(seq 1 30); do
     sleep 2
 done
 
+# Require live ground-truth publisher (EKF2 origin H/V scoring needs it)
+GT_HZ=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bash -c "${SOURCE_CMD}; timeout 3 ros2 topic hz /ground_truth/odometry 2>&1 | head -5" || true)
+if ! echo "${GT_HZ}" | grep -qE 'average rate:'; then
+    echo "[ERROR] /ground_truth/odometry has no live publishers; EKF2 origin score would be empty" >&2
+    echo "${GT_HZ}" >&2
+    docker exec "${CONTAINER_NAME}" tail -30 /tmp/vio-launch.log || true
+    exit 1
+fi
+echo "[INFO] ground_truth live: $(echo "${GT_HZ}" | grep 'average rate' | head -1)"
+
 # Feature wait is best-effort on low-texture (may never get disparity)
 if ! "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 45; then
     echo "[WARN] OpenVINS feature wait timed out (expected on low_texture); continuing"

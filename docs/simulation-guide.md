@@ -361,6 +361,8 @@ GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
 
 Results table: `docs/localization.md` § VIO stress scenarios.
 
+EKF2 origin H/V needs live `/ground_truth/odometry`. `run-vio-stress.sh` passes `start_ground_truth:=true` and fails if GT has no rate; `run-baseline.sh` auto-starts `localization.launch.py` with `WORLD`/`MODEL`-matched `gz_pose_topic` and `model_name`.
+
 
 GPS-only is the default (`EKF2_EV_CTRL=0`). Opt-in external vision: recreate
 `odl-sim` with `PX4_PARAM_EKF2_EV_CTRL=3` and `ros2 launch drone_bringup vio_ev.launch.py`

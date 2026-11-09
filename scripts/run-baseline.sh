@@ -12,6 +12,19 @@ BAG_DURATION=120
 # Default: C++ OFFBOARD square (drone_flight_cpp). Python reference:
 #   FLIGHT_CMD="ros2 run drone_localization square_flight" ./scripts/run-baseline.sh N
 FLIGHT_CMD="${FLIGHT_CMD:-ros2 run drone_flight_cpp square_flight_cpp}"
+# Match launch-sitl so GT pose topic + model name are correct.
+WORLD="${WORLD:-}"
+MODEL="${MODEL:-gz_x500}"
+case "${MODEL}" in
+    gz_x500_mono_cam*) GT_MODEL_NAME="x500_mono_cam_0" ;;
+    gz_x500*) GT_MODEL_NAME="x500_0" ;;
+    *) GT_MODEL_NAME="${MODEL#gz_}_0" ;;
+esac
+if [ -n "${WORLD}" ]; then
+    GT_GZ_POSE="/world/${WORLD}/pose/info"
+else
+    GT_GZ_POSE="/world/default/pose/info"
+fi
 
 echo "================================================================"
 echo "  Localization Baseline Evaluation"
@@ -37,16 +50,44 @@ source /opt/ros/jazzy/setup.bash
 [ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
 set -u'
 
-# Check that localization launch is running
+# Check that localization launch is running (EKF2 origin H/V needs live GT).
 echo "[INFO] Checking for ground truth bridge..."
 GROUND_TRUTH_ACTIVE=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
     bash -c "${SOURCE_CMD}; ros2 topic list | grep -c '/ground_truth/odometry' || true")
 
 if [ "${GROUND_TRUTH_ACTIVE}" = "0" ]; then
-    echo "[WARN] Ground truth bridge not running. Start with:"
-    echo "       ros2 launch drone_bringup localization.launch.py"
-    echo "[INFO] Continuing anyway (will fail if not started externally)..."
+    echo "[INFO] Ground truth not running; starting localization.launch.py..."
+    echo "[INFO] localization args: gz_pose_topic:=${GT_GZ_POSE} model_name:=${GT_MODEL_NAME}"
+    docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
+        -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
+        bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup localization.launch.py gz_pose_topic:=${GT_GZ_POSE} model_name:=${GT_MODEL_NAME} > /tmp/localization-launch.log 2>&1"
+    for i in $(seq 1 30); do
+        GROUND_TRUTH_ACTIVE=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+            bash -c "${SOURCE_CMD}; ros2 topic list | grep -c '/ground_truth/odometry' || true")
+        if [ "${GROUND_TRUTH_ACTIVE}" != "0" ]; then
+            echo "[INFO] ground_truth_publisher up at try ${i}"
+            break
+        fi
+        sleep 2
+    done
+    if [ "${GROUND_TRUTH_ACTIVE}" = "0" ]; then
+        echo "[ERROR] localization.launch.py did not advertise /ground_truth/odometry" >&2
+        docker exec "${CONTAINER_NAME}" tail -40 /tmp/localization-launch.log || true
+        exit 1
+    fi
 fi
+
+# Fail closed if advertised but silent (wrong world/model is the usual cause).
+GT_HZ=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    bash -c "${SOURCE_CMD}; timeout 4 ros2 topic hz /ground_truth/odometry 2>&1 | head -8" || true)
+if ! echo "${GT_HZ}" | grep -qE 'average rate:'; then
+    echo "[ERROR] /ground_truth/odometry has no live rate." >&2
+    echo "[ERROR] Expected gz_pose_topic=${GT_GZ_POSE} model_name=${GT_MODEL_NAME}" >&2
+    echo "${GT_HZ}" >&2
+    docker exec "${CONTAINER_NAME}" tail -40 /tmp/localization-launch.log 2>/dev/null || true
+    exit 1
+fi
+echo "[INFO] ground_truth live: $(echo "${GT_HZ}" | grep 'average rate' | head -1)"
 
 # Run trials
 for run in $(seq 1 "$NUM_RUNS"); do
