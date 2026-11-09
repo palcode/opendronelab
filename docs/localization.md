@@ -437,7 +437,8 @@ mask, evo Umeyama SE3. Runner: `scripts/run-vio-stress.sh`. Baseline reference
 
 | Scenario | World / knobs | Bag | OV init/publish? | EKF2 Umeyama xy / 3D | VIO Umeyama xy / 3D | Notes |
 |----------|---------------|-----|------------------|----------------------|---------------------|-------|
-| Low texture | `vio_low_texture` (fuel-free, sparse gray walls) | `20261109_125000` | features yes; **odom no** (≤36 feats, MLE/opt failed) | **0.248 / 0.256 m** | n/a | GPS square OK; stress hit as intended |
+| Low texture **before** | default OV config + blankish world | `20261109_125000` | features yes; **odom no** (≤36/48 valid) | **0.248 / 0.256 m** | n/a | |
+| Low texture **after** | overlay `gz_x500_mono_cam_low_texture` + subtle tiles/anchors | `20261109_153206` | **yes** (21429 msgs) | **0.245 / 0.252 m** | **1.117 / 1.121 m** | Flight 2 of 2; flight 1 (`152716`) inited but drifted (xy 58 m) until tile contrast raised |
 | Faster motion | `vio_test` + `cruise_speed=6`, `yaw_spin_rate=0.7`, hold 0.5 s | `20261109_125644` | **yes** (19700 msgs) | **0.385 / 0.388 m** | **0.342 / 0.405 m** | Square stalled after wp0→wp1 (mission timeout 120 s); first attempt failed on integer `mission_timeout` param (retry used `120.0`) |
 | Wind | `vio_wind` steady wind (5, 2, 0) m/s | `20261109_130348` | **yes** (14914 msgs) | **0.262 / 0.269 m** | **0.320 / 0.324 m** | Climb arm→wp0 **11.3 s** vs ~7 s calm (motor aero feels wind). `WindEffects` plugin embedded in SDF crashed gz under PX4 server.config — omitted; steady `<wind>` kept |
 
@@ -448,6 +449,12 @@ Results dirs: `/data/results/vio_stress_<scenario>_20261109_*`.
 ros2 run drone_flight_cpp square_flight_cpp --ros-args   -p cruise_speed:=6.0 -p yaw_spin_rate:=0.7 -p corner_hold_time:=0.5
 # or via env for the stress runner:
 SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 ./scripts/run-vio-stress.sh faster_motion
+```
+
+**Low-texture OpenVINS overlay** (does not change the `vio_test` default config):
+```bash
+WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture
+# uses config_path=/workspace/config/openvins/gz_x500_mono_cam_low_texture/estimator_config.yaml
 ```
 
 

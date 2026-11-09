@@ -21,6 +21,14 @@ BAG_DURATION="${BAG_DURATION:-100}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 SUMMARY_DIR="/data/results/vio_stress_${SCENARIO}_${STAMP}"
 GZ_WORLD="${GZ_WORLD:-${WORLD:-vio_test}}"
+# Optional OpenVINS estimator_config.yaml (low_texture uses overlay by default)
+if [ -z "${OV_CONFIG:-}" ]; then
+    if [ "${SCENARIO}" = "low_texture" ] || [ "${GZ_WORLD}" = "vio_low_texture" ]; then
+        OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam_low_texture/estimator_config.yaml"
+    else
+        OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam/estimator_config.yaml"
+    fi
+fi
 
 SOURCE_CMD='set +u
 source /opt/ros/jazzy/setup.bash
@@ -61,7 +69,7 @@ if [ -z "${FLIGHT_CMD:-}" ]; then
     fi
 fi
 
-echo "[INFO] scenario=${SCENARIO} world=${GZ_WORLD} flight=${FLIGHT_CMD}"
+echo "[INFO] scenario=${SCENARIO} world=${GZ_WORLD} ov_config=${OV_CONFIG} flight=${FLIGHT_CMD}"
 echo "[INFO] results -> ${SUMMARY_DIR}"
 docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${SUMMARY_DIR}"
 mkdir -p "${REPO_DIR}/logs"
@@ -73,7 +81,7 @@ docker exec "${CONTAINER_NAME}" bash -lc 'pkill -f "[r]os2 launch drone_bringup 
 sleep 3
 docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
     -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
-    bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=${GZ_WORLD} gz_model:=x500_mono_cam_0 > /tmp/vio-launch.log 2>&1"
+    bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=${GZ_WORLD} gz_model:=x500_mono_cam_0 config_path:=${OV_CONFIG} start_ground_truth:=true > /tmp/vio-launch.log 2>&1"
 
 for i in $(seq 1 30); do
     HAS_CAM=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \

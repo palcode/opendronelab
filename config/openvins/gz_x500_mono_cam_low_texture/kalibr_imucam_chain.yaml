@@ -1,0 +1,21 @@
+%YAML:1.0
+# OpenDroneLab gz_x500_mono_cam — derived from PX4 SDF (not checkerboard).
+# Camera: Tools/simulation/gz/models/mono_cam (hfov=1.74, 1280x960, no distortion).
+# Prefer live /camera/camera_info to confirm fx/fy/cx/cy; values here match the SDF.
+# Extrinsics: camera_link at (0.12, 0.03, 0.242) in base_link (FLU), identity joint
+# rotation; T_cam_imu maps IMU/FLU -> ROS optical (X right, Y down, Z forward).
+
+cam0:
+  T_cam_imu:
+    - [0.0, -1.0, 0.0, 0.03]
+    - [0.0, 0.0, -1.0, 0.242]
+    - [1.0, 0.0, 0.0, -0.12]
+    - [0.0, 0.0, 0.0, 1.0]
+  cam_overlaps: []
+  camera_model: pinhole
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0]
+  distortion_model: radtan
+  intrinsics: [539.936368, 539.936368, 640.0, 480.0]
+  resolution: [1280, 960]
+  rostopic: /camera/image_raw
+  timeshift_cam_imu: 0.0
