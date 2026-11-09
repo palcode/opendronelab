@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # record-bag.sh: Record ROS 2 bag files for camera and telemetry
 # Stores bags in /data/bags/<timestamp> (never in the repo)
-# Usage: record-bag.sh [duration] [--no-raw-camera] [--localization] [--vio]
+# Usage: record-bag.sh [duration] [--vio] [--localization] [--raw-camera|--no-raw-camera]
 # Flags and duration may appear in any order.
+# Default: do NOT record /camera/image_raw (keeps bags small for scoring).
+# Opt in to raw frames with RECORD_CAMERA=1 or --raw-camera (~125 MB/s).
 # Review bags with the mcap CLI / Foxglove layout: see docs/bag-review.md
 set -euo pipefail
 
 CONTAINER_NAME="odl-sim"
 DURATION="30"
-EXCLUDE_RAW_CAMERA=false
+# Default off — regression/stress/eval only need odom/IMU/GT/PX4 for scoring.
+EXCLUDE_RAW_CAMERA=true
+if [ "${RECORD_CAMERA:-0}" = "1" ]; then
+    EXCLUDE_RAW_CAMERA=false
+fi
 LOCALIZATION_MODE=false
 VIO_MODE=false
 
@@ -16,6 +22,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-raw-camera)
             EXCLUDE_RAW_CAMERA=true
+            shift
+            ;;
+        --raw-camera)
+            EXCLUDE_RAW_CAMERA=false
             shift
             ;;
         --localization)
@@ -28,7 +38,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -*)
             echo "[ERROR] Unknown flag: $1"
-            echo "Usage: $0 [duration] [--no-raw-camera] [--localization] [--vio]"
+            echo "Usage: $0 [duration] [--vio] [--localization] [--raw-camera|--no-raw-camera]"
             exit 1
             ;;
         *)
@@ -43,11 +53,17 @@ BAG_PATH="/data/bags/${TIMESTAMP}"
 
 echo "[INFO] Recording ROS 2 bag for ${DURATION} seconds..."
 if [ "${VIO_MODE}" = true ]; then
-    echo "[INFO] VIO mode: camera + /sim/imu + OpenVINS odom + EKF2 + ground truth"
+    if [ "${EXCLUDE_RAW_CAMERA}" = true ]; then
+        echo "[INFO] VIO mode: /sim/imu + OpenVINS odom + EKF2 + GT (no raw camera; RECORD_CAMERA=1 to include)"
+    else
+        echo "[INFO] VIO mode: raw camera + /sim/imu + OpenVINS odom + EKF2 + ground truth"
+    fi
 elif [ "${LOCALIZATION_MODE}" = true ]; then
     echo "[INFO] Localization mode: recording EKF and ground truth topics, no camera"
 elif [ "${EXCLUDE_RAW_CAMERA}" = true ]; then
-    echo "[INFO] Excluding /camera/image_raw (saves ~125 MB/s)"
+    echo "[INFO] Excluding /camera/image_raw (default; RECORD_CAMERA=1 or --raw-camera to include)"
+else
+    echo "[INFO] Including /camera/image_raw (~125 MB/s)"
 fi
 echo "[INFO] Output: ${BAG_PATH}"
 
@@ -61,9 +77,9 @@ docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
     mkdir -p /data/bags
 
 if [ "${VIO_MODE}" = true ]; then
-    # VIO topic set: camera + Gazebo IMU + OpenVINS + EKF2 + GT.
-    # Raw camera is large (~125 MB/s); pass --no-raw-camera to drop it after
-    # OpenVINS has already consumed the live stream (bag then keeps odom only).
+    # VIO topic set: Gazebo IMU + OpenVINS + EKF2 + GT (+ optional raw camera).
+    # Raw camera is ~125 MB/s; default is off. OpenVINS still consumes the live
+    # stream; the bag only needs odom for Umeyama scoring.
     TOPICS=(
         "/camera/camera_info"
         "/sim/imu"

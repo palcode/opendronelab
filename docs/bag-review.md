@@ -1,3 +1,5 @@
+> **Default:** regression/stress bags omit `/camera/image_raw`. Use `RECORD_CAMERA=1` or `record-bag.sh … --raw-camera` when you need frames.
+
 # Reviewing Bags: mcap CLI and Foxglove
 
 Bags from `scripts/record-bag.sh` live in `dronelab-data/bags/<timestamp>/` (`/data/bags` in containers).

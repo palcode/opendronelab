@@ -352,7 +352,7 @@ GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
 | Scenario | How to run |
 |----------|------------|
 | Low texture | `WORLD=vio_low_texture HEADLESS=1 GZ_SEED=1234 MODEL=gz_x500_mono_cam ./scripts/launch-sitl.sh` then `WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture` |
-| Faster motion | same SITL with `WORLD=vio_test`, then `WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion` |
+| Faster motion | same SITL with `WORLD=vio_test`, then `WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion (OV overlay `gz_x500_mono_cam_fast_motion`, yaw 0.35 rad/s after wp0)` |
 | Wind | `WORLD=vio_wind … ./scripts/launch-sitl.sh` then `WORLD=vio_wind ./scripts/run-vio-stress.sh wind` |
 
 - `vio_low_texture.sdf` — fuel-free sparse walls + subtle ground tiles; OpenVINS overlay `config/openvins/gz_x500_mono_cam_low_texture/` (default `vio_test` config untouched).
@@ -361,7 +361,11 @@ GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
 
 Results table: `docs/localization.md` § VIO stress scenarios.
 
-### One-command regression
+### Bag recording size
+
+By default `scripts/record-bag.sh` (and therefore regression / VIO stress / eval) does **not** record `/camera/image_raw` — only odometry, IMU, GT, and PX4 topics needed for scoring. That keeps a 100 s bag on the order of tens of MB instead of ~8 GB. Set `RECORD_CAMERA=1` or pass `--raw-camera` when you need frames for Foxglove/debug.
+
+## One-command regression
 
 ```bash
 ./scripts/run-regression.sh
