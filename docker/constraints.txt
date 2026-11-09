@@ -1,6 +1,6 @@
 # Pip constraints for the OpenDroneLab dev image.
 # Applied to every pip install in docker/Dockerfile.dev (-c /tmp/constraints.txt).
-# Versions match the verified opendronelab-dev:phase4c-vio image (2026-11-09 freeze).
+# Versions match the verified opendronelab-dev:phase5-clean image (2026-11-09 freeze).
 #
 # numpy must stay on 1.x: Ubuntu noble's python3-opencv is built against numpy 1.x
 # and `import cv2` fails under numpy 2.x.
@@ -24,3 +24,14 @@ flatbuffers==25.12.19
 sympy==1.14.0
 # System python (apt scipy may differ); pin when pip installs/upgrades SciPy.
 SciPy==1.11.4
+
+# NVIDIA CUDA/cuDNN pip wheels (onnxruntime-gpu CUDA 13 stack).
+# Frozen from `pip freeze` inside opendronelab-dev:phase5-clean (2026-11-09).
+# Edit only — do not rebuild the image in this change.
+nvidia-cublas==13.10.0.20
+nvidia-cuda-nvrtc==13.5.37
+nvidia-cuda-runtime==13.5.37
+nvidia-cudnn-cu13==9.28.1.4
+nvidia-cufft==12.5.0.14
+nvidia-curand==10.4.5.25
+nvidia-nvjitlink==13.5.37
