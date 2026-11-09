@@ -19,13 +19,13 @@ Removed (do not reference for undo): `:phase4b-evo`, `:phase4-gpu`, `:phase3`, `
 ```bash
 ./scripts/stop-all.sh                 # stop helpers, bag recording, odl-sim
 docker rm -f odl-sim                  # remove the sim container
-# Prefer retagging :latest back to :phase3 rather than deleting images:
-docker tag opendronelab-dev:phase3 opendronelab-dev:latest
-# Full cleanup (optional; keeps Windows dual-boot untouched):
-docker image rm opendronelab-dev:latest opendronelab-dev:phase4-gpu \
-    opendronelab-dev:phase3 opendronelab-dev:phase3-edge \
-    opendronelab-dev:phase3-pre opendronelab-dev:phase2
-docker builder prune                  # drop build cache
+# Prefer retagging :latest back to :phase4c-vio (only local rollback) rather than deleting images:
+docker tag opendronelab-dev:phase4c-vio opendronelab-dev:latest
+# Full cleanup (optional; keeps Windows dual-boot untouched) — after 2026-11-09
+# older phase tags are already gone; only these remain:
+# docker image rm opendronelab-dev:latest opendronelab-dev:phase5-clean \
+#     opendronelab-dev:phase4c-vio
+# docker builder prune                  # drop build cache (left untouched in 2026-11-09 cleanup)
 xhost -SI:localuser:$(whoami)         # revoke the X11 grant (also cleared on reboot)
 rm ~/Applications/QGroundControl-x86_64.AppImage
 # GitHub push access for this laptop: delete the deploy key in the repo settings, then
@@ -76,13 +76,12 @@ Check first that nothing else needs them (`apt rdepends --installed <pkg>`).
 
 GPU onnxruntime (1.28.0 + nvidia-* CUDA 13 / cuDNN 9 pip wheels), BuildKit
 cache mounts, digest-pinned `ubuntu:24.04`, `docker/constraints.txt`, and a
-build smoke test. `:phase3` is kept as the rollback image (same digest as the
-previous `:latest`).
+build smoke test. `(Former `:phase3` rollback tag was removed 2026-11-09; use `:phase4c-vio`.)
 
-Undo (no sudo):
+Undo: `:phase3` was removed 2026-11-09. Use `:phase4c-vio` only:
 ```bash
-docker tag opendronelab-dev:phase3 opendronelab-dev:latest
-# then recreate odl-sim: docker rm -f odl-sim && ./scripts/launch-sitl.sh
+docker tag opendronelab-dev:phase4c-vio opendronelab-dev:latest
+docker rm -f odl-sim && ./scripts/launch-sitl.sh
 ```
 
 ## Applied 2026-11-06
