@@ -10,7 +10,7 @@
 # Env:
 #   BAG_DURATION (default 100)
 #   GZ_WORLD for vio.launch (default: $WORLD or vio_test)
-#   SQUARE_SPEED, SQUARE_YAW_SPIN, SQUARE_HOLD, SQUARE_TIMEOUT
+#   SQUARE_SPEED, SQUARE_YAW_SPIN, SQUARE_YAW_SPIN_AFTER, SQUARE_HOLD, SQUARE_TIMEOUT
 #   FLIGHT_CMD overrides the constructed flight command entirely
 set -euo pipefail
 
@@ -25,6 +25,8 @@ GZ_WORLD="${GZ_WORLD:-${WORLD:-vio_test}}"
 if [ -z "${OV_CONFIG:-}" ]; then
     if [ "${SCENARIO}" = "low_texture" ] || [ "${GZ_WORLD}" = "vio_low_texture" ]; then
         OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam_low_texture/estimator_config.yaml"
+    elif [ "${SCENARIO}" = "faster_motion" ]; then
+        OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam_fast_motion/estimator_config.yaml"
     else
         OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam/estimator_config.yaml"
     fi
@@ -50,12 +52,16 @@ if [ -z "${FLIGHT_CMD:-}" ]; then
     # rclcpp declare_parameter<double> rejects integer YAML; force decimals.
     [ -n "${SQUARE_SPEED:-}" ] && ROS_ARGS+=(-p "cruise_speed:=${SQUARE_SPEED}")
     [ -n "${SQUARE_YAW_SPIN:-}" ] && ROS_ARGS+=(-p "yaw_spin_rate:=${SQUARE_YAW_SPIN}")
+    [ -n "${SQUARE_YAW_SPIN_AFTER:-}" ] && ROS_ARGS+=(-p "yaw_spin_after_wp:=${SQUARE_YAW_SPIN_AFTER}")
     [ -n "${SQUARE_HOLD:-}" ] && ROS_ARGS+=(-p "corner_hold_time:=${SQUARE_HOLD}")
     [ -n "${SQUARE_TIMEOUT:-}" ] && ROS_ARGS+=(-p "mission_timeout:=${SQUARE_TIMEOUT}")
     # Normalize bare integers to floats for all -p values we add
     _norm=()
     for a in "${ROS_ARGS[@]+"${ROS_ARGS[@]}"}"; do
-      if [[ "$a" =~ ^([^=]+:=)(-?[0-9]+)$ ]]; then
+      # Integer params must stay integers (rclcpp rejects 1.0 for int).
+      if [[ "$a" == *yaw_spin_after_wp:=* ]]; then
+        _norm+=("$a")
+      elif [[ "$a" =~ ^([^=]+:=)(-?[0-9]+)$ ]]; then
         _norm+=("${BASH_REMATCH[1]}${BASH_REMATCH[2]}.0")
       else
         _norm+=("$a")
@@ -102,21 +108,37 @@ for i in $(seq 1 30); do
     sleep 2
 done
 
-# Require live ground-truth publisher (EKF2 origin H/V scoring needs it)
-GT_HZ=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bash -c "${SOURCE_CMD}; timeout 3 ros2 topic hz /ground_truth/odometry 2>&1 | head -5" || true)
-if ! echo "${GT_HZ}" | grep -qE 'average rate:'; then
-    echo "[ERROR] /ground_truth/odometry has no live publishers; EKF2 origin score would be empty" >&2
+# Require live ground-truth publisher (EKF2 origin H/V scoring needs it).
+# Retry: gz Pose_V can lag a few seconds after the ROS topic is advertised,
+# especially right after a fresh SITL world (seen on vio_low_texture).
+GT_OK=0
+GT_HZ=""
+for gt_try in $(seq 1 15); do
+    GT_HZ=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"         bash -c "${SOURCE_CMD}; timeout 3 ros2 topic hz /ground_truth/odometry 2>&1 | head -5" || true)
+    if echo "${GT_HZ}" | grep -qE 'average rate:'; then
+        echo "[INFO] ground_truth live: $(echo "${GT_HZ}" | grep 'average rate' | head -1) (try ${gt_try})"
+        GT_OK=1
+        break
+    fi
+    sleep 2
+done
+if [ "${GT_OK}" != "1" ]; then
+    echo "[ERROR] /ground_truth/odometry has no live publishers after retries; EKF2 origin score would be empty" >&2
     echo "${GT_HZ}" >&2
-    docker exec "${CONTAINER_NAME}" tail -30 /tmp/vio-launch.log || true
+    docker exec "${CONTAINER_NAME}" tail -40 /tmp/vio-launch.log || true
     exit 1
 fi
-echo "[INFO] ground_truth live: $(echo "${GT_HZ}" | grep 'average rate' | head -1)"
 
 # Feature wait is best-effort on low-texture (may never get disparity)
 if ! "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 45; then
     echo "[WARN] OpenVINS feature wait timed out (expected on low_texture); continuing"
 fi
 sleep 2
+
+# faster_motion: do NOT wait for /ov_msckf/odomimu on the ground — OpenVINS
+# dynamic/static init needs motion (no accel jerk / disparity while still).
+# Reliability instead comes from yaw_spin_after_wp (spin only after hover wp0),
+# capped SQUARE_YAW_SPIN, and the gz_x500_mono_cam_fast_motion overlay.
 
 echo "[INFO] Recording ${BAG_DURATION}s..."
 "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &

@@ -502,6 +502,8 @@ and aborted.
 
 Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
 
+**faster_motion reliability (2026-11-09):** Bags `155436` (Umeyama xy 0.46 m) vs `163102` (5.22 / 7.43 m) both jump ~4 s after takeoff during a spinning climb; the bad run scale-blows (pathlen ratio 1.45) and z-dives. Mitigation (default `gz_x500_mono_cam` untouched): overlay `config/openvins/gz_x500_mono_cam_fast_motion/`, cap `SQUARE_YAW_SPIN=0.35`, `yaw_spin_after_wp=1` (spin only after hover wp0; OV needs motion to init so we do not wait on the ground), and `SQUARE_HOLD=2.0`.
+
 ## References
 
 - **PX4 EKF2:** https://docs.px4.io/v1.17/en/advanced_config/tuning_the_ecl_ekf.html

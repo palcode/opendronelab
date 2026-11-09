@@ -1,0 +1,40 @@
+%YAML:1.0
+# Gazebo Harmonic x500 imu_sensor bridged to /sim/imu (sensor_msgs/Imu).
+# Prefer /sim/imu over /fmu/out/sensor_combined: same Gazebo clock as the
+# camera, native ROS Imu type, ~250 Hz. Noise values are conservative
+# (inflated) sim defaults — not from an Allan-variance plot.
+
+imu0:
+  T_i_b:
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]
+  accelerometer_noise_density: 0.01
+  accelerometer_random_walk: 0.001
+  gyroscope_noise_density: 0.001
+  gyroscope_random_walk: 0.0001
+  rostopic: /sim/imu
+  time_offset: 0.0
+  update_rate: 250
+  model: "kalibr"
+  Tw:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  R_IMUtoGYRO:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  Ta:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  R_IMUtoACC:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  Tg:
+    - [0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0]

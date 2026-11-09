@@ -51,6 +51,8 @@ public:
     cruise_speed_ = declare_parameter("cruise_speed", 0.0);
     // Continuous yaw rate (rad/s) while Flying; 0 keeps yaw=0 (baseline).
     yaw_spin_rate_ = declare_parameter("yaw_spin_rate", 0.0);
+    // If >0, only apply yaw_spin after this corner index (1 = after hover wp0).
+    yaw_spin_after_wp_ = declare_parameter("yaw_spin_after_wp", 0);
 
     if (altitude_ > max_altitude_) {
       throw std::runtime_error("Target altitude exceeds safety limit");
@@ -90,9 +92,9 @@ public:
     RCLCPP_INFO(
       get_logger(),
       "Square flight (C++ OFFBOARD): side=%.1fm, alt=%.1fm, hold=%.1fs, timeout=%.0fs, "
-      "cruise_speed=%.1fm/s, yaw_spin=%.2f rad/s",
+      "cruise_speed=%.1fm/s, yaw_spin=%.2f rad/s, yaw_spin_after_wp=%d",
       square_side_, altitude_, corner_hold_time_, mission_timeout_, cruise_speed_,
-      yaw_spin_rate_);
+      yaw_spin_rate_, yaw_spin_after_wp_);
   }
 
 private:
@@ -152,7 +154,10 @@ private:
 
     float yaw = 0.f;
     float yawspeed = std::numeric_limits<float>::quiet_NaN();
-    if (yaw_spin_rate_ != 0.0) {
+    const bool spin_allowed =
+      yaw_spin_rate_ != 0.0 &&
+      static_cast<int>(corner_index_) >= yaw_spin_after_wp_;
+    if (spin_allowed) {
       const auto now = std::chrono::steady_clock::now();
       if (!spin_yaw_) {
         spin_yaw_ = 0.f;
@@ -384,6 +389,7 @@ private:
   double waypoint_tolerance_{0.5};
   double cruise_speed_{0.0};
   double yaw_spin_rate_{0.0};
+  int yaw_spin_after_wp_{0};
 
   std::vector<std::array<float, 3>> waypoints_;
   State state_{State::Init};

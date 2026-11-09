@@ -160,10 +160,14 @@ run_flight() {
         low_texture) world=vio_low_texture ;;
         faster_motion)
             world=vio_test
+            # Cap yaw at 0.35 rad/s (~20 deg/s) and delay spin until after wp0 so
+            # OpenVINS can finish dynamic init before aggressive rotation.
+            # OV uses gz_x500_mono_cam_fast_motion overlay (via run-vio-stress).
             extra_env=(
                 SQUARE_SPEED=6.0
-                SQUARE_YAW_SPIN=0.7
-                SQUARE_HOLD=0.5
+                SQUARE_YAW_SPIN=0.35
+                SQUARE_YAW_SPIN_AFTER=1
+                SQUARE_HOLD=2.0
                 SQUARE_TIMEOUT=120.0
             )
             ;;
