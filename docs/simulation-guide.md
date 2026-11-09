@@ -361,6 +361,16 @@ GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
 
 Results table: `docs/localization.md` § VIO stress scenarios.
 
+### One-command regression
+
+```bash
+./scripts/run-regression.sh
+SCENARIOS=faster_motion SKIP_PYTEST=1 ./scripts/run-regression.sh
+```
+
+Sequence: pytest → fresh SITL per scenario (`GZ_SEED=1234`, `EKF2_EV_CTRL=0`, GstCamera off, VIO shadow) → `run-vio-stress.sh` → judge against `config/regression_thresholds.yaml`. Writes `/data/results/regression_<stamp>/{report.md,report.json}` and exits 1 on FAIL. Cleanup (`stop-all`) runs on exit or Ctrl-C. QGC must be available to arm.
+
+
 EKF2 origin H/V needs live `/ground_truth/odometry`. `run-vio-stress.sh` passes `start_ground_truth:=true` and fails if GT has no rate; `run-baseline.sh` auto-starts `localization.launch.py` with `WORLD`/`MODEL`-matched `gz_pose_topic` and `model_name`.
 
 

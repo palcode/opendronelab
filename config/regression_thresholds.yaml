@@ -1,0 +1,41 @@
+# OpenDroneLab SITL regression gates (VIO shadow; EKF2_EV_CTRL=0).
+# Justified from verified 2026-11-09 Asia/Calcutta flights with margin.
+#
+# Observed Umeyama xy (m):
+#   EKF2:  baseline/low_tex/wind ~0.25, faster_motion ~0.39  → gate 0.60
+#   VIO:   wind 0.32, faster 0.46, healthy baseline ≤1.1, low_tex 1.12
+#          → 2.0 for baseline/wind/fast; 2.5 for low_texture
+# Origin H tracks Umeyama xy; V is ~0.05–0.07 → gate 0.25.
+# Sample floors match the existing "healthy" bar (>500 airborne).
+
+pytest_min_passed: 31
+
+defaults:
+  mission: success
+  ov_published: true
+  ekf2_umeyama_xy_rmse_max: 0.60
+  ekf2_umeyama_3d_rmse_max: 0.65
+  ekf2_origin_h_rmse_max: 0.60
+  ekf2_origin_v_rmse_max: 0.25
+  ekf2_origin_samples_min: 500
+  vio_umeyama_xy_rmse_max: 2.0
+  vio_umeyama_3d_rmse_max: 2.2
+  vio_origin_samples_min: 500
+
+scenarios:
+  baseline:
+    # vio_test, default C++ square (no cruise_speed / yaw_spin)
+    vio_umeyama_xy_rmse_max: 2.0
+    vio_umeyama_3d_rmse_max: 2.2
+  low_texture:
+    # overlay + subtle tiles; after2 VIO xy 1.12 m
+    vio_umeyama_xy_rmse_max: 2.5
+    vio_umeyama_3d_rmse_max: 2.7
+  faster_motion:
+    # settle-zone fix: VIO xy 0.46, EKF2 0.39
+    vio_umeyama_xy_rmse_max: 2.0
+    vio_umeyama_3d_rmse_max: 2.2
+  wind:
+    # vio_wind + gz-server-wind gusts; VIO xy 0.32
+    vio_umeyama_xy_rmse_max: 2.0
+    vio_umeyama_3d_rmse_max: 2.2

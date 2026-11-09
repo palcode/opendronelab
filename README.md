@@ -41,6 +41,7 @@ Build a modular, reproducible software environment for developing and evaluating
 - **[Camera & Perception](docs/perception.md)** - Camera integration, edge detection, metrics
 - **[Localization](docs/localization.md)** - EKF2 baseline, coordinate frames, evaluation
 - **[Status / roadmap](docs/evaluation-roadmap.md)** - Current stack, real hardware next, future exploration
+- **[Simulation guide](docs/simulation-guide.md)** - SITL bring-up; includes one-command `./scripts/run-regression.sh`
 - **[Real-drone readiness](docs/real-drone-readiness.md)** - Hardware checklist, remaps, placeholder calib
 - **[Agent Working Agreement](AGENTS.md)** - Guidelines for AI agents working on this project
 
@@ -178,6 +179,17 @@ Detailed guides will be added in future phases.
 ✅ Simulation-only fault injection  
 ✅ Repeatable test scenarios  
 ✅ Automated metrics and reports  
+
+## Scope
+
+### Regression (SITL)
+
+```bash
+./scripts/run-regression.sh
+# subset: SCENARIOS=baseline,wind ./scripts/run-regression.sh
+```
+
+Runs pytest (31+) then scored VIO-shadow flights (baseline, low_texture, faster_motion, wind+gusts) with fresh SITL each. Gates in `config/regression_thresholds.yaml`. Report: `/data/results/regression_<stamp>/report.md`. Exit nonzero on any FAIL. See `docs/simulation-guide.md`.
 
 ## Scope
 
