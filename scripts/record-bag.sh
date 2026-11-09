@@ -49,7 +49,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BAG_PATH="/data/bags/${TIMESTAMP}"
+# Callers (stress/regression) pass BAG_PATH or BAG_STAMP so scoring cannot
+# pick a leftover older bag via `ls -1dt`.
+if [ -n "${BAG_PATH:-}" ]; then
+    :
+elif [ -n "${BAG_STAMP:-}" ]; then
+    BAG_PATH="/data/bags/${BAG_STAMP}"
+else
+    BAG_PATH="/data/bags/${TIMESTAMP}"
+fi
 
 echo "[INFO] Recording ROS 2 bag for ${DURATION} seconds..."
 if [ "${VIO_MODE}" = true ]; then

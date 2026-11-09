@@ -9,8 +9,7 @@ NUM_RUNS="${1:-1}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULTS_DIR="/data/results/${TIMESTAMP}"
 BAG_DURATION=120
-# Default: C++ OFFBOARD square (drone_flight_cpp). Python reference:
-#   FLIGHT_CMD="ros2 run drone_localization square_flight" ./scripts/run-baseline.sh N
+# Default: C++ OFFBOARD square (drone_flight_cpp). Python square_flight retired.
 FLIGHT_CMD="${FLIGHT_CMD:-ros2 run drone_flight_cpp square_flight_cpp}"
 # Match launch-sitl so GT pose topic + model name are correct.
 WORLD="${WORLD:-}"
@@ -98,9 +97,10 @@ for run in $(seq 1 "$NUM_RUNS"); do
     
     RUN_START=$(date +%s)
     
-    # Start recording
+    # Start recording (per-run path; never score via ls -td)
     echo "[${run}/${NUM_RUNS}] Starting bag recording..."
-    ./scripts/record-bag.sh "${BAG_DURATION}" --localization &
+    RUN_BAG_STAMP="${TIMESTAMP}_run${run}"
+    BAG_PATH="/data/bags/${RUN_BAG_STAMP}" ./scripts/record-bag.sh "${BAG_DURATION}" --localization &
     RECORD_PID=$!
     
     # Wait for recording to initialize
@@ -121,15 +121,17 @@ for run in $(seq 1 "$NUM_RUNS"); do
     echo "[${run}/${NUM_RUNS}] Waiting for bag recording to complete..."
     wait "$RECORD_PID" || true
     
-    # Find the most recent bag
-    LATEST_BAG=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "ls -td /data/bags/* | head -1")
-    
-    if [ -z "${LATEST_BAG}" ]; then
-        echo "[${run}/${NUM_RUNS}] ERROR: No bag found"
+    LATEST_BAG="/data/bags/${RUN_BAG_STAMP}"
+    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+        bash -c "test -d ${LATEST_BAG} && ls ${LATEST_BAG}/* >/dev/null 2>&1"; then
+        echo "[${run}/${NUM_RUNS}] ERROR: expected bag ${LATEST_BAG} missing (refusing older bag)"
         continue
     fi
-    
+    BAG_NAME="$(basename "${LATEST_BAG}")"
+    if [[ "${BAG_NAME}" < "${TIMESTAMP}" ]]; then
+        echo "[${run}/${NUM_RUNS}] ERROR: bag ${BAG_NAME} older than run TIMESTAMP ${TIMESTAMP}"
+        continue
+    fi
     echo "[${run}/${NUM_RUNS}] Bag: ${LATEST_BAG}"
     
     # Compute metrics

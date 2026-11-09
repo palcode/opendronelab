@@ -45,7 +45,7 @@ if [ "${GT_N}" = "0" ]; then
 fi
 
 echo "[INFO] Recording VIO bag for ${BAG_DURATION}s..."
-"${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
+BAG_PATH="/data/bags/${TIMESTAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
 RECORD_PID=$!
 sleep 5
 
@@ -60,8 +60,12 @@ fi
 wait "${RECORD_PID}" || true
 
 # Discover newest bag
-BAG=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -1')
+BAG="/data/bags/${TIMESTAMP}"
+if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    bash -c "test -d ${BAG}"; then
+    echo "[ERROR] expected bag ${BAG} missing" >&2
+    exit 1
+fi
 echo "[INFO] Scoring bag: ${BAG}"
 
 docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \

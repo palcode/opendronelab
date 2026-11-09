@@ -140,8 +140,8 @@ sleep 2
 # Reliability instead comes from yaw_spin_after_wp (spin only after hover wp0),
 # capped SQUARE_YAW_SPIN, and the gz_x500_mono_cam_fast_motion overlay.
 
-echo "[INFO] Recording ${BAG_DURATION}s..."
-"${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
+echo "[INFO] Recording ${BAG_DURATION}s -> /data/bags/${STAMP}..."
+BAG_PATH="/data/bags/${STAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
 RECORD_PID=$!
 sleep 5
 
@@ -159,8 +159,18 @@ fi
 echo "mission=${MISSION}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-mission.txt"
 wait "${RECORD_PID}" || true
 
-BAG=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -1')
+BAG="/data/bags/${STAMP}"
+if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bash -c "test -d ${BAG} && ls ${BAG}/*.mcap >/dev/null 2>&1"; then
+    echo "[ERROR] expected bag ${BAG} missing or empty (refusing to score an older bag via ls -1dt)" >&2
+    # Show newest bag for diagnosis only — do not use it
+    docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"         bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -3' >&2 || true
+    exit 1
+fi
+BAG_NAME="$(basename "${BAG}")"
+if [[ "${BAG_NAME}" < "${STAMP}" ]] || [[ "${BAG_NAME}" != "${STAMP}" ]]; then
+    echo "[ERROR] bag ${BAG_NAME} does not match run STAMP ${STAMP}" >&2
+    exit 1
+fi
 echo "[INFO] Scoring ${BAG} -> ${SUMMARY_DIR}"
 echo "${BAG}" > "${REPO_DIR}/logs/vio-stress-${SCENARIO}-bag.txt"
 

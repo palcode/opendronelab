@@ -120,7 +120,7 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${RUN_OUT}"
 
     echo "[INFO] Recording ${BAG_DURATION}s..."
-    "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
+    BAG_PATH="/data/bags/${STAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
     RECORD_PID=$!
     sleep 5
 
@@ -135,8 +135,12 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     fi
     wait "${RECORD_PID}" || true
 
-    BAG=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -1')
+    BAG="/data/bags/${STAMP}"
+if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    bash -c "test -d ${BAG}"; then
+    echo "[ERROR] expected bag ${BAG} missing" >&2
+    exit 1
+fi
     echo "[INFO] Scoring ${BAG} -> ${RUN_OUT}"
     _score_bag "${BAG}" "${RUN_OUT}" | tee "${REPO_DIR}/logs/vio-run${run}-score.txt"
     # Copy bag id
