@@ -357,7 +357,7 @@ GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
 
 - `vio_low_texture.sdf` — fuel-free sparse walls + subtle ground tiles; OpenVINS overlay `config/openvins/gz_x500_mono_cam_low_texture/` (default `vio_test` config untouched).
 - Faster motion — C++ square params `cruise_speed` / `yaw_spin_rate` (defaults 0 = baseline). Env: `SQUARE_SPEED`, `SQUARE_YAW_SPIN`, `SQUARE_HOLD`.
-- `vio_wind.sdf` — `vio_test` plus steady Gazebo `<wind>` (5, 2, 0) m/s like PX4 `windy.sdf`. Embedding `WindEffects` crashed gz under our server.config; motor aero still reads world wind.
+- `vio_wind.sdf` — steady `<wind>` (5, 2, 0) m/s. Gusts via `config/gz-server-wind.config` (auto-selected by `launch-sitl` for `WORLD=vio_wind`). Do not embed WindEffects in the world SDF (blocks SceneBroadcaster / PX4 `scene/info`).
 
 Results table: `docs/localization.md` § VIO stress scenarios.
 

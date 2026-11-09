@@ -1,8 +1,11 @@
 <?xml version="1.0" ?>
 <!--
-  VIO stress: wind. Same textured corridor as vio_test, plus Gazebo
-  WindEffects (steady wind + mild gusts). Fuel models reuse gz_fuel_cache.
-  VIO bring-up world base: textured props along +Y (camera forward at PX4 yaw 0 / North).
+  VIO stress: wind. Same textured corridor as vio_test plus steady <wind>.
+  Gusts: launch-sitl selects config/gz-server-wind.config (WindEffects) when
+  WORLD=vio_wind. Do NOT put WindEffects in this SDF — with
+  GZ_SIM_SERVER_CONFIG_PATH set, a world-level WindEffects plugin prevents
+  server.config systems (SceneBroadcaster) from loading; PX4 then times out
+  waiting for /world/*/scene/info. Fuel models reuse gz_fuel_cache.
 
   World name MUST be "detection_test" so it matches PX4_GZ_WORLD=detection_test
   (gz topics become /world/detection_test/...).
@@ -1144,16 +1147,12 @@
     </model>
 
 
-    <!-- Steady ~4 m/s East + 1.5 m/s North; WindEffects adds mild gusts.
-         PX4 GenericMotorModel reads world wind for rotor relative airspeed.
-         WindEffects applies body drag only to links with enable_wind (ground
-         plane here mirrors PX4 windy.sdf; motors still feel wind). -->
+    <!-- Steady baseline wind (ENU m/s). Gusts come from WindEffects in
+         config/gz-server-wind.config (selected by launch-sitl for this world).
+         PX4 GenericMotorModel reads world wind for rotor relative airspeed. -->
     <wind>
       <linear_velocity>5.0 2.0 0</linear_velocity>
     </wind>
-    <!-- WindEffects plugin omitted: embedding it crashed gz-sim under PX4
-         server.config (odl-sim exit). Steady <wind> matches PX4 windy.sdf;
-         GenericMotorModel still reads world wind for rotor aero. -->
 
     <spherical_coordinates>
       <surface_model>EARTH_WGS84</surface_model>

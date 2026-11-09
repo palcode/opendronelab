@@ -440,7 +440,8 @@ mask, evo Umeyama SE3. Runner: `scripts/run-vio-stress.sh`. Baseline reference
 | Low texture **before** | default OV config + blankish world | `20261109_125000` | features yes; **odom no** (≤36/48 valid) | **0.248 / 0.256 m** | n/a | |
 | Low texture **after** | overlay `gz_x500_mono_cam_low_texture` + subtle tiles/anchors | `20261109_153206` | **yes** (21429 msgs) | **0.245 / 0.252 m** | **1.117 / 1.121 m** | Flight 2 of 2; flight 1 (`152716`) inited but drifted (xy 58 m) until tile contrast raised |
 | Faster motion | `vio_test` + `cruise_speed=6`, `yaw_spin_rate=0.7`, hold 0.5 s | `20261109_125644` | **yes** (19700 msgs) | **0.385 / 0.388 m** | **0.342 / 0.405 m** | Square stalled after wp0→wp1 (mission timeout 120 s); first attempt failed on integer `mission_timeout` param (retry used `120.0`) |
-| Wind | `vio_wind` steady wind (5, 2, 0) m/s | `20261109_130348` | **yes** (14914 msgs) | **0.262 / 0.269 m** | **0.320 / 0.324 m** | Climb arm→wp0 **11.3 s** vs ~7 s calm (motor aero feels wind). `WindEffects` plugin embedded in SDF crashed gz under PX4 server.config — omitted; steady `<wind>` kept |
+| Wind (steady only) | `vio_wind` `<wind>` only | `20261109_130348` | **yes** | **0.262 / 0.269 m** | **0.320 / 0.324 m** | Climb 11.3 s vs ~7 s calm |
+| Wind **+ gusts** | `gz-server-wind.config` WindEffects | `20261109_154120` | **yes** (15223) | **0.257 / 0.263 m** | **0.317 / 0.320 m** | Root cause: world-SDF WindEffects blocked server.config → no `scene/info` → PX4 timeout. Fix: WindEffects in server config only |
 
 Results dirs: `/data/results/vio_stress_<scenario>_20261109_*`.
 

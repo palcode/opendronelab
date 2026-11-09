@@ -105,6 +105,13 @@ else
     GZ_SERVER_CFG="${WORKSPACE_DIR}/config/gz-server.config"
     GZ_SERVER_MSG="gst-camera=off"
 fi
+# WindEffects must be in server.config (not world SDF). WORLD=vio_wind or GZ_WIND=1.
+# Incompatible with ENABLE_GST_CAMERA in this tree (use steady <wind> only if both needed).
+GZ_WIND="${GZ_WIND:-}"
+if { [ "${WORLD}" = "vio_wind" ] || [ "${GZ_WIND}" = "1" ]; } && [ -z "${ENABLE_GST_CAMERA}" ]; then
+    GZ_SERVER_CFG="${WORKSPACE_DIR}/config/gz-server-wind.config"
+    GZ_SERVER_MSG="${GZ_SERVER_MSG}, wind-effects=on"
+fi
 if [ ! -f "${GZ_SERVER_CFG}" ]; then
     echo "[ERROR] Missing Gazebo server config: ${GZ_SERVER_CFG}" >&2
     exit 1
