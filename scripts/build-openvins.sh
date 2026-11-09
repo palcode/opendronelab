@@ -5,9 +5,12 @@
 # spirit as evo (/opt/evo CLI-only). Source /data/ros2_build/openvins/install
 # only in shells/launches that intentionally start ov_msckf.
 #
-# Pin: rpng/open_vins PR #500 tip (ROS 2 Jazzy / Ubuntu 24.04 + Ceres 2.x).
+# Pin (full SHA): 0bd027a997f3ca911b3df504d20b00b60f371b31
+# That commit is the tip of unmerged rpng/open_vins PR #500 (Jazzy / Ubuntu
+# 24.04 + Ceres 2.x): https://github.com/rpng/open_vins/pull/500
+# Rebuilds depend on that commit remaining reachable (PR branch or SHA fetch).
 # Upstream master (2026-11-06) still uses ROS1-style .h includes that break
-# on Jazzy; PR #500 is not merged yet. Fail if HEAD != pin after checkout.
+# on Jazzy. Fail if HEAD != pin after checkout. Source is not vendored here.
 set -euo pipefail
 
 if [ ! -f /opt/ros/jazzy/setup.bash ]; then

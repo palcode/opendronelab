@@ -14,7 +14,7 @@ they are not flight certifications.
 | Early ROS | `drone_telemetry`, `drone_mission_manager` (hover) | Phase 2 path; still buildable |
 | Perception | Camera bridge, edge overlay, **GPU YOLOX** (CUDA with CPU fallback) | `docs/perception.md` |
 | Localization | EKF2 vs Gazebo GT metrics + **evo** CLI cross-check | Airborne mask uses **GT** z |
-| VIO | OpenVINS isolated GPL-3 (`0bd027a`), `WORLD=vio_test` | 3-run Umeyama xy **0.643 / 0.358 / 1.112 m** |
+| VIO | OpenVINS isolated GPL-3 (`0bd027a`, unmerged [PR #500](https://github.com/rpng/open_vins/pull/500)), `WORLD=vio_test` | 3-run Umeyama xy **0.643 / 0.358 / 1.112 m** |
 | EV fusion | `vision_px4_bridge` + `vio_ev.launch.py` | **Opt-in only.** Default **`EKF2_EV_CTRL=0`** (GPS). Verify bag `20261106_155243`: square OK; EKF2/VIO Umeyama xy **0.210 / 0.237 m** |
 | Bags / review | `record-bag.sh`, Foxglove **layout JSON** in-tree | Desktop Foxglove app not required |
 

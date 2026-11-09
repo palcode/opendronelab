@@ -18,7 +18,7 @@ numbers.
 | uXRCE-DDS domain `42` + localhost discovery | Working in container | Remap/domain must match FC agent |
 | Camera/IMU clocks | `/camera/*` + `/sim/imu` on Gazebo `/clock` | Must share a real clock domain |
 
-OpenVINS pin: GPL-3, commit `0bd027a`, isolated under `/data/ros2_build/openvins`.
+OpenVINS pin: GPL-3, commit `0bd027a997f3ca911b3df504d20b00b60f371b31` (unmerged [PR #500](https://github.com/rpng/open_vins/pull/500) tip; must stay fetchable), isolated under `/data/ros2_build/openvins`.
 
 ## Topic remap guide
 

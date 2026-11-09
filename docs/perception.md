@@ -239,7 +239,7 @@ installs into the dev user's home and other UIDs still load numpy 2.x.
 
 **Not the cause:** the Gazebo camera sensor itself, `ros_gz_image` / `image_bridge`, or the YOLOX detector. Those keep working after the plugin is removed.
 
-**OpenDroneLab fix:** `scripts/launch-sitl.sh` installs `config/gz-server.config` (PX4's plugin list **without** `GstCameraSystem`) over both PX4 `server.config` copies before Gazebo starts. Set `ENABLE_GST_CAMERA=1` to install `config/gz-server-with-gst.config` instead (expect the leak until an upstream GstCamera fix is present). OpenDroneLab uses `ros_gz_image` for `/camera/image_raw`, so the RTP plugin is unused.
+**OpenDroneLab fix:** `scripts/launch-sitl.sh` installs `config/gz-server.config` (PX4's plugin list **without** `GstCameraSystem`) over both PX4 `server.config` copies before Gazebo starts. Opt-in: `ENABLE_GST_CAMERA=1` **and** `ACCEPT_GST_CAMERA_LEAK=1` installs `config/gz-server-with-gst.config` (launcher refuses GstCamera without the accept flag). Expect the leak until an upstream GstCamera fix is present. OpenDroneLab uses `ros_gz_image` for `/camera/image_raw`, so the RTP plugin is unused by default.
 
 **Measured 2026-11-06** (`HEADLESS=1`, `GZ_SEED=1234`, `MEM_LIMIT=12g`, memory logger every 15 s):
 

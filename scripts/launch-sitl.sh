@@ -5,9 +5,11 @@
 # HEADLESS=1 runs Gazebo without its GUI. MEM_LIMIT (default 12g) caps RAM.
 # GZ_SEED=<int> starts Gazebo with a fixed random seed.
 # ODL_ROS_DOMAIN_ID (default 42) + localhost-only discovery keep ROS on this host.
-# ENABLE_GST_CAMERA=1 keeps PX4's GstCameraSystem RTP plugin (leaks ~105 MB/s
-# on this host when nvh264enc stalls; default installs config/gz-server.config
-# without that plugin — ros_gz_image still provides /camera/image_raw).
+# ENABLE_GST_CAMERA=1 keeps PX4's GstCameraSystem RTP plugin. On this host it
+# leaks ~105 MB/s when nvh264enc stalls (PX4#27296; fix PR#27873 not in v1.17.0).
+# Refuses unless ACCEPT_GST_CAMERA_LEAK=1 is also set. Default installs
+# config/gz-server.config without that plugin — ros_gz_image still provides
+# /camera/image_raw.
 # These env options apply when the container is created; to change them on an
 # existing container, remove it first: docker rm -f odl-sim
 # WORLD (optional) is a world *name* (stem). The SDF must be at
@@ -36,9 +38,10 @@ ODL_ROS_DOMAIN_ID="${ODL_ROS_DOMAIN_ID:-42}"
 # px4-rc.gzsim has no seed option, so we start the Gazebo server ourselves
 # with --seed and PX4 attaches to the already-running world.
 GZ_SEED="${GZ_SEED:-}"
-# Opt into PX4 GstCameraSystem RTP/H.264 (udp://127.0.0.1:5600). Off by default
-# because a stalled nvh264enc pipeline leaks host RAM (PX4#27296 / #27873).
+# Opt into PX4 GstCameraSystem RTP/H.264 (udp://127.0.0.1:5600). Off by default.
+# Requires ACCEPT_GST_CAMERA_LEAK=1 (see warning below). PX4#27296 / PR#27873.
 ENABLE_GST_CAMERA="${ENABLE_GST_CAMERA:-}"
+ACCEPT_GST_CAMERA_LEAK="${ACCEPT_GST_CAMERA_LEAK:-}"
 
 _container_cmd() {
     docker inspect --format '{{.Config.Cmd}}' "${CONTAINER_NAME}" 2>/dev/null || echo ""
@@ -87,8 +90,17 @@ mkdir -p "${DATA_DIR}"
 # Install Gazebo server.config into the PX4 tree before gz starts. gz_env.sh
 # always points GZ_SIM_SERVER_CONFIG_PATH at these two copies.
 if [ -n "${ENABLE_GST_CAMERA}" ]; then
+    if [ "${ACCEPT_GST_CAMERA_LEAK}" != "1" ]; then
+        echo "[ERROR] ENABLE_GST_CAMERA=1 requested, but PX4 v1.17.0 GstCameraSystem" >&2
+        echo "[ERROR] leaks ~105 MB/s on this host when nvh264enc stalls" >&2
+        echo "[ERROR] (PX4#27296; fix PR#27873 is not in our tree)." >&2
+        echo "[ERROR] Default stays gst-camera=off (ros_gz_image still works)." >&2
+        echo "[ERROR] To proceed anyway: ACCEPT_GST_CAMERA_LEAK=1 ENABLE_GST_CAMERA=1 ..." >&2
+        exit 1
+    fi
+    echo "[WARN] ACCEPT_GST_CAMERA_LEAK=1: enabling GstCameraSystem (expect ~105 MB/s leak)."
     GZ_SERVER_CFG="${WORKSPACE_DIR}/config/gz-server-with-gst.config"
-    GZ_SERVER_MSG="gst-camera=on"
+    GZ_SERVER_MSG="gst-camera=on (leak accepted)"
 else
     GZ_SERVER_CFG="${WORKSPACE_DIR}/config/gz-server.config"
     GZ_SERVER_MSG="gst-camera=off"

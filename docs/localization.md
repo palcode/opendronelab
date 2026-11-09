@@ -272,39 +272,24 @@ Runs are highly repeatable (horizontal RMSE spread < 0.002 m). The largest horiz
 
 **Resources during runs (plain world):** the odl-sim container used about 0.8-1.4 GiB of RAM (peak 1.41 GiB) and 150-215% CPU, and the Gazebo server RSS was about 0.8-0.9 GB, stable. This was logged every 30 s to `logs/phase4-memory.log`. (The camera/detection world used to OOM at ~16.5 GB RSS because of PX4's `GstCameraSystem` RTP plugin; fixed 2026-11-06 by omitting that plugin from `config/gz-server.config` — see `docs/perception.md`. Localization baselines still use the plain `gz_x500` / default world.)
 
-**Unit tests** (`pytest test/test_metrics.py -v`, run inside odl-sim after `build-workspace.sh`):
+**Functional tests** (pytest from repo root inside a throwaway `opendronelab-dev:latest` container after sourcing ROS + `/data/ros2_build/{deps,ws}/install`; no SITL required):
 
-```
-test/test_metrics.py::test_enu_to_ned PASSED
-test/test_metrics.py::test_interpolate_trajectory PASSED
-test/test_metrics.py::test_align_trajectories PASSED
-test/test_metrics.py::test_align_trajectories_no_origin_align PASSED
-test/test_metrics.py::test_synthetic_square_trajectory PASSED
-test/test_metrics.py::test_compute_metrics_perfect PASSED
-test/test_metrics.py::test_compute_metrics_constant_error PASSED
-test/test_metrics.py::test_compute_metrics_vertical_error PASSED
-test/test_metrics.py::test_compute_metrics_with_mask PASSED
-9 passed in 0.64s
+```bash
+pytest -q \
+  ros2_ws/src/drone_perception/test/test_processing.py \
+  ros2_ws/src/drone_perception/test/test_yolox.py \
+  ros2_ws/src/drone_localization/test/test_metrics.py \
+  ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py
 ```
 
-**Test run (2026-11-06, image `opendronelab-dev:latest` = `:phase4-gpu`, ID `a89f7f07c456`):** run in a throwaway container from the repo root (`docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v $PWD:/workspace -v <data>:/data ...`, ROS + workspace overlays sourced, numpy 1.26.4, cv2 4.6.0, onnxruntime-gpu 1.28.0):
+**Test run (2026-11-09, Asia/Calcutta, image `opendronelab-dev:latest` = `:phase4c-vio`, ID `46a2186aea3b`):**
 
 ```
-=== functional suites ===
-pytest ros2_ws/src/drone_perception/test/test_processing.py \
-       ros2_ws/src/drone_perception/test/test_yolox.py \
-       ros2_ws/src/drone_localization/test/test_metrics.py
-23 passed, 1 warning in 0.50s          # 14 perception + 9 localization
-
-=== per package ===
-drone_localization/test:  9 passed, 1 warning in 0.53s
-drone_perception/test:    3 failed, 14 passed in 0.71s
-  FAILED test_copyright.py::test_copyright
-  FAILED test_flake8.py::test_flake8
-  FAILED test_pep257.py::test_pep257
+31 passed, 1 warning in ~1.0s
+# 14 perception + 12 localization metrics/TUM + 5 vision_px4_bridge
 ```
 
-The 23 functional tests all pass. After the TUM-export commit added 3 tests (yaw/quaternion, yaw wrap interpolation, TUM format), the same run on `:phase4b-evo` gives **26 passed** (14 perception + 12 localization). The three failures are the ament lint tests in `drone_perception` (missing copyright headers, import-order / E402 flake8 findings, pep257 docstring style). They are pre-existing style findings (same result in `logs/phase4-gpu-pytest.log` on 2026-11-05), not behaviour failures, and are not fixed yet. The warning is matplotlib's "Unable to import Axes3D" (apt + pip matplotlib both present); 2D plots are unaffected.
+Localization-only (`pytest -q ros2_ws/src/drone_localization/test/`): **17 passed** (includes `test_vision_px4_bridge.py`). Prefer this pytest invocation over `colcon test` for these ament_python packages (colcon currently collects 0 tests from the build space). The matplotlib "Unable to import Axes3D" warning is harmless for 2D plots. Ament lint failures under `drone_perception` (`test_copyright` / `test_flake8` / `test_pep257`) remain pre-existing style findings, not behaviour failures.
 
 ### evo Cross-Check (2026-11-06)
 
@@ -353,10 +338,13 @@ isolated colcon workspace at `/data/ros2_build/openvins` (built by
 `scripts/build-openvins.sh`). First-party packages never link against it — same
 isolation spirit as evo in `/opt/evo`.
 
-**Pin:** `0bd027a997f3ca911b3df504d20b00b60f371b31` (rpng/open_vins PR [#500](https://github.com/rpng/open_vins/pull/500)
-tip — ROS 2 Jazzy / Ubuntu 24.04 + Ceres 2.x). Upstream `master` still had ROS1-style
-`.h` includes on 2026-11-06; the build fails if `HEAD !=` pin after checkout.
-LICENSE checked at clone time (GPL-3).
+**Pin:** `0bd027a997f3ca911b3df504d20b00b60f371b31` — tip of **unmerged**
+rpng/open_vins PR [#500](https://github.com/rpng/open_vins/pull/500) (ROS 2 Jazzy /
+Ubuntu 24.04 + Ceres 2.x). Rebuilds depend on that commit staying reachable via
+SHA or `pull/500/head` (`scripts/build-openvins.sh` fetches it; source is not
+vendored in this repo). Upstream `master` still had ROS1-style `.h` includes on
+2026-11-06; the build fails if `HEAD !=` pin after checkout. LICENSE checked at
+clone time (GPL-3).
 
 ### Topics and frames
 
