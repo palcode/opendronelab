@@ -10,7 +10,7 @@ they are not flight certifications.
 |------|-------------|-------|
 | Host / image | `opendronelab-dev:latest` (= `phase5-clean`), rollback `:phase4c-vio` | Exact pip pins + BuildKit caches; see `docker/constraints.txt` |
 | SITL | `scripts/launch-sitl.sh`, `HEADLESS=1`, `GZ_SEED`, `MEM_LIMIT` | GstCamera **off** unless `ENABLE_GST_CAMERA=1` |
-| Flight | **C++** `square_flight_cpp` (production); Python `square_flight` (RMSE reference) | Classic OFFBOARD; QGC on host to arm headless PX4 |
+| Flight | **C++** `square_flight_cpp` (`drone_flight_cpp`) | Classic OFFBOARD; QGC on host to arm headless PX4 |
 | Early ROS | `drone_telemetry`, `drone_mission_manager` (hover) | Phase 2 path; still buildable |
 | Perception | Camera bridge, edge overlay, **GPU YOLOX** (CUDA with CPU fallback) | `docs/perception.md` |
 | Localization | EKF2 vs Gazebo GT metrics + **evo** CLI cross-check | Airborne mask uses **GT** z |

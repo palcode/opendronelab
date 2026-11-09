@@ -222,7 +222,7 @@ source /opt/ros/jazzy/setup.bash
 source /data/ros2_build/deps/install/setup.bash
 source /data/ros2_build/ws/install/setup.bash
 set -u
-ros2 run drone_localization square_flight
+ros2 run drone_flight_cpp square_flight_cpp
 "
 
 # Stop recording
@@ -261,7 +261,7 @@ This outputs:
 
 EKF2 origin H/V scoring always needs `/ground_truth/odometry` (`ground_truth_publisher` via `localization.launch.py` or `vio.launch.py start_ground_truth:=true`). `run-baseline.sh` auto-starts localization launch if GT is missing; `run-vio-stress.sh` fails closed without a live GT rate.
 
-**Setup:** `MODEL=gz_x500`, default world, PX4 v1.17.0 EKF2 defaults (GPS + baro + mag + IMU, no vision). `square_flight` is a 10 m square at 5 m altitude with a 3 s hold at each corner. Each run was recorded with `record-bag.sh <s> --localization` and scored with `localization_metrics` (origin-aligned, airborne samples only, NED z < -0.5 m).
+**Setup:** `MODEL=gz_x500`, default world, PX4 v1.17.0 EKF2 defaults (GPS + baro + mag + IMU, no vision). `square_flight_cpp` is a 10 m square at 5 m altitude with a 3 s hold at each corner. Each run was recorded with `record-bag.sh <s> --localization` and scored with `localization_metrics` (origin-aligned, airborne samples only, NED z < -0.5 m).
 
 | Run | Bag | Horiz RMSE | Horiz mean | Horiz max | Vert RMSE | Vert mean | Vert max | Samples |
 |-----|-----|-----------|-----------|----------|----------|----------|---------|---------|
@@ -314,7 +314,7 @@ Commands per bag (see the script): `evo_ape tum gt_ned.tum est_ned.tum -r trans_
 
 **Decision on slimming the custom code:** not slimmed. The custom ATE code is ~20 lines of numpy (`align_trajectories`, `compute_metrics`) that also produces vertical, mean and max metrics, which evo's APE does not report separately. It runs inside the ROS package and its unit tests without evo. A "thin wrapper" would have to shell out to a GPL CLI from the metrics node and parse its output, which is not cleaner. evo stays the external cross-check: re-run `./scripts/evo-check.sh [bag ...]` after any metrics change.
 
-**Known gotcha (fixed):** after an offboard landing, PX4 stays in OFFBOARD (nav_state 14). With no offboard setpoints streaming, the preflight check fails and QGC shows "Arming denied: Resolve system health failures first". `square_flight` now switches to Hold (AUTO_LOITER) after disarming, and also at startup if it finds the vehicle disarmed in OFFBOARD, so repeat runs need no sim restart.
+**Known gotcha (fixed):** after an offboard landing, PX4 stays in OFFBOARD (nav_state 14). With no offboard setpoints streaming, the preflight check fails and QGC shows "Arming denied: Resolve system health failures first". `square_flight_cpp` now switches to Hold (AUTO_LOITER) after disarming, and also at startup if it finds the vehicle disarmed in OFFBOARD, so repeat runs need no sim restart.
 
 ## Timestamp Alignment
 
@@ -520,20 +520,16 @@ Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
 - `./scripts/memory-logger.sh` logs container memory/CPU, Gazebo RSS and GPU temperature/power; `./scripts/stop-all.sh` stops it, any bag recording and the sim.
 - **Fixed random seed:** `GZ_SEED=1234 HEADLESS=1 MODEL=gz_x500 ./scripts/launch-sitl.sh`. PX4's `px4-rc.gzsim` has no seed option, so the launcher builds PX4, sources `gz_env.sh`, starts `gz sim --seed N -r -s <world>.sdf` itself (server log at `/tmp/gz-server.log` in the container), and PX4 attaches to the running world ("gazebo already running world") and spawns the model. This fixes Gazebo's own random seed; whether every noise source (PX4-side sensor noise, timing) becomes repeatable run to run has not been measured yet.
 
-### Square flight nodes (Python reference + C++ default)
+### Square flight (`drone_flight_cpp`)
 
-Two implementations share the same classic OFFBOARD profile (`OffboardControlMode` + `TrajectorySetpoint` + `VehicleCommand` at 20 Hz): pre-stream 2 s → OFFBOARD → arm → climb on waypoint 0 `(0,0,-5)` → 10 m square at 5 m (yaw 0) → land → Hold. Neither uses PX4's built-in takeoff, nor Auterion `px4_ros2_cpp` ModeExecutor (external modes never set `flag_control_offboard_enabled`, so `COM_DISARM_PRFLT` fires after ~10 s on the ground).
+The production C++ node uses the classic OFFBOARD profile (`OffboardControlMode` + `TrajectorySetpoint` + `VehicleCommand` at 20 Hz): pre-stream 2 s → OFFBOARD → arm → climb on waypoint 0 `(0,0,-5)` → 10 m square at 5 m (yaw 0) → land → Hold. It does not use PX4's built-in takeoff, nor Auterion `px4_ros2_cpp` ModeExecutor (external modes never set `flag_control_offboard_enabled`, so `COM_DISARM_PRFLT` fires after ~10 s on the ground).
 
 | Node | Package | Role |
 |------|---------|------|
-| `square_flight_cpp` | `drone_flight_cpp` | **Default** for `run-baseline.sh` (merged to main at `6c8f29a`) |
-| `square_flight` | `drone_localization` | Python reference / RMSE gate baseline (mean H 0.267 m, V 0.065 m) |
+| `square_flight_cpp` | `drone_flight_cpp` | **Only** square flight (production since `6c8f29a`; Python `square_flight` retired) |
 
 ```bash
-# Default baseline (C++)
 ./scripts/run-baseline.sh 3
-# Python reference
-FLIGHT_CMD="ros2 run drone_localization square_flight" ./scripts/run-baseline.sh 3
 ros2 run drone_flight_cpp square_flight_cpp
 # or: ros2 launch drone_flight_cpp square_flight_cpp.launch.py
 ```

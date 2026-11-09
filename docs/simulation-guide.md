@@ -225,8 +225,7 @@ Fault-injection variants of the square are **not implemented**. See `docs/evalua
 
 #### Files
 
-- **Flight node:** `ros2 run drone_flight_cpp square_flight_cpp` (production)
-- **Python reference:** `ros2 run drone_localization square_flight`
+- **Flight node:** `ros2 run drone_flight_cpp square_flight_cpp` (Python `square_flight` retired)
 - **Baseline script:** `scripts/run-baseline.sh`
 - **Bags:** `/data/bags/` via `scripts/record-bag.sh`
 
