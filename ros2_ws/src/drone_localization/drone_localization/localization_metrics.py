@@ -25,6 +25,30 @@ except ImportError:  # pragma: no cover - unit-test path on the box
     _HAS_ROSBAG = False
 
 
+def json_safe(obj):
+    """Return obj with non-finite floats (NaN/inf) replaced by None.
+
+    Python's json module writes NaN/Infinity by default, which is not valid
+    JSON (jq and strict parsers reject it). Metrics files use null instead.
+    """
+    if isinstance(obj, dict):
+        return {k: json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [json_safe(v) for v in obj]
+    if isinstance(obj, (float, np.floating)):
+        v = float(obj)
+        return v if np.isfinite(v) else None
+    if isinstance(obj, np.integer):
+        return int(obj)
+    return obj
+
+
+def write_metrics_json(path, metrics):
+    """Write metrics as strict JSON (non-finite values become null)."""
+    with open(path, 'w') as f:
+        json.dump(json_safe(metrics), f, indent=2, allow_nan=False)
+
+
 def enu_to_ned(x_enu, y_enu, z_enu):
     """Convert ENU coordinates to NED."""
     return y_enu, x_enu, -z_enu
@@ -439,18 +463,19 @@ def main(args=None):
     if not np.any(airborne_mask):
         print('Error: No samples left after airborne mask (unshifted GT z)')
         metrics = {
-            'horizontal_rmse': float('nan'),
-            'horizontal_mean': float('nan'),
-            'horizontal_max': float('nan'),
-            'vertical_rmse': float('nan'),
-            'vertical_mean': float('nan'),
-            'vertical_max': float('nan'),
+            # null (not NaN) so metrics JSON stays strict; judge treats
+            # None as not finite and vio_origin_samples_min fails on 0.
+            'horizontal_rmse': None,
+            'horizontal_mean': None,
+            'horizontal_max': None,
+            'vertical_rmse': None,
+            'vertical_mean': None,
+            'vertical_max': None,
             'num_samples': 0,
         }
         metrics.update(extra)
         metrics_path = output_dir / parsed.metrics_name
-        with open(metrics_path, 'w') as f:
-            json.dump(metrics, f, indent=2)
+        write_metrics_json(metrics_path, metrics)
         print(f'Metrics saved to: {metrics_path}')
         return 1
 
@@ -459,8 +484,7 @@ def main(args=None):
     metrics.update(extra)
 
     metrics_path = output_dir / parsed.metrics_name
-    with open(metrics_path, 'w') as f:
-        json.dump(metrics, f, indent=2)
+    write_metrics_json(metrics_path, metrics)
     print(f'Metrics saved to: {metrics_path}')
 
     if parsed.tum_dir:

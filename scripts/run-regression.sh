@@ -94,6 +94,7 @@ pytest -q \
   ros2_ws/src/drone_perception/test/test_processing.py \
   ros2_ws/src/drone_perception/test/test_yolox.py \
   ros2_ws/src/drone_localization/test/test_metrics.py \
+  ros2_ws/src/drone_localization/test/test_judge_regression.py \
   ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py
 ' | tee "${REPORT_HOST}/pytest.txt"
     PY_EC=${PIPESTATUS[0]}

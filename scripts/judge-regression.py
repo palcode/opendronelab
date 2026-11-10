@@ -70,6 +70,13 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     min_check('ekf2_origin_samples', 'ekf2_origin_samples_min')
     max_check('vio_umeyama_xy_rmse', 'vio_umeyama_xy_rmse_max')
     max_check('vio_umeyama_3d_rmse', 'vio_umeyama_3d_rmse_max')
+    # Every gated VIO scenario needs a min scored-sample count, so a run with
+    # ov_published=true (estimate_count>0) but an empty airborne mask
+    # (num_samples=0) still fails. vio_origin_samples_min normally comes from
+    # defaults; if a scenario/defaults ever drop it, fall back to >= 1.
+    if sc.get('vio_origin_samples_min') is None and sc.get('ov_published', True) \
+            and not sc.get('non_gating', False):
+        sc['vio_origin_samples_min'] = 1
     min_check('vio_origin_samples', 'vio_origin_samples_min')
 
     passed = all(c['pass'] for c in checks)

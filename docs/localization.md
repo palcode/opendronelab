@@ -633,3 +633,13 @@ GstCamera off, no raw camera). Calibration dir:
 | defaults origin V | 0.25 → **0.13** | | |
 
 Flaky runs are reported above; gates were **not** widened to absorb them.
+
+**Strict JSON and empty-mask runs (2026-11-10):** `localization_metrics` writes
+`null` (never `NaN`/`Infinity`) for metrics it cannot compute, and the
+`summary.json` written by `run-vio-stress.sh` does the same, so `jq` and strict
+parsers can read them. `judge-regression.py` still treats `null` and `NaN` as
+"not finite" (fail). `ov_published` can be true from `estimate_count` even when
+the airborne mask leaves 0 scored samples, so every gated scenario also checks
+`vio_origin_samples >= vio_origin_samples_min` (500, from `defaults`); if that
+key were ever dropped, the judge falls back to `>= 1` for gated scenarios.
+Covered by `drone_localization/test/test_judge_regression.py`.

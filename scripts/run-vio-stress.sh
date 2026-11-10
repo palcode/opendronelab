@@ -195,14 +195,19 @@ evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.t
 evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_vio_ape_xy.txt || true
 evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a > ${SUMMARY_DIR}/evo_vio_ape_3d.txt || true
 python3 - <<'PY'
-import json, re, pathlib
+import json, math, re, pathlib
 out = pathlib.Path('${SUMMARY_DIR}')
 def ape_rmse(path):
+    # None (JSON null), not NaN: keep summary.json strict JSON.
     if not path.exists():
-        return float('nan')
+        return None
     t = path.read_text()
     m = re.search(r'rmse\\s+([0-9.]+)', t)
-    return float(m.group(1)) if m else float('nan')
+    return float(m.group(1)) if m else None
+def json_safe(v):
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    return v
 ekf2 = json.loads((out/'metrics_ekf2.json').read_text())
 vio_path = out/'metrics_vio.json'
 vio = json.loads(vio_path.read_text()) if vio_path.exists() else {}
@@ -231,7 +236,8 @@ summary = {
   'vio_umeyama_xy_rmse': ape_rmse(out/'evo_vio_ape_xy.txt'),
   'vio_umeyama_3d_rmse': ape_rmse(out/'evo_vio_ape_3d.txt'),
 }
-(out/'summary.json').write_text(json.dumps(summary, indent=2))
+summary = {k: json_safe(v) for k, v in summary.items()}
+(out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 print(json.dumps(summary, indent=2))
 PY
 " | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
