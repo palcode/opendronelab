@@ -392,3 +392,8 @@ GPS baseline container.
 BuildKit treats that as a no-op when the cache is already under the cap, so
 there is no separate size pre-check and a `MAX_USED_SPACE=10gb` override is
 honoured. Images are never removed. Skip with `SKIP_BUILD_CACHE_PRUNE=1`.
+
+`stop-all.sh` also prints a report-only line with the size and count of
+`/data/bags` (host `dronelab-data/bags`) and free disk, and each regression
+`report.md` / `report.json` records the same (`bags`). Nothing is deleted;
+removing bags needs Pallab's explicit OK.

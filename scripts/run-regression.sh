@@ -285,7 +285,7 @@ done
 
 END_EPOCH="$(date +%s)"
 ELAPSED=$((END_EPOCH - START_EPOCH))
-export REPORT_HOST STAMP ELAPSED GZ_SEED BAG_DURATION THRESHOLDS
+export REPORT_HOST STAMP ELAPSED GZ_SEED BAG_DURATION THRESHOLDS DATA_DIR
 export N_FLIGHTS="${#FLIGHTS[@]}"
 # Preserve scenario order for the report (comma-separated).
 export FLIGHT_ORDER="$(IFS=,; echo "${FLIGHTS[*]}")"
@@ -343,6 +343,28 @@ for j in judges:
         )
     rows.append({"step": j.get("scenario"), "pass": j.get("pass"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag")})
 
+def _bags_report():
+    # Report-only: size/count of the bag folder and free disk. Never deletes.
+    import shutil
+    bags_dir = Path(os.environ.get("DATA_DIR", "")) / "bags"
+    if not bags_dir.is_dir():
+        return None
+    count = 0
+    total = 0
+    for d in bags_dir.iterdir():
+        if d.is_dir():
+            count += 1
+            for f in d.rglob("*"):
+                try:
+                    if f.is_file():
+                        total += f.stat().st_size
+                except OSError:
+                    pass
+    free = shutil.disk_usage(bags_dir).free
+    return {"dir": "/data/bags", "count": count, "size_gib": round(total / 2**30, 1),
+            "free_gib": round(free / 2**30, 1)}
+
+bags = _bags_report()
 stamp = os.environ["STAMP"]
 elapsed = int(os.environ["ELAPSED"])
 out = {
@@ -355,6 +377,7 @@ out = {
     "pytest": pytest,
     "scenarios": judges,
     "rows": rows,
+    "bags": bags,
 }
 (report_dir / "report.json").write_text(json.dumps(out, indent=2) + "\n")
 
@@ -370,6 +393,8 @@ lines = [
     f"- GZ_SEED={os.environ['GZ_SEED']}, BAG_DURATION={os.environ['BAG_DURATION']}, "
     "EKF2_EV_CTRL=0, GstCamera off, VIO shadow",
     "- Thresholds: `config/regression_thresholds.yaml`",
+    (f"- Bags (report only, nothing deleted): {bags['size_gib']} GiB in {bags['count']} bags "
+     f"under {bags['dir']}; {bags['free_gib']} GiB free" if bags else "- Bags: /data/bags not found"),
     "",
     "| Step | Verdict | Detail |",
     "|------|---------|--------|",

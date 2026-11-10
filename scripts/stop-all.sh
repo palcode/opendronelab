@@ -37,4 +37,13 @@ pkill -f "${REPO_DIR}/scripts/record-bag.sh" 2>/dev/null || true
 if [ "${SKIP_BUILD_CACHE_PRUNE:-0}" != "1" ]; then
     "${REPO_DIR}/scripts/prune-build-cache.sh" || true
 fi
+# Report-only: bag folder size/count and free space. Never deletes anything;
+# removing bags needs Pallab's explicit OK.
+BAGS_DIR="${DATA_DIR:-/home/$(whoami)/workspace/dronelab-data}/bags"
+if [ -d "${BAGS_DIR}" ]; then
+    bags_size="$(du -sh "${BAGS_DIR}" 2>/dev/null | cut -f1)"
+    bags_count="$(find "${BAGS_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+    bags_free="$(df -h --output=avail "${BAGS_DIR}" 2>/dev/null | tail -1 | tr -d ' ')"
+    echo "[INFO] bags: ${bags_size:-?} in ${bags_count} bags at ${BAGS_DIR}; ${bags_free:-?} free (report only, nothing deleted)"
+fi
 echo "[INFO] stop-all done."
