@@ -448,10 +448,20 @@ mask, evo Umeyama SE3. Runner: `scripts/run-vio-stress.sh`. Baseline reference
 
 Results dirs: `/data/results/vio_stress_<scenario>_20261109_*`.
 
-**Square speed / yaw spin (defaults unchanged):**
+The gated `faster_motion` scenario in `./scripts/run-regression.sh` is now milder
+than the original stress: yaw 0.35 rad/s, hold 2.0 s, spin only after wp0, and
+the `gz_x500_mono_cam_fast_motion` OpenVINS overlay. The original aggressive
+profile (yaw 0.7 rad/s, hold 0.5 s, spin from takeoff) is kept as a manual
+invocation if you need it:
+
 ```bash
-ros2 run drone_flight_cpp square_flight_cpp --ros-args   -p cruise_speed:=6.0 -p yaw_spin_rate:=0.7 -p corner_hold_time:=0.5
-# or via env for the stress runner:
+# Gated / milder (what run-regression.sh uses):
+WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.35 SQUARE_HOLD=2.0 \
+  SQUARE_YAW_SPIN_AFTER=1 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion
+
+# Original aggressive profile (not the regression gate):
+ros2 run drone_flight_cpp square_flight_cpp --ros-args \
+  -p cruise_speed:=6.0 -p yaw_spin_rate:=0.7 -p corner_hold_time:=0.5
 SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 ./scripts/run-vio-stress.sh faster_motion
 ```
 

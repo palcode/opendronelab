@@ -351,11 +351,11 @@ GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
 | Scenario | How to run |
 |----------|------------|
 | Low texture | `WORLD=vio_low_texture HEADLESS=1 GZ_SEED=1234 MODEL=gz_x500_mono_cam ./scripts/launch-sitl.sh` then `WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture` |
-| Faster motion | same SITL with `WORLD=vio_test`, then `WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion (OV overlay `gz_x500_mono_cam_fast_motion`, yaw 0.35 rad/s after wp0)` |
+| Faster motion | same SITL with `WORLD=vio_test`, then `WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.35 SQUARE_HOLD=2.0 SQUARE_YAW_SPIN_AFTER=1 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion`. The gated regression profile is milder than the original: yaw 0.35 rad/s, hold 2.0 s, spin only after wp0, OpenVINS overlay `gz_x500_mono_cam_fast_motion`. |
 | Wind | `WORLD=vio_wind … ./scripts/launch-sitl.sh` then `WORLD=vio_wind ./scripts/run-vio-stress.sh wind` |
 
 - `vio_low_texture.sdf` — fuel-free sparse walls + subtle ground tiles; OpenVINS overlay `config/openvins/gz_x500_mono_cam_low_texture/` (default `vio_test` config untouched).
-- Faster motion — C++ square params `cruise_speed` / `yaw_spin_rate` (defaults 0 = baseline). Env: `SQUARE_SPEED`, `SQUARE_YAW_SPIN`, `SQUARE_HOLD`.
+- Faster motion — C++ square params `cruise_speed` / `yaw_spin_rate` (defaults 0 = baseline). Env: `SQUARE_SPEED`, `SQUARE_YAW_SPIN`, `SQUARE_HOLD`, `SQUARE_YAW_SPIN_AFTER`. Gated `faster_motion` in `run-regression.sh` uses the milder profile above (yaw 0.35 rad/s, hold 2.0 s, spin after wp0, OV overlay).
 - `vio_wind.sdf` — steady `<wind>` (5, 2, 0) m/s. Gusts via `config/gz-server-wind.config` (auto-selected by `launch-sitl` for `WORLD=vio_wind`). Do not embed WindEffects in the world SDF (blocks SceneBroadcaster / PX4 `scene/info`).
 
 Results table: `docs/localization.md` § VIO stress scenarios.
