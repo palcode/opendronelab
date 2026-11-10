@@ -193,6 +193,18 @@ def export_tum_pair(output_dir, timestamps_ns, gt_positions, est_positions,
     return gt_path, est_path
 
 
+
+def airborne_mask_from_gt_z(gt_z):
+    """Boolean mask for airborne samples from unshifted NED GT z.
+
+    NED z is down: 0.5–20 m AGL is z in (-20, -0.5). Call this on *raw*
+    (pre-origin-align) GT z. Origin-align pins the first overlapping estimate
+    sample to GT; if OpenVINS initialises at cruise altitude, aligned GT z
+    sits near 0 and this mask would otherwise drop every sample.
+    """
+    z = np.asarray(gt_z, dtype=np.float64)
+    return (z < -0.5) & (z > -20.0)
+
 def align_trajectories(
     gt_timestamps,
     gt_positions,
@@ -394,6 +406,21 @@ def main(args=None):
     gt_timestamps, gt_positions = extract_ground_truth_odometry(gt_msgs)
 
     print('Aligning trajectories...')
+    # Mask from unshifted GT z, then origin-align for the reported errors.
+    # Cal bag 20261109_224426: OV first published 6.9 s after takeoff at
+    # z≈-5.1 m; origin-align lifted all GT z to +0.3..+5.6, mask emptied,
+    # scorer crashed, and the summary treated that as ov_published=false
+    # even though the bag held 20154 /ov_msckf/odomimu messages.
+    gt_raw, _est_raw, _ts_raw = align_trajectories(
+        gt_timestamps,
+        gt_positions,
+        est_timestamps,
+        est_positions,
+        origin_align=False,
+    )
+    airborne_mask = airborne_mask_from_gt_z(gt_raw[:, 2])
+    print(f'Airborne samples (GT z): {int(np.sum(airborne_mask))} / {len(airborne_mask)}')
+
     gt_aligned, est_aligned, aligned_ts = align_trajectories(
         gt_timestamps,
         gt_positions,
@@ -402,16 +429,34 @@ def main(args=None):
         origin_align=not parsed.no_origin_align,
     )
 
-    # Airborne from GT z only. Using the estimate z keeps post-land VIO
-    # samples when OpenVINS fails to settle (run2: +48s at z≈-2.4 → false 4 m APE).
-    airborne_mask = (gt_aligned[:, 2] < -0.5) & (gt_aligned[:, 2] > -20.0)
-    print(f'Airborne samples (GT z): {np.sum(airborne_mask)} / {len(airborne_mask)}')
+    extra = {
+        'origin_aligned': not parsed.no_origin_align,
+        'estimate_topic': est_topic,
+        'estimate_frame': est_frame,
+        'estimate_count': int(len(est_msgs)),
+        'gt_count': int(len(gt_msgs)),
+    }
+    if not np.any(airborne_mask):
+        print('Error: No samples left after airborne mask (unshifted GT z)')
+        metrics = {
+            'horizontal_rmse': float('nan'),
+            'horizontal_mean': float('nan'),
+            'horizontal_max': float('nan'),
+            'vertical_rmse': float('nan'),
+            'vertical_mean': float('nan'),
+            'vertical_max': float('nan'),
+            'num_samples': 0,
+        }
+        metrics.update(extra)
+        metrics_path = output_dir / parsed.metrics_name
+        with open(metrics_path, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        print(f'Metrics saved to: {metrics_path}')
+        return 1
 
     print('Computing metrics...')
     metrics = compute_metrics(gt_aligned, est_aligned, airborne_mask)
-    metrics['origin_aligned'] = not parsed.no_origin_align
-    metrics['estimate_topic'] = est_topic
-    metrics['estimate_frame'] = est_frame
+    metrics.update(extra)
 
     metrics_path = output_dir / parsed.metrics_name
     with open(metrics_path, 'w') as f:

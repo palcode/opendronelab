@@ -204,7 +204,7 @@ summary = {
   'gz_world': '${GZ_WORLD}',
   'bag': '${BAG}',
   'mission': '${MISSION}',
-  'ov_published': bool(vio.get('num_samples', 0) > 0),
+  'ov_published': bool(vio.get('estimate_count', 0) > 0 or vio.get('num_samples', 0) > 0),
   'ekf2_origin_h_rmse': ekf2.get('horizontal_rmse'),
   'ekf2_origin_v_rmse': ekf2.get('vertical_rmse'),
   'ekf2_origin_samples': ekf2.get('num_samples'),

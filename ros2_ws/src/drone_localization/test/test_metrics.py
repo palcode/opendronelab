@@ -7,6 +7,7 @@ from drone_localization.localization_metrics import (
     interpolate_trajectory,
     align_trajectories,
     compute_metrics,
+    airborne_mask_from_gt_z,
 )
 
 
@@ -222,3 +223,37 @@ def test_write_tum_format(tmp_path):
     np.testing.assert_allclose(rows[:, 7], 1.0)
     rows_gt = np.loadtxt(gt_path)
     np.testing.assert_allclose(rows_gt[:, 0], rows[:, 0])
+
+
+def test_airborne_mask_uses_raw_gt_z_when_ov_inits_mid_air():
+    """Late mid-air OV init must not empty the airborne mask after origin-align.
+
+    Recreates cal bag 20261109_224426: first overlapping OV pose is at cruise
+    altitude, so origin-align shifts GT z from ~-5 m to ~0 and a mask on
+    aligned z would drop every sample.
+    """
+    # 1 s on ground, then 3 s at 5 m AGL (NED z = -5).
+    gt_t = np.array([0.0, 1.0, 2.0, 3.0, 4.0]) * 1e9
+    gt_p = np.array([
+        [0.0, 0.0, -0.15],
+        [0.0, 0.0, -0.15],
+        [0.0, 0.0, -5.0],
+        [5.0, 0.0, -5.0],
+        [10.0, 0.0, -5.0],
+    ])
+    # OV starts only once already at altitude (first pose z ≈ 0 in its frame).
+    est_t = np.array([2.0, 3.0, 4.0]) * 1e9
+    est_p = np.array([
+        [0.0, 0.0, 0.0],
+        [5.0, 0.0, 0.0],
+        [10.0, 0.0, 0.0],
+    ])
+    gt_raw, _est_raw, _ts = align_trajectories(gt_t, gt_p, est_t, est_p, origin_align=False)
+    gt_al, est_al, _ts2 = align_trajectories(gt_t, gt_p, est_t, est_p, origin_align=True)
+    raw_mask = airborne_mask_from_gt_z(gt_raw[:, 2])
+    aligned_mask = airborne_mask_from_gt_z(gt_al[:, 2])
+    assert int(np.sum(raw_mask)) == 3
+    assert int(np.sum(aligned_mask)) == 0
+    # Scoring must use the raw-z mask on origin-aligned positions.
+    metrics = compute_metrics(gt_al, est_al, raw_mask)
+    assert metrics['num_samples'] == 3
