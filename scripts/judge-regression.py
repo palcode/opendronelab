@@ -73,9 +73,11 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     min_check('vio_origin_samples', 'vio_origin_samples_min')
 
     passed = all(c['pass'] for c in checks)
+    non_gating = bool(sc.get('non_gating', False))
     return {
         'scenario': scenario,
         'pass': passed,
+        'non_gating': non_gating,
         'checks': checks,
         'summary': summary,
         'thresholds_applied': sc,
@@ -94,7 +96,13 @@ def main() -> int:
     thresholds = _load_thresholds(Path(args.thresholds))
     result = judge(summary, thresholds, args.scenario)
     Path(args.out).write_text(json.dumps(result, indent=2) + '\n')
-    print(json.dumps({'scenario': args.scenario, 'pass': result['pass']}, indent=2))
+    print(json.dumps({
+        'scenario': args.scenario,
+        'pass': result['pass'],
+        'non_gating': result['non_gating'],
+    }, indent=2))
+    # Per-scenario exit still reflects this flight's checks. Overall
+    # pass/fail in run-regression.sh ignores non_gating scenarios.
     return 0 if result['pass'] else 1
 
 

@@ -49,6 +49,17 @@ scenarios:
     ekf2_origin_v_rmse_max: 0.13
     vio_umeyama_xy_rmse_max: 0.42
     vio_umeyama_3d_rmse_max: 0.44
+  faster_motion_aggressive:
+    # Original profile (yaw 0.7 rad/s, hold 0.5 s, spin not delayed).
+    # Reported with the same numeric checks as gated faster_motion, but
+    # non_gating: a fail here does not fail overall regression.
+    non_gating: true
+    ekf2_umeyama_xy_rmse_max: 0.60
+    ekf2_umeyama_3d_rmse_max: 0.62
+    ekf2_origin_h_rmse_max: 0.60
+    ekf2_origin_v_rmse_max: 0.13
+    vio_umeyama_xy_rmse_max: 0.42
+    vio_umeyama_3d_rmse_max: 0.44
   wind:
     # VIO spread 0.33 / 0.63 / 1.09 — gate from all three (no outlier drop).
     ekf2_umeyama_xy_rmse_max: 0.40

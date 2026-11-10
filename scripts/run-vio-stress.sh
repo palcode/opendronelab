@@ -4,7 +4,7 @@
 # Usage:
 #   WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture
 #   WORLD=vio_test SQUARE_SPEED=6 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 \
-#     ./scripts/run-vio-stress.sh faster_motion
+#     ./scripts/run-vio-stress.sh faster_motion_aggressive
 #   WORLD=vio_wind ./scripts/run-vio-stress.sh wind
 #
 # Env:
@@ -25,7 +25,7 @@ GZ_WORLD="${GZ_WORLD:-${WORLD:-vio_test}}"
 if [ -z "${OV_CONFIG:-}" ]; then
     if [ "${SCENARIO}" = "low_texture" ] || [ "${GZ_WORLD}" = "vio_low_texture" ]; then
         OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam_low_texture/estimator_config.yaml"
-    elif [ "${SCENARIO}" = "faster_motion" ]; then
+    elif [ "${SCENARIO}" = "faster_motion" ] || [ "${SCENARIO}" = "faster_motion_aggressive" ]; then
         OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam_fast_motion/estimator_config.yaml"
     else
         OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam/estimator_config.yaml"

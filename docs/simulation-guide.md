@@ -352,10 +352,11 @@ GstCamera off, fixed `GZ_SEED`, GT-z airborne mask, evo Umeyama). Runner:
 |----------|------------|
 | Low texture | `WORLD=vio_low_texture HEADLESS=1 GZ_SEED=1234 MODEL=gz_x500_mono_cam ./scripts/launch-sitl.sh` then `WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture` |
 | Faster motion | same SITL with `WORLD=vio_test`, then `WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.35 SQUARE_HOLD=2.0 SQUARE_YAW_SPIN_AFTER=1 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion`. The gated regression profile is milder than the original: yaw 0.35 rad/s, hold 2.0 s, spin only after wp0, OpenVINS overlay `gz_x500_mono_cam_fast_motion`. |
+| Faster motion (aggressive, non-gating) | same SITL, then `WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion_aggressive`. Original profile: yaw 0.7 rad/s, hold 0.5 s, spin not delayed. `run-regression.sh` runs and reports this scenario, but `non_gating: true` so it does not affect overall PASS/FAIL. |
 | Wind | `WORLD=vio_wind … ./scripts/launch-sitl.sh` then `WORLD=vio_wind ./scripts/run-vio-stress.sh wind` |
 
 - `vio_low_texture.sdf` — fuel-free sparse walls + subtle ground tiles; OpenVINS overlay `config/openvins/gz_x500_mono_cam_low_texture/` (default `vio_test` config untouched).
-- Faster motion — C++ square params `cruise_speed` / `yaw_spin_rate` (defaults 0 = baseline). Env: `SQUARE_SPEED`, `SQUARE_YAW_SPIN`, `SQUARE_HOLD`, `SQUARE_YAW_SPIN_AFTER`. Gated `faster_motion` in `run-regression.sh` uses the milder profile above (yaw 0.35 rad/s, hold 2.0 s, spin after wp0, OV overlay).
+- Faster motion — C++ square params `cruise_speed` / `yaw_spin_rate` (defaults 0 = baseline). Env: `SQUARE_SPEED`, `SQUARE_YAW_SPIN`, `SQUARE_HOLD`, `SQUARE_YAW_SPIN_AFTER`. Gated `faster_motion` in `run-regression.sh` uses the milder profile above (yaw 0.35 rad/s, hold 2.0 s, spin after wp0, OV overlay). `faster_motion_aggressive` is the original yaw 0.7 / hold 0.5 / spin-from-takeoff profile; it is reported but does not gate overall pass/fail.
 - `vio_wind.sdf` — steady `<wind>` (5, 2, 0) m/s. Gusts via `config/gz-server-wind.config` (auto-selected by `launch-sitl` for `WORLD=vio_wind`). Do not embed WindEffects in the world SDF (blocks SceneBroadcaster / PX4 `scene/info`).
 
 Results table: `docs/localization.md` § VIO stress scenarios.
@@ -369,9 +370,10 @@ By default `scripts/record-bag.sh` (and therefore regression / VIO stress / eval
 ```bash
 ./scripts/run-regression.sh
 SCENARIOS=faster_motion SKIP_PYTEST=1 ./scripts/run-regression.sh
+SCENARIOS=faster_motion_aggressive SKIP_PYTEST=1 ./scripts/run-regression.sh
 ```
 
-Sequence: pytest → fresh SITL per scenario (`GZ_SEED=1234`, `EKF2_EV_CTRL=0`, GstCamera off, VIO shadow) → `run-vio-stress.sh` → judge against `config/regression_thresholds.yaml` (2026-11-09 cal; see localization.md). Writes `/data/results/regression_<stamp>/{report.md,report.json}` and exits 1 on FAIL. Cleanup (`stop-all`) runs on exit or Ctrl-C. QGC must be available to arm.
+Sequence: pytest → fresh SITL per scenario (`GZ_SEED=1234`, `EKF2_EV_CTRL=0`, GstCamera off, VIO shadow) → `run-vio-stress.sh` → judge against `config/regression_thresholds.yaml` (2026-11-09 cal; see localization.md). Writes `/data/results/regression_<stamp>/{report.md,report.json}` and exits 1 on FAIL. A scenario marked `non_gating: true` (currently `faster_motion_aggressive`) is run and listed in the report but is ignored for overall pass/fail. Cleanup (`stop-all`) runs on exit or Ctrl-C. QGC must be available to arm.
 
 
 EKF2 origin H/V needs live `/ground_truth/odometry`. `run-vio-stress.sh` passes `start_ground_truth:=true` and fails if GT has no rate; `run-baseline.sh` auto-starts `localization.launch.py` with `WORLD`/`MODEL`-matched `gz_pose_topic` and `model_name`.

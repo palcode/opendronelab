@@ -452,21 +452,22 @@ mask, evo Umeyama SE3. Runner: `scripts/run-vio-stress.sh`. Baseline reference
 
 Results dirs: `/data/results/vio_stress_<scenario>_20261109_*`.
 
-The gated `faster_motion` scenario in `./scripts/run-regression.sh` is now milder
+The gated `faster_motion` scenario in `./scripts/run-regression.sh` is milder
 than the original stress: yaw 0.35 rad/s, hold 2.0 s, spin only after wp0, and
 the `gz_x500_mono_cam_fast_motion` OpenVINS overlay. The original aggressive
-profile (yaw 0.7 rad/s, hold 0.5 s, spin from takeoff) is kept as a manual
-invocation if you need it:
+profile (yaw 0.7 rad/s, hold 0.5 s, spin from takeoff) is also run by
+`run-regression.sh` as `faster_motion_aggressive`. It is scored and listed in
+the report, but `non_gating: true` in `config/regression_thresholds.yaml` so it
+does not affect overall PASS/FAIL.
 
 ```bash
-# Gated / milder (what run-regression.sh uses):
+# Gated / milder:
 WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.35 SQUARE_HOLD=2.0 \
   SQUARE_YAW_SPIN_AFTER=1 SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion
 
-# Original aggressive profile (not the regression gate):
-ros2 run drone_flight_cpp square_flight_cpp --ros-args \
-  -p cruise_speed:=6.0 -p yaw_spin_rate:=0.7 -p corner_hold_time:=0.5
-SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 ./scripts/run-vio-stress.sh faster_motion
+# Original aggressive profile (reported, does not gate overall):
+WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 \
+  SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion_aggressive
 ```
 
 **Low-texture OpenVINS overlay** (does not change the `vio_test` default config):
@@ -518,7 +519,7 @@ Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
 
 **faster_motion reliability (2026-11-09):** Bags `155436` (Umeyama xy 0.46 m) vs `163102` (5.22 / 7.43 m) both jump ~4 s after takeoff during a spinning climb; the bad run scale-blows (pathlen ratio 1.45) and z-dives. Mitigation (default `gz_x500_mono_cam` untouched): overlay `config/openvins/gz_x500_mono_cam_fast_motion/`, cap `SQUARE_YAW_SPIN=0.35`, `yaw_spin_after_wp=1` (spin only after hover wp0; OV needs motion to init so we do not wait on the ground), and `SQUARE_HOLD=2.0`.
 
-**Mid-flight VIO translation snaps (2026-11-10 Asia/Calcutta):** Bags `20261110_102931` (baseline, scored under run `20261110_102858`, VIO xy 0.791 m), `20261110_104942` (low_texture, run `20261110_104920`, 1.318 m), and cal `20261109_223318` (3.844 m) share one failure mode. Init is healthy (local first-10 s SE(3) xy ~0.04–0.06 m on the baseline/cal bags). Mid-flight the estimate jumps 0.7–1.7 m in ~4–6 ms with almost no yaw change; `cov_xy` is already inflated (~0.8–1.6) and drops after the update. `try_zupt` is already false, so this is not a mid-flight ZUPT. After the snap the path is locally consistent again, so a single Umeyama over the whole flight looks huge. Hypothesis: a batch of MSCKF/SLAM features passed the default chi² gate while P was large and yanked position. Cautious retune (all three sim overlays): `up_msckf_chi2_multipler` and `up_slam_chi2_multipler` 1 → 0.5. Regression gates are unchanged.
+**Mid-flight VIO translation snaps (2026-11-10 Asia/Calcutta):** Bags `20261110_102931` (baseline, scored under run `20261110_102858`, VIO xy 0.791 m), `20261110_104942` (low_texture, run `20261110_104920`, 1.318 m), and cal `20261109_223318` (3.844 m) share one failure mode. Init is healthy (local first-10 s SE(3) xy ~0.04–0.06 m on the baseline/cal bags). Mid-flight the estimate jumps 0.7–1.7 m in ~4–6 ms with almost no yaw change; `cov_xy` is already inflated (~0.8–1.6) and drops after the update. `try_zupt` is already false, so this is not a mid-flight ZUPT. After the snap the path is locally consistent again, so a single Umeyama over the whole flight looks huge. Hypothesis: a batch of MSCKF/SLAM features passed the default chi² gate while P was large and yanked position. Cautious retune (all three sim overlays): `up_msckf_chi2_multipler` and `up_slam_chi2_multipler` 1 → 0.5. Regression gates are unchanged. Isolated verification (11:13–11:47 IST): baseline 5/5 PASS (0.353, 0.510, 0.218, 0.192, 0.678; gate 0.70); low_texture 1/5 PASS (123.09, 244.37, 0.265, nan/`ov_published=false`, 352.96; gate 0.55) — worse than the pre-retune 3/5; faster_motion 0.176 PASS; wind 0.305 PASS. The retune helps or holds baseline, faster_motion, and wind, but hurts low_texture. No further iteration; a decision is needed on whether to keep 0.5 only on the baseline overlay.
 
 ## References
 

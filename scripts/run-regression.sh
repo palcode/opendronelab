@@ -22,7 +22,7 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 REPORT_HOST="${DATA_DIR}/results/regression_${STAMP}"
 CONTAINER_NAME="odl-sim"
 
-ALL_SCENARIOS=(baseline low_texture faster_motion wind)
+ALL_SCENARIOS=(baseline low_texture faster_motion faster_motion_aggressive wind)
 if [ -n "${SCENARIOS:-}" ]; then
     IFS=',' read -r -a WANT <<< "${SCENARIOS}"
 else
@@ -189,6 +189,18 @@ run_flight() {
                 SQUARE_TIMEOUT=120.0
             )
             ;;
+        faster_motion_aggressive)
+            # Original aggressive profile (yaw 0.7, hold 0.5, spin not delayed).
+            # Run and reported, but non_gating in regression_thresholds.yaml so
+            # it does not affect overall PASS/FAIL.
+            world=vio_test
+            extra_env=(
+                SQUARE_SPEED=6.0
+                SQUARE_YAW_SPIN=0.7
+                SQUARE_HOLD=0.5
+                SQUARE_TIMEOUT=120.0
+            )
+            ;;
         wind) world=vio_wind ;;
         *)
             echo "[ERROR] unknown scenario: ${scenario}" >&2
@@ -297,7 +309,13 @@ n_flights = int(os.environ["N_FLIGHTS"])
 if n_flights == 0:
     overall = bool(pytest.get("pass", False))
 else:
-    overall = bool(pytest.get("pass", False)) and all(j.get("pass") for j in judges) and len(judges) == n_flights
+    gating = [j for j in judges if not j.get("non_gating")]
+    # Every flown scenario must have a judge file; only gating ones affect overall.
+    overall = (
+        bool(pytest.get("pass", False))
+        and all(j.get("pass") for j in gating)
+        and len(judges) == n_flights
+    )
 
 rows = []
 if not pytest.get("skipped"):
@@ -317,7 +335,7 @@ for j in judges:
             f"VIO xy/3D={s.get('vio_umeyama_xy_rmse')}/{s.get('vio_umeyama_3d_rmse')} "
             f"origin H/V={s.get('ekf2_origin_h_rmse')}/{s.get('ekf2_origin_v_rmse')}"
         )
-    rows.append({"step": j.get("scenario"), "pass": j.get("pass"), "detail": detail, "bag": s.get("bag")})
+    rows.append({"step": j.get("scenario"), "pass": j.get("pass"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag")})
 
 stamp = os.environ["STAMP"]
 elapsed = int(os.environ["ELAPSED"])
@@ -334,8 +352,9 @@ out = {
 }
 (report_dir / "report.json").write_text(json.dumps(out, indent=2) + "\n")
 
-def mark(p):
-    return "PASS" if p else "FAIL"
+def mark(p, non_gating=False):
+    v = "PASS" if p else "FAIL"
+    return f"{v} (non-gating)" if non_gating else v
 
 lines = [
     f"# OpenDroneLab regression {stamp}",
@@ -350,20 +369,27 @@ lines = [
     "|------|---------|--------|",
 ]
 for r in rows:
-    lines.append(f"| {r['step']} | {mark(r['pass'])} | {r['detail']} |")
+    lines.append(f"| {r['step']} | {mark(r['pass'], r.get('non_gating'))} | {r['detail']} |")
 lines.append("")
-if any(not r["pass"] for r in rows):
-    lines.append("## Failed checks")
-    for j in judges:
-        if j.get("pass"):
-            continue
-        lines.append(f"### {j.get('scenario')}")
+
+def _failed_section(title, items):
+    if not items:
+        return
+    lines.append(title)
+    for j in items:
+        suffix = " (non-gating; ignored for overall pass/fail)" if j.get("non_gating") else ""
+        lines.append(f"### {j.get('scenario')}{suffix}")
         for c in j.get("checks") or []:
             if not c.get("pass"):
                 lines.append(f"- `{c['name']}`: {c['detail']}")
         if j.get("error"):
             lines.append(f"- error: {j['error']}")
         lines.append("")
+
+failed_gating = [j for j in judges if not j.get("pass") and not j.get("non_gating")]
+failed_nongate = [j for j in judges if not j.get("pass") and j.get("non_gating")]
+_failed_section("## Failed checks", failed_gating)
+_failed_section("## Non-gating failures (ignored for overall pass/fail)", failed_nongate)
 (report_dir / "report.md").write_text("\n".join(lines) + "\n")
 print("\n".join(lines))
 print(f"\n[REG] wrote {report_dir / 'report.md'}")
