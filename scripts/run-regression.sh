@@ -387,6 +387,7 @@ for j in judges:
         detail = (
             f"mission={s.get('mission')} ov={s.get('ov_published')} "
             f"vio_init_timeout={s.get('vio_init_timeout')} "
+            f"retries={s.get('vio_init_retries')} "
             f"EKF2 xy/3D={s.get('ekf2_umeyama_xy_rmse')}/{s.get('ekf2_umeyama_3d_rmse')} "
             f"VIO xy/3D={s.get('vio_umeyama_xy_rmse')}/{s.get('vio_umeyama_3d_rmse')} "
             f"origin H/V={s.get('ekf2_origin_h_rmse')}/{s.get('ekf2_origin_v_rmse')}"
@@ -463,6 +464,11 @@ def _failed_section(title, items):
         for c in j.get("checks") or []:
             if not c.get("pass"):
                 lines.append(f"- `{c['name']}`: {c['detail']}")
+        if (j.get("summary") or {}).get("vio_init_failed"):
+            lines.append(
+                "- note: `vio_init_failed=true`: VIO missed liftoff on every attempt "
+                f"({(j.get('summary') or {}).get('vio_init_attempts')}); VIO not scored"
+            )
         if (j.get("summary") or {}).get("vio_init_timeout"):
             lines.append(
                 "- note: `vio_init_timeout=true`: OpenVINS never published "

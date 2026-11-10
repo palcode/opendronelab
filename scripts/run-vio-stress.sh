@@ -11,6 +11,11 @@
 #   BAG_DURATION (default 100)
 #   GZ_WORLD for vio.launch (default: $WORLD or vio_test)
 #   SQUARE_SPEED, SQUARE_YAW_SPIN, SQUARE_YAW_SPIN_AFTER, SQUARE_HOLD, SQUARE_TIMEOUT
+#   VIO_INIT_WINDOW (default 2.0 s; 0 disables): with HOLD_FOR_TOPIC set, VIO
+#     must publish within this long after liftoff or the flight lands without
+#     the square and is retried (fresh OpenVINS, fresh bag) up to
+#     VIO_INIT_ATTEMPTS (default 3) times. Only the final attempt is scored;
+#     a run that misses on every attempt is not VIO-scored (fails).
 #   HOLD_FOR_TOPIC (unset = hold wp0 for /ov_msckf/odomimu; set empty = no hold,
 #     used by faster_motion_aggressive), HOLD_FOR_TOPIC_TIMEOUT (default 20.0)
 #   FLIGHT_CMD overrides the constructed flight command entirely
@@ -65,6 +70,11 @@ if [ -z "${FLIGHT_CMD:-}" ]; then
     if [ -n "${HOLD_FOR_TOPIC}" ]; then
         ROS_ARGS+=(-p "hold_for_topic:=${HOLD_FOR_TOPIC}")
         ROS_ARGS+=(-p "hold_for_topic_timeout:=${HOLD_FOR_TOPIC_TIMEOUT:-20.0}")
+        # ODL-76: VIO must start within VIO_INIT_WINDOW s of liftoff, else
+        # the node lands without the square (exit 3) and we retry below.
+        if [ "${VIO_INIT_WINDOW:-2.0}" != "0" ]; then
+            ROS_ARGS+=(-p "vio_init_window:=${VIO_INIT_WINDOW:-2.0}")
+        fi
     fi
     # Flight status (vio_init_timeout) merged into summary.json below.
     ROS_ARGS+=(-p "status_file:=${SUMMARY_DIR}/flight_status.json")
@@ -93,6 +103,15 @@ echo "[INFO] results -> ${SUMMARY_DIR}"
 docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${SUMMARY_DIR}"
 mkdir -p "${REPO_DIR}/logs"
 echo "summary_dir=${SUMMARY_DIR}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-${STAMP}.log"
+
+VIO_INIT_ATTEMPTS="${VIO_INIT_ATTEMPTS:-3}"
+ATTEMPT=0
+RETRY_BAGS=()
+VIO_INIT_FAILED=0
+while :; do
+ATTEMPT=$((ATTEMPT + 1))
+if [ "${ATTEMPT}" -gt 1 ]; then BAG_STAMP="$(date +%Y%m%d_%H%M%S)"; else BAG_STAMP="${STAMP}"; fi
+echo "[INFO] VIO init attempt ${ATTEMPT}/${VIO_INIT_ATTEMPTS}"
 
 # Restart VIO for a clean OpenVINS init
 echo "[INFO] (Re)starting vio.launch.py gz_world:=${GZ_WORLD}..."
@@ -153,8 +172,8 @@ sleep 2
 # Reliability instead comes from yaw_spin_after_wp (spin only after hover wp0),
 # capped SQUARE_YAW_SPIN, and the gz_x500_mono_cam_fast_motion overlay.
 
-echo "[INFO] Recording ${BAG_DURATION}s -> /data/bags/${STAMP}..."
-BAG_PATH="/data/bags/${STAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
+echo "[INFO] Recording ${BAG_DURATION}s -> /data/bags/${BAG_STAMP}..."
+BAG_PATH="/data/bags/${BAG_STAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
 RECORD_PID=$!
 sleep 5
 
@@ -162,22 +181,43 @@ echo "[INFO] Flight..."
 MISSION=fail
 # Faster/spin flights may need >120s wall timeout
 FLIGHT_WALL="${FLIGHT_WALL:-150}"
-if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "${SOURCE_CMD}; timeout ${FLIGHT_WALL} ${FLIGHT_CMD}"; then
+FLIGHT_RC=0
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    bash -c "${SOURCE_CMD}; timeout ${FLIGHT_WALL} ${FLIGHT_CMD}" || FLIGHT_RC=$?
+if [ "${FLIGHT_RC}" -eq 0 ]; then
     echo "[INFO] Mission OK"
     MISSION=success
 else
-    echo "[WARN] Mission failed/timeout"
+    echo "[WARN] Mission failed/timeout (rc=${FLIGHT_RC})"
 fi
 echo "mission=${MISSION}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-mission.txt"
 # Keep the OpenVINS log (init/disparity/feature lines) with the results.
 # Report-only; ~1.5 MB per run; nothing is deleted.
 docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    cp /tmp/vio-launch.log "${SUMMARY_DIR}/vio-launch.log" 2>/dev/null \
+    bash -c "cp /tmp/vio-launch.log ${SUMMARY_DIR}/vio-launch_attempt${ATTEMPT}.log && cp /tmp/vio-launch.log ${SUMMARY_DIR}/vio-launch.log" 2>/dev/null \
     || echo "[WARN] could not copy /tmp/vio-launch.log to ${SUMMARY_DIR}"
+if [ "${FLIGHT_RC}" -eq 3 ]; then
+    # square_flight_cpp: VIO did not publish within VIO_INIT_WINDOW of
+    # liftoff, so it landed without flying the square. Stop this bag (kept,
+    # not scored) and retry with a fresh OpenVINS on the ground.
+    echo "[WARN] VIO did not start within ${VIO_INIT_WINDOW:-2.0}s of liftoff (attempt ${ATTEMPT}/${VIO_INIT_ATTEMPTS}); landed without the square"
+    docker exec "${CONTAINER_NAME}" pkill -INT -f 'ros2 bag record' >/dev/null 2>&1 || true
+    wait "${RECORD_PID}" || true
+    RETRY_BAGS+=("/data/bags/${BAG_STAMP}")
+    if [ "${ATTEMPT}" -lt "${VIO_INIT_ATTEMPTS}" ]; then
+        sleep 5  # let PX4 disarm and settle before re-arming
+        continue
+    fi
+    VIO_INIT_FAILED=1
+    echo "[ERROR] VIO missed liftoff on all ${ATTEMPT} attempts; VIO will not be scored"
+    break
+fi
 wait "${RECORD_PID}" || true
+break
+done
+RETRY_BAGS_PY="[$(printf "'%s'," "${RETRY_BAGS[@]+"${RETRY_BAGS[@]}"}")]"
 
-BAG="/data/bags/${STAMP}"
+BAG="/data/bags/${BAG_STAMP}"
 if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bash -c "test -d ${BAG} && ls ${BAG}/*.mcap >/dev/null 2>&1"; then
     echo "[ERROR] expected bag ${BAG} missing or empty (refusing to score an older bag via ls -1dt)" >&2
     # Show newest bag for diagnosis only — do not use it
@@ -192,9 +232,12 @@ ${SOURCE_CMD}
 mkdir -p ${SUMMARY_DIR}/tum_ekf2 ${SUMMARY_DIR}/tum_vio
 ros2 run drone_localization localization_metrics ${BAG} \
   --output-dir ${SUMMARY_DIR} --metrics-name metrics_ekf2.json --tum-dir ${SUMMARY_DIR}/tum_ekf2
+# Never score a VIO estimate when init missed liftoff on every attempt.
+if [ ${VIO_INIT_FAILED} != 1 ]; then
 ros2 run drone_localization localization_metrics ${BAG} \
   --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
   --output-dir ${SUMMARY_DIR} --metrics-name metrics_vio.json --tum-dir ${SUMMARY_DIR}/tum_vio
+fi
 evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_ekf2_ape_xy.txt
 evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.tum -r trans_part -a > ${SUMMARY_DIR}/evo_ekf2_ape_3d.txt
 evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_vio_ape_xy.txt || true
@@ -229,6 +272,12 @@ summary = {
   'vio_init_timeout': bool(status.get('vio_init_timeout', False)),
   'hold_for_topic': status.get('hold_for_topic'),
   'flight_status_found': status_path.exists(),
+  'vio_init_attempts': ${ATTEMPT},
+  'vio_init_retries': ${ATTEMPT} - 1,
+  'vio_init_failed': bool(${VIO_INIT_FAILED}),
+  'vio_init_window_s': status.get('vio_init_window'),
+  'vio_first_msg_after_liftoff_s': status.get('first_msg_after_liftoff_s'),
+  'retry_bags': ${RETRY_BAGS_PY},
   'ov_published': bool(vio.get('estimate_count', 0) > 0 or vio.get('num_samples', 0) > 0),
   'ekf2_origin_h_rmse': ekf2.get('horizontal_rmse'),
   'ekf2_origin_v_rmse': ekf2.get('vertical_rmse'),

@@ -66,6 +66,13 @@ public:
     // merges it into summary.json). Records vio_init_timeout so a regression
     // report can explain a VIO fail where OpenVINS never published at wp0.
     status_file_ = declare_parameter("status_file", std::string(""));
+    // Optional (ODL-76): if >0 and hold_for_topic is set, the first message on
+    // hold_for_topic must arrive within this many seconds of liftoff. If it
+    // does not, the node never flies the square: it lands and exits with code
+    // 3 (kExitVioInitMissed) so run-vio-stress.sh can restart OpenVINS on the
+    // ground and retry. A first message that only arrives later (e.g. a
+    // hover init) also counts as missed.
+    vio_init_window_ = declare_parameter("vio_init_window", 0.0);
 
     // Bound aggressive stress params (PX4 MPC_XY_VEL_MAX is typically ~12; keep
     // a safer sim cap so corners remain reachable). Clamp with warning.
@@ -130,6 +137,11 @@ public:
         [this](nav_msgs::msg::Odometry::SharedPtr) {
           if (!hold_for_topic_received_) {
             hold_for_topic_received_ = true;
+            first_msg_time_ = std::chrono::steady_clock::now();
+            if (liftoff_) {
+              first_msg_after_liftoff_ =
+                std::chrono::duration<double>(*first_msg_time_ - *liftoff_).count();
+            }
             if (!hold_for_topic_seen_) {
               hold_for_topic_seen_ = true;
               RCLCPP_INFO(get_logger(), "Received first message on %s", hold_for_topic_.c_str());
@@ -157,6 +169,9 @@ public:
       hold_for_topic_timeout_);
   }
 
+  static constexpr int kExitVioInitMissed = 3;
+  int exitCode() const {return exit_code_;}
+
 private:
   enum class State { Init, Preflight, Arming, Flying, Landing, Complete };
 
@@ -179,8 +194,16 @@ private:
           << "  \"hold_for_topic_timeout\": " << hold_for_topic_timeout_ << ",\n"
           << "  \"hold_for_topic_received\": " << (hold_for_topic_received_ ? "true" : "false")
           << ",\n"
-          << "  \"vio_init_timeout\": " << (vio_init_timeout_ ? "true" : "false") << "\n"
-          << "}\n";
+          << "  \"vio_init_timeout\": " << (vio_init_timeout_ ? "true" : "false") << ",\n"
+          << "  \"vio_init_window\": " << vio_init_window_ << ",\n"
+          << "  \"vio_init_missed\": " << (vio_init_missed_ ? "true" : "false") << ",\n"
+          << "  \"first_msg_after_liftoff_s\": ";
+      if (first_msg_after_liftoff_) {
+        out << *first_msg_after_liftoff_;
+      } else {
+        out << "null";
+      }
+      out << "\n}\n";
     }
     if (std::rename(tmp.c_str(), status_file_.c_str()) != 0) {
       RCLCPP_WARN(get_logger(), "Cannot rename %s -> %s", tmp.c_str(), status_file_.c_str());
@@ -415,6 +438,7 @@ private:
         }
         if (vehicle_status_->nav_state == 14 && vehicle_status_->arming_state == 2) {
           RCLCPP_INFO(get_logger(), "Armed and in offboard mode");
+          arm_z_ = vehicle_local_position_->z;
           corner_index_ = 0;
           corner_arrival_.reset();
           state_ = State::Flying;
@@ -422,6 +446,35 @@ private:
         break;
 
       case State::Flying: {
+        // Liftoff = 0.3 m above the arming altitude (NED z decreases upward).
+        if (!liftoff_ && vehicle_local_position_->z < arm_z_ - 0.3f) {
+          liftoff_ = now;
+          if (first_msg_time_) {
+            // OV published before liftoff detection (static init on the jerk).
+            first_msg_after_liftoff_ =
+              std::chrono::duration<double>(*first_msg_time_ - *liftoff_).count();
+          }
+          RCLCPP_INFO(get_logger(), "Liftoff detected");
+          writeStatus();
+        }
+        if (vio_init_window_ > 0.0 && !hold_for_topic_.empty() && liftoff_ &&
+          !hold_for_topic_received_)
+        {
+          const double since = std::chrono::duration<double>(now - *liftoff_).count();
+          if (since > vio_init_window_) {
+            RCLCPP_ERROR(
+              get_logger(),
+              "No %s within %.1fs of liftoff; landing without flying the square (retry)",
+              hold_for_topic_.c_str(), vio_init_window_);
+            vio_init_missed_ = true;
+            exit_code_ = kExitVioInitMissed;
+            writeStatus();
+            land();
+            offboard_setpoint_counter_ = 0;
+            state_ = State::Landing;
+            break;
+          }
+        }
         const auto & wp = waypoints_[corner_index_];
         publishOffboardControlMode();
         publishWaypointSetpoint(wp);
@@ -502,6 +555,13 @@ private:
   bool hold_for_topic_seen_{false};
   bool hold_for_topic_received_{false};
   bool vio_init_timeout_{false};
+  double vio_init_window_{0.0};
+  bool vio_init_missed_{false};
+  int exit_code_{0};
+  float arm_z_{0.f};
+  std::optional<std::chrono::steady_clock::time_point> liftoff_;
+  std::optional<std::chrono::steady_clock::time_point> first_msg_time_;
+  std::optional<double> first_msg_after_liftoff_;
   std::string status_file_;
   int hold_for_topic_waits_{0};
 
@@ -535,6 +595,7 @@ int main(int argc, char * argv[])
   try {
     auto node = std::make_shared<SquareFlightNode>();
     rclcpp::spin(node);
+    exit_code = node->exitCode();
   } catch (const std::exception & e) {
     RCLCPP_ERROR(rclcpp::get_logger("square_flight_cpp"), "%s", e.what());
     exit_code = 1;
