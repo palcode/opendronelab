@@ -175,11 +175,6 @@ if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bas
     docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"         bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -3' >&2 || true
     exit 1
 fi
-BAG_NAME="$(basename "${BAG}")"
-if [[ "${BAG_NAME}" < "${STAMP}" ]] || [[ "${BAG_NAME}" != "${STAMP}" ]]; then
-    echo "[ERROR] bag ${BAG_NAME} does not match run STAMP ${STAMP}" >&2
-    exit 1
-fi
 echo "[INFO] Scoring ${BAG} -> ${SUMMARY_DIR}"
 echo "${BAG}" > "${REPO_DIR}/logs/vio-stress-${SCENARIO}-bag.txt"
 

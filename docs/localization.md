@@ -259,6 +259,10 @@ This outputs:
 
 ### Baseline Results (measured 2026-11-04)
 
+The RMSE table below is historical: those flights were flown with the retired
+Python `square_flight` node (removed in `ea0e1f7`). Production flights now use
+`square_flight_cpp` only.
+
 EKF2 origin H/V scoring always needs `/ground_truth/odometry` (`ground_truth_publisher` via `localization.launch.py` or `vio.launch.py start_ground_truth:=true`). `run-baseline.sh` auto-starts localization launch if GT is missing; `run-vio-stress.sh` fails closed without a live GT rate.
 
 **Setup:** `MODEL=gz_x500`, default world, PX4 v1.17.0 EKF2 defaults (GPS + baro + mag + IMU, no vision). `square_flight_cpp` is a 10 m square at 5 m altitude with a 3 s hold at each corner. Each run was recorded with `record-bag.sh <s> --localization` and scored with `localization_metrics` (origin-aligned, airborne samples only, NED z < -0.5 m).

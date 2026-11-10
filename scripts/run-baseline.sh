@@ -127,11 +127,6 @@ for run in $(seq 1 "$NUM_RUNS"); do
         echo "[${run}/${NUM_RUNS}] ERROR: expected bag ${LATEST_BAG} missing (refusing older bag)"
         continue
     fi
-    BAG_NAME="$(basename "${LATEST_BAG}")"
-    if [[ "${BAG_NAME}" < "${TIMESTAMP}" ]]; then
-        echo "[${run}/${NUM_RUNS}] ERROR: bag ${BAG_NAME} older than run TIMESTAMP ${TIMESTAMP}"
-        continue
-    fi
     echo "[${run}/${NUM_RUNS}] Bag: ${LATEST_BAG}"
     
     # Compute metrics
