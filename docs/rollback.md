@@ -25,7 +25,7 @@ docker tag opendronelab-dev:phase4c-vio opendronelab-dev:latest
 # older phase tags are already gone; only these remain:
 # docker image rm opendronelab-dev:latest opendronelab-dev:phase5-clean \
 #     opendronelab-dev:phase4c-vio
-# docker builder prune --keep-storage 20gb -f   # cap (also via stop-all / prune-build-cache.sh)
+# docker buildx prune --max-used-space 20gb -f   # cap (also via stop-all / prune-build-cache.sh)
 xhost -SI:localuser:$(whoami)         # revoke the X11 grant (also cleared on reboot)
 rm ~/Applications/QGroundControl-x86_64.AppImage
 # GitHub push access for this laptop: delete the deploy key in the repo settings, then

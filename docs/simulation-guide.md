@@ -387,6 +387,8 @@ GPS baseline container.
 
 ## Build cache cap (20 GB)
 
-`scripts/stop-all.sh` calls `scripts/prune-build-cache.sh`, which runs
-`docker builder prune --keep-storage 20gb -f` **only** when BuildKit cache
-exceeds 20 GB. Images are never removed. Skip with `SKIP_BUILD_CACHE_PRUNE=1`.
+`scripts/stop-all.sh` calls `scripts/prune-build-cache.sh`, which always runs
+`docker buildx prune --max-used-space "$MAX_USED_SPACE" -f` (default `20gb`).
+BuildKit treats that as a no-op when the cache is already under the cap, so
+there is no separate size pre-check and a `MAX_USED_SPACE=10gb` override is
+honoured. Images are never removed. Skip with `SKIP_BUILD_CACHE_PRUNE=1`.
