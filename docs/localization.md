@@ -528,7 +528,7 @@ VIO Umeyama xy **0.237 m** (GT-airborne mask). Pre-fix EV attempts were ~22/16 m
 and aborted.
 
 
-Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
+Image: `opendronelab-dev:latest` = `:phase5-verify` (`e98a336e9dda`, cold rebuild 2026-11-11, retagged as latest 2026-11-11); previous `:phase5-clean` (`f3f06169d036`) kept; rollback `:phase4c-vio`.
 
 **faster_motion reliability (2026-11-09):** Bags `155436` (Umeyama xy 0.46 m) vs `163102` (5.22 / 7.43 m) both jump ~4 s after takeoff during a spinning climb; the bad run scale-blows (pathlen ratio 1.45) and z-dives. Mitigation (default `gz_x500_mono_cam` untouched): overlay `config/openvins/gz_x500_mono_cam_fast_motion/`, cap `SQUARE_YAW_SPIN=0.35`, `yaw_spin_after_wp=1` (spin only after hover wp0; OV needs motion to init so we do not wait on the ground), and `SQUARE_HOLD=2.0`.
 
@@ -536,15 +536,62 @@ Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
 
 ## Known limitations
 
-- **low_texture VIO (OpenVINS) is unreliable right now** (decision 2026-11-11
-  00:02 IST: keep as a known limitation for now). In the N=5 calibration at
-  `0088a85` it passed 1/5. The failures were VIO blow-ups of 1.64 m, 148 m and
-  363 m, plus one run with no VIO estimate (`vio_init_timeout=true`); see
-  "N=5 gate re-check" below. EKF2/GPS stayed fine in all five runs.
+- **low_texture VIO (OpenVINS) is still unreliable** (kept as a known
+  limitation by decision on 2026-11-11 00:02 IST; see ODL-76). Results:
+  - N=5 calibration at `0088a85`: 1/5 passed. The failures were blow-ups of
+    1.64 m, 148 m and 363 m, plus one `vio_init_timeout`.
+  - After the approved fixes (2026-11-11 00:41–01:06 IST, image `:latest` =
+    `e98a336e9dda`, code `49ef570`): **2/5 passed**. There were **no
+    blow-ups** (worst 0.967 m), so the hover-init divergence is gone. The
+    fixes were: land and retry if VIO has not started within 2 s of
+    liftoff; `init_dyn_use: false` on the low_texture overlay only; and a
+    higher-contrast patch in front of the pad.
+  - The 3 failures were 2 runs that started at liftoff but drifted to
+    0.65 m and 0.97 m (gate 0.55 m), and 1 run that missed liftoff on all 3
+    attempts. That run was cleanly not scored (`vio_init_failed`).
+  - EKF2/GPS stayed fine.
+
   `low_texture` **stays gated** and its VIO xy limit **stays 0.55 m**, so a
-  full `./scripts/run-regression.sh` is expected to FAIL on `low_texture`
-  until this is fixed. No gate, script or OpenVINS setting was changed for
-  this note.
+  full `./scripts/run-regression.sh` is still expected to FAIL on
+  `low_texture` until it is fixed.
+
+### low_texture fix verification (2026-11-11)
+
+Five isolated low_texture flights plus one each of baseline, faster_motion and
+wind on `:latest` (`e98a336e9dda`), code `49ef570`. Data:
+`/data/results/lt_fix_verify_20261111_004122/`. Init offset = first
+`/ov_msckf/odomimu` relative to liftoff (0.3 m above the arming altitude).
+
+| Scenario | Run | Bag (scored) | VIO xy | EKF2 xy | Verdict | Retries | Init offset | vio_init_failed | Failed checks |
+|---|---|---|---|---|---|---|---|---|---|
+| low_texture | 1 | `20261111_004149` | 0.967 | 0.245 | FAIL | 0 | -0.18 s | False | vio_umeyama_xy_rmse, vio_umeyama_3d_rmse |
+| low_texture | 2 | `20261111_004644` | — | 0.010 | FAIL | 2 | — | True | mission, ov_published, ekf2_origin_samples, vio_umeyama_xy_rmse, vio_umeyama_3d_rmse, vio_origin_samples |
+| low_texture | 3 | `20261111_004829` | 0.646 | 0.246 | FAIL | 0 | +0.21 s | False | vio_umeyama_xy_rmse, vio_umeyama_3d_rmse |
+| low_texture | 4 | `20261111_005139` | 0.331 | 0.246 | PASS | 0 | -0.16 s | False | — |
+| low_texture | 5 | `20261111_005437` | 0.206 | 0.248 | PASS | 0 | -0.05 s | False | — |
+| baseline | 6 | `20261111_005740` | 0.123 | 0.255 | PASS | 0 | -0.19 s | False | — |
+| faster_motion | 7 | `20261111_010040` | 0.151 | 0.391 | PASS | 0 | +0.76 s | False | — |
+| wind | 8 | `20261111_010352` | 0.906 | 0.260 | PASS | 0 | -0.41 s | False | — |
+
+Reading:
+
+- The retry path works. low_texture r2 landed without the square three
+  times and was not VIO-scored; its missed-attempt bags are kept and listed
+  in `retry_bags`. No estimate initialised in hover, and no run diverged.
+- Every miss was static init rejected as "platform moving too much", in the
+  kept per-attempt OpenVINS logs (`vio-launch_attempt<N>.log`). After arming,
+  with the vehicle still on the pad (IMU excitation 0.012), the tracker
+  still shows spurious 25–33 px disparity. That disparity is in the older
+  window when the takeoff jerk arrives. The new pad patch did **not** remove
+  it. Non-binding hypothesis: features on the spinning propellers (it starts
+  after arming). That would need an OpenVINS mask or tracker change, which
+  is not approved, or a camera-frame check (`RECORD_CAMERA=1`).
+- The two drift fails (0.65 / 0.97 m) both initialised at liftoff. Before the
+  fixes, 13/15 liftoff inits passed; now it is 2/4. That sample is too small
+  to tell whether the pad patch affects tracking after it leaves the view.
+- Fix 2 applies only to the low_texture overlay. baseline (0.123 m),
+  faster_motion (0.151 m) and wind (0.906 m) all passed with 0 retries.
+  Their init offsets were −0.19 / +0.76 / −0.41 s, inside the 2 s window.
 
 ### low_texture VIO findings (2026-11-11, read-only analysis)
 
