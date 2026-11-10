@@ -89,15 +89,13 @@ num_aruco: 1024
 downsize_aruco: true
 
 up_msckf_sigma_px: 1
-# Tighten chi² (was 1) to reject mid-flight MSCKF/SLAM updates that yank
-# position when covariance is already inflated. Snaps in bags 20261110_102931
-# (~0.80 m / 5 ms, dyaw ~0, t~39.6 s), 20261110_104942 (~1.71 m / 4 ms,
-# t~30.2 s), and 20261109_223318 (~0.79 m / 6 ms, t~37.0 s) showed a
-# translation jump with almost no yaw and a cov drop after the update.
-# try_zupt is already false. Do not loosen regression gates.
-up_msckf_chi2_multipler: 0.5
+# chi² restored to 1. 0.5 (commit 114c033) was tried on all three sim
+# overlays; it made low_texture diverge (1/5 PASS, three 100+ m blow-ups
+# and one unpublished). Keep 0.5 only on the baseline overlay
+# (gz_x500_mono_cam). Do not loosen regression gates.
+up_msckf_chi2_multipler: 1
 up_slam_sigma_px: 1
-up_slam_chi2_multipler: 0.5
+up_slam_chi2_multipler: 1
 up_aruco_sigma_px: 1
 up_aruco_chi2_multipler: 1
 

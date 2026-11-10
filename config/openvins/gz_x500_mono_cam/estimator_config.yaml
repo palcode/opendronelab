@@ -87,7 +87,9 @@ up_msckf_sigma_px: 1
 # (~0.80 m / 5 ms, dyaw ~0, t~39.6 s), 20261110_104942 (~1.71 m / 4 ms,
 # t~30.2 s), and 20261109_223318 (~0.79 m / 6 ms, t~37.0 s) showed a
 # translation jump with almost no yaw and a cov drop after the update.
-# try_zupt is already false. Do not loosen regression gates.
+# try_zupt is already false. 0.5 is baseline-only: the same change on the
+# low_texture and faster_motion overlays made low_texture diverge, so those
+# were restored to 1. Do not loosen regression gates.
 up_msckf_chi2_multipler: 0.5
 up_slam_sigma_px: 1
 up_slam_chi2_multipler: 0.5
