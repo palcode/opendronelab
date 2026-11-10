@@ -119,8 +119,16 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     RUN_OUT="${SUMMARY_DIR}/run${run}"
     docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${RUN_OUT}"
 
-    echo "[INFO] Recording ${BAG_DURATION}s..."
-    BAG_PATH="/data/bags/${STAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
+    # Per-run bag path so NUM_RUNS>1 does not re-score run 1's bag.
+    RUN_BAG_STAMP="${STAMP}_run${run}"
+    BAG="/data/bags/${RUN_BAG_STAMP}"
+    if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+        bash -c "test -d ${BAG}"; then
+        echo "[ERROR] bag path ${BAG} already exists; refusing to record over it" >&2
+        exit 1
+    fi
+    echo "[INFO] Recording ${BAG_DURATION}s -> ${BAG}..."
+    BAG_PATH="${BAG}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
     RECORD_PID=$!
     sleep 5
 
@@ -135,12 +143,11 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     fi
     wait "${RECORD_PID}" || true
 
-    BAG="/data/bags/${STAMP}"
-if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "test -d ${BAG}"; then
-    echo "[ERROR] expected bag ${BAG} missing" >&2
-    exit 1
-fi
+    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+        bash -c "test -d ${BAG}"; then
+        echo "[ERROR] expected bag ${BAG} missing" >&2
+        exit 1
+    fi
     echo "[INFO] Scoring ${BAG} -> ${RUN_OUT}"
     _score_bag "${BAG}" "${RUN_OUT}" | tee "${REPO_DIR}/logs/vio-run${run}-score.txt"
     # Copy bag id
