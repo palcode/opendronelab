@@ -546,6 +546,50 @@ Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
   until this is fixed. No gate, script or OpenVINS setting was changed for
   this note.
 
+### low_texture VIO findings (2026-11-11, read-only analysis)
+
+Data: 24 low_texture bags from 2026-11-09 22:19 to 2026-11-10 23:43 IST, plus one diagnostic
+flight (bag `20261111_002817`, PASS 0.422 m) that kept the OpenVINS log. Script
+and output: `/data/results/lt_analysis_20261111/`. No config was changed.
+
+| OV first estimate | Runs | Outcome |
+|---|---|---|
+| at liftoff (≤0.3 s, <0.8 m AGL), static init | 15 | 13 pass. 2 fail at 1.32 / 1.64 m: corner-hover snaps like baseline |
+| mid-air in the wp0 hover (5.3–26 s after takeoff, ~5 m) | 6 | all diverge (5–69 m error in the first 10 s, then 58–363 m). IMU std 0.02 in the 1.5 s before init, i.e. motionless |
+| never | 3 | all hit the 20 s wp0 hold (`vio_init_timeout`) and never init in the square either |
+
+Mechanism (OpenVINS log of the diagnostic flight):
+
+1. On the pad (IMU excitation 0.011, stationary), low-texture KLT tracks show
+   **spurious disparity of 16–36 px** in some windows.
+2. Static init succeeds only if the older-window disparity is below
+   `init_max_disparity` (5 px) exactly when the takeoff jerk pushes excitation
+   over `init_imu_thresh` (0.5). In the good run it was 2.1–4.8 px, a thin
+   margin, so this is close to a coin flip.
+3. If static init misses liftoff, dynamic init cannot succeed in the climb:
+   `only 36 valid features of required (48 thresh)` and `gyroscope only 0.09
+   degree change (3.00 thresh)`. It later either succeeds in a motionless hover
+   (ill-conditioned, so it diverges) or never succeeds.
+
+Proposed fixes (not applied):
+
+1. **Init-or-retry in the harness** (high confidence; no OpenVINS change). If
+   `/ov_msckf/odomimu` has not started within ~2 s of liftoff, land at wp0,
+   restart OpenVINS on the ground and take off again (max 2–3 tries). Never
+   start the square on, or score, an estimate that initialised in hover.
+2. **No hover init in the low_texture overlay** (high confidence on the
+   blow-ups; needs OK for an OpenVINS change). Set `init_dyn_use: false` in
+   `gz_x500_mono_cam_low_texture` only. This turns the 6/24 hover inits into
+   clean "no VIO" fails, so pair it with fix 1.
+3. **Remove spurious stationary disparity** (medium confidence). Add more
+   higher-contrast near-ground texture around the takeoff pad in
+   `vio_low_texture.sdf`, and/or tune the overlay tracker (`fast_threshold` >
+   5, `histogram_method` other than CLAHE, larger `min_px_dist`). Needs OK
+   for the OpenVINS part.
+
+Also useful: copy `/tmp/vio-launch.log` into each run's summary dir, so failing
+runs keep their init log.
+
 ## References
 
 - **PX4 EKF2:** https://docs.px4.io/v1.17/en/advanced_config/tuning_the_ecl_ekf.html
