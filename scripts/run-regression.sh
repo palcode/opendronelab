@@ -190,7 +190,10 @@ run_flight() {
             )
             ;;
         faster_motion_aggressive)
-            # Original aggressive profile (yaw 0.7, hold 0.5, spin not delayed).
+            # Original aggressive profile (yaw 0.7, hold 0.5, spin not delayed,
+            # and NO wp0 hold for /ov_msckf/odomimu). HOLD_FOR_TOPIC= (empty)
+            # opts out of the run-vio-stress.sh default hold added in c448de7,
+            # so the square starts right after the normal wp0 corner hold.
             # Run and reported, but non_gating in regression_thresholds.yaml so
             # it does not affect overall PASS/FAIL.
             world=vio_test
@@ -199,6 +202,7 @@ run_flight() {
                 SQUARE_YAW_SPIN=0.7
                 SQUARE_HOLD=0.5
                 SQUARE_TIMEOUT=120.0
+                HOLD_FOR_TOPIC=
             )
             ;;
         wind) world=vio_wind ;;

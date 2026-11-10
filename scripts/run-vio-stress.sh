@@ -3,7 +3,7 @@
 # Prerequisites: odl-sim up with matching WORLD, QGC open, OpenVINS built.
 # Usage:
 #   WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture
-#   WORLD=vio_test SQUARE_SPEED=6 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 \
+#   WORLD=vio_test SQUARE_SPEED=6 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 HOLD_FOR_TOPIC= \
 #     ./scripts/run-vio-stress.sh faster_motion_aggressive
 #   WORLD=vio_wind ./scripts/run-vio-stress.sh wind
 #
@@ -11,6 +11,8 @@
 #   BAG_DURATION (default 100)
 #   GZ_WORLD for vio.launch (default: $WORLD or vio_test)
 #   SQUARE_SPEED, SQUARE_YAW_SPIN, SQUARE_YAW_SPIN_AFTER, SQUARE_HOLD, SQUARE_TIMEOUT
+#   HOLD_FOR_TOPIC (unset = hold wp0 for /ov_msckf/odomimu; set empty = no hold,
+#     used by faster_motion_aggressive), HOLD_FOR_TOPIC_TIMEOUT (default 20.0)
 #   FLIGHT_CMD overrides the constructed flight command entirely
 set -euo pipefail
 

@@ -455,8 +455,11 @@ Results dirs: `/data/results/vio_stress_<scenario>_20261109_*`.
 The gated `faster_motion` scenario in `./scripts/run-regression.sh` is milder
 than the original stress: yaw 0.35 rad/s, hold 2.0 s, spin only after wp0, and
 the `gz_x500_mono_cam_fast_motion` OpenVINS overlay. The original aggressive
-profile (yaw 0.7 rad/s, hold 0.5 s, spin from takeoff) is also run by
-`run-regression.sh` as `faster_motion_aggressive`. It is scored and listed in
+profile (yaw 0.7 rad/s, hold 0.5 s, spin from takeoff, no wp0 VIO hold) is
+also run by `run-regression.sh` as `faster_motion_aggressive`. That scenario
+passes `HOLD_FOR_TOPIC=` (empty) so it does not get the default wp0 hold for
+`/ov_msckf/odomimu` that every other scenario has had since `c448de7`; it is the
+pre-`c448de7` profile. It is scored and listed in
 the report, but `non_gating: true` in `config/regression_thresholds.yaml` so it
 does not affect overall PASS/FAIL.
 
@@ -467,7 +470,7 @@ WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.35 SQUARE_HOLD=2.0 \
 
 # Original aggressive profile (reported, does not gate overall):
 WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 \
-  SQUARE_TIMEOUT=120.0 ./scripts/run-vio-stress.sh faster_motion_aggressive
+  SQUARE_TIMEOUT=120.0 HOLD_FOR_TOPIC= ./scripts/run-vio-stress.sh faster_motion_aggressive
 ```
 
 **Low-texture OpenVINS overlay** (does not change the `vio_test` default config):

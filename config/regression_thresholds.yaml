@@ -50,7 +50,8 @@ scenarios:
     vio_umeyama_xy_rmse_max: 0.42
     vio_umeyama_3d_rmse_max: 0.44
   faster_motion_aggressive:
-    # Original profile (yaw 0.7 rad/s, hold 0.5 s, spin not delayed).
+    # Original profile (yaw 0.7 rad/s, hold 0.5 s, spin not delayed, no wp0
+    # hold for /ov_msckf/odomimu: run-regression.sh passes HOLD_FOR_TOPIC=).
     # Reported with the same numeric checks as gated faster_motion, but
     # non_gating: a fail here does not fail overall regression.
     non_gating: true
