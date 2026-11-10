@@ -55,6 +55,15 @@ if [ -z "${FLIGHT_CMD:-}" ]; then
     [ -n "${SQUARE_YAW_SPIN_AFTER:-}" ] && ROS_ARGS+=(-p "yaw_spin_after_wp:=${SQUARE_YAW_SPIN_AFTER}")
     [ -n "${SQUARE_HOLD:-}" ] && ROS_ARGS+=(-p "corner_hold_time:=${SQUARE_HOLD}")
     [ -n "${SQUARE_TIMEOUT:-}" ] && ROS_ARGS+=(-p "mission_timeout:=${SQUARE_TIMEOUT}")
+    # Stay at wp0 until OpenVINS odom exists (or timeout). Fixes late mid-air
+    # init on low_texture (cal 20261109_224426) without waiting on the ground.
+    if [ -z "${HOLD_FOR_TOPIC+x}" ]; then
+        HOLD_FOR_TOPIC="/ov_msckf/odomimu"
+    fi
+    if [ -n "${HOLD_FOR_TOPIC}" ]; then
+        ROS_ARGS+=(-p "hold_for_topic:=${HOLD_FOR_TOPIC}")
+        ROS_ARGS+=(-p "hold_for_topic_timeout:=${HOLD_FOR_TOPIC_TIMEOUT:-20.0}")
+    fi
     # Normalize bare integers to floats for all -p values we add
     _norm=()
     for a in "${ROS_ARGS[@]+"${ROS_ARGS[@]}"}"; do

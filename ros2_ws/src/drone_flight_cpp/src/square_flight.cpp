@@ -21,6 +21,7 @@
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <algorithm>
@@ -53,6 +54,12 @@ public:
     yaw_spin_rate_ = declare_parameter("yaw_spin_rate", 0.0);
     // If >0, only apply yaw_spin after this corner index (1 = after hover wp0).
     yaw_spin_after_wp_ = declare_parameter("yaw_spin_after_wp", 0);
+    // Optional: stay at wp0 after the normal corner hold until this topic
+    // has published (OpenVINS /ov_msckf/odomimu). Prevents departing the
+    // hover for the square before VIO has initialised (cal bag 20261109_224426
+    // inited 1.1 s after leaving wp0, mid-translation, then diverged).
+    hold_for_topic_ = declare_parameter("hold_for_topic", std::string(""));
+    hold_for_topic_timeout_ = declare_parameter("hold_for_topic_timeout", 20.0);
 
     // Bound aggressive stress params (PX4 MPC_XY_VEL_MAX is typically ~12; keep
     // a safer sim cap so corners remain reachable). Clamp with warning.
@@ -108,14 +115,31 @@ public:
       "/fmu/out/vehicle_local_position_v1", qos_px4,
       [this](px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {vehicle_local_position_ = msg;});
 
+    if (!hold_for_topic_.empty()) {
+      // OV odom is typically BEST_EFFORT (sensor data), not the PX4 TRANSIENT_LOCAL QoS.
+      rclcpp::QoS qos_vio(10);
+      qos_vio.best_effort();
+      hold_for_topic_sub_ = create_subscription<nav_msgs::msg::Odometry>(
+        hold_for_topic_, qos_vio,
+        [this](nav_msgs::msg::Odometry::SharedPtr) {
+          if (!hold_for_topic_seen_) {
+            hold_for_topic_seen_ = true;
+            RCLCPP_INFO(get_logger(), "Received first message on %s", hold_for_topic_.c_str());
+          }
+        });
+    }
+
     timer_ = create_wall_timer(50ms, std::bind(&SquareFlightNode::controlLoop, this));
 
     RCLCPP_INFO(
       get_logger(),
       "Square flight (C++ OFFBOARD): side=%.1fm, alt=%.1fm, hold=%.1fs, timeout=%.0fs, "
-      "cruise_speed=%.1fm/s, yaw_spin=%.2f rad/s, yaw_spin_after_wp=%d",
+      "cruise_speed=%.1fm/s, yaw_spin=%.2f rad/s, yaw_spin_after_wp=%d, "
+      "hold_for_topic=%s timeout=%.1fs",
       square_side_, altitude_, corner_hold_time_, mission_timeout_, cruise_speed_,
-      yaw_spin_rate_, yaw_spin_after_wp_);
+      yaw_spin_rate_, yaw_spin_after_wp_,
+      hold_for_topic_.empty() ? "(none)" : hold_for_topic_.c_str(),
+      hold_for_topic_timeout_);
   }
 
 private:
@@ -367,7 +391,25 @@ private:
               get_logger(), "Reached waypoint %zu: (%.1f, %.1f, %.1f)", corner_index_, wp[0],
               wp[1], wp[2]);
           }
-          if (std::chrono::duration<double>(now - *corner_arrival_).count() >= corner_hold_time_) {
+          const double held = std::chrono::duration<double>(now - *corner_arrival_).count();
+          if (held >= corner_hold_time_) {
+            // wp0 only: wait for VIO odom so we do not start the square mid-init.
+            if (corner_index_ == 0 && !hold_for_topic_.empty() && !hold_for_topic_seen_) {
+              if (held < corner_hold_time_ + hold_for_topic_timeout_) {
+                if (hold_for_topic_waits_++ % 40 == 0) {
+                  RCLCPP_INFO(
+                    get_logger(),
+                    "Holding waypoint 0 for %s (%.1fs of %.1fs extra)",
+                    hold_for_topic_.c_str(), held - corner_hold_time_, hold_for_topic_timeout_);
+                }
+                break;
+              }
+              RCLCPP_ERROR(
+                get_logger(),
+                "Timed out waiting for %s after extra %.1fs at waypoint 0; continuing",
+                hold_for_topic_.c_str(), hold_for_topic_timeout_);
+              hold_for_topic_seen_ = true;  // do not warn again
+            }
             corner_arrival_.reset();
             ++corner_index_;
             if (corner_index_ >= waypoints_.size()) {
@@ -411,6 +453,10 @@ private:
   double cruise_speed_{0.0};
   double yaw_spin_rate_{0.0};
   int yaw_spin_after_wp_{0};
+  std::string hold_for_topic_;
+  double hold_for_topic_timeout_{20.0};
+  bool hold_for_topic_seen_{false};
+  int hold_for_topic_waits_{0};
 
   std::vector<std::array<float, 3>> waypoints_;
   State state_{State::Init};
@@ -431,6 +477,7 @@ private:
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr vehicle_command_pub_;
   rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr status_sub_;
   rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr position_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr hold_for_topic_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 
