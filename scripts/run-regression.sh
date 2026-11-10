@@ -47,14 +47,20 @@ fi
 mkdir -p "${REPORT_HOST}" "${REPO_DIR}/logs"
 START_EPOCH="$(date +%s)"
 REG_STARTED_QGC=0
+QGC_PID=""
 
 cleanup() {
     local ec=$?
     "${REPO_DIR}/scripts/stop-all.sh" >/dev/null 2>&1 || true
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
-    if [ "${REG_STARTED_QGC:-0}" = "1" ]; then
-        pkill -f 'QGroundControl-x86_64.AppImage' >/dev/null 2>&1 || true
-        echo "[REG] stopped QGC started by this regression run"
+    # Kill only the QGC process this script started. pkill -f on the
+    # AppImage name misses the extracted binary
+    # (/tmp/.mount_QGroun*/usr/bin/QGroundControl) and can leave it running.
+    if [ "${REG_STARTED_QGC:-0}" = "1" ] && [ -n "${QGC_PID:-}" ]; then
+        if kill -0 "${QGC_PID}" >/dev/null 2>&1; then
+            kill "${QGC_PID}" >/dev/null 2>&1 || true
+            echo "[REG] stopped QGC pid ${QGC_PID} started by this regression run"
+        fi
     fi
     exit "${ec}"
 }
@@ -115,6 +121,7 @@ if [ "${#FLIGHTS[@]}" -gt 0 ] && ! pgrep -af QGroundControl >/dev/null 2>&1; the
     echo "[WARN] QGroundControl not detected; trying AppImage..."
     if [ -x "${HOME}/Applications/QGroundControl-x86_64.AppImage" ]; then
         nohup "${HOME}/Applications/QGroundControl-x86_64.AppImage" >/tmp/qgc-regression.log 2>&1 &
+        QGC_PID=$!
         REG_STARTED_QGC=1
         sleep 5
     fi
