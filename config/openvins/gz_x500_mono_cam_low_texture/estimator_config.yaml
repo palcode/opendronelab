@@ -45,7 +45,12 @@ init_imu_thresh: 0.5
 init_max_disparity: 5.0
 init_max_features: 50
 
-init_dyn_use: true
+# low_texture only (ODL-76, approved 2026-11-11): no dynamic init. On this
+# world dynamic init cannot succeed during the climb (36 of 48 required
+# features) and only succeeds later in a motionless wp0 hover, where it is
+# ill-conditioned and diverged in 6/6 runs. Static init at the takeoff jerk is
+# the only good init; run-vio-stress.sh lands and retries if it is missed.
+init_dyn_use: false
 init_dyn_mle_opt_calib: false
 init_dyn_mle_max_iter: 100
 init_dyn_mle_max_time: 0.15
