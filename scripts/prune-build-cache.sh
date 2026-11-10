@@ -4,7 +4,8 @@
 # Safe to call from stop-all; no-ops when cache is already under the cap.
 set -euo pipefail
 
-KEEP_STORAGE="${KEEP_STORAGE:-20gb}"
+# docker buildx du reports decimal SI units (1000). Match that for the cap.
+MAX_USED_SPACE="${MAX_USED_SPACE:-20gb}"
 
 if ! command -v docker >/dev/null 2>&1; then
     echo "[INFO] docker not available; skip build-cache prune"
@@ -19,25 +20,25 @@ if [ -z "${TOTAL_RAW}" ] || [ "${TOTAL_RAW}" = "0B" ] || [ "${TOTAL_RAW}" = "0" 
     exit 0
 fi
 
-# Convert to bytes (handles B/KB/MB/GB/TB from docker)
+# Convert to bytes using decimal SI (1000) to match `docker buildx du`.
 bytes="$(python3 - << PY
-import re, sys
+import re
 s = "${TOTAL_RAW}".strip()
 m = re.match(r'^([0-9.]+)\s*([KMGT]?B?)$', s, re.I)
 if not m:
     print(0); raise SystemExit
 val = float(m.group(1)); unit = m.group(2).upper().rstrip('B') or ''
-mult = {'': 1, 'K': 1024, 'M': 1024**2, 'G': 1024**3, 'T': 1024**4}.get(unit, 1)
+mult = {'': 1, 'K': 1000, 'M': 1000**2, 'G': 1000**3, 'T': 1000**4}.get(unit, 1)
 print(int(val * mult))
 PY
 )"
 
-CAP_BYTES=$((20 * 1024 * 1024 * 1024))
+CAP_BYTES=$((20 * 1000 * 1000 * 1000))
 if [ "${bytes}" -le "${CAP_BYTES}" ]; then
-    echo "[INFO] build cache ${TOTAL_RAW} <= ${KEEP_STORAGE}; skip prune"
+    echo "[INFO] build cache ${TOTAL_RAW} <= ${MAX_USED_SPACE}; skip prune"
     exit 0
 fi
 
-echo "[INFO] build cache ${TOTAL_RAW} > ${KEEP_STORAGE}; pruning (images untouched)..."
-docker builder prune --keep-storage "${KEEP_STORAGE}" -f
+echo "[INFO] build cache ${TOTAL_RAW} > ${MAX_USED_SPACE}; pruning (images untouched)..."
+docker buildx prune --max-used-space "${MAX_USED_SPACE}" -f
 echo "[INFO] build-cache prune done"
