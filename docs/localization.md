@@ -534,6 +534,18 @@ Image: `opendronelab-dev:phase5-clean` (= `:latest`), rollback `:phase4c-vio`.
 
 **Mid-flight VIO translation snaps (2026-11-10 Asia/Calcutta):** Bags `20261110_102931` (baseline, scored under run `20261110_102858`, VIO xy 0.791 m), `20261110_104942` (low_texture, run `20261110_104920`, 1.318 m), and cal `20261109_223318` (3.844 m) share one failure mode. Init is healthy (local first-10 s SE(3) xy ~0.04–0.06 m on the baseline/cal bags). Mid-flight the estimate jumps 0.7–1.7 m in ~4–6 ms with almost no yaw change; `cov_xy` is already inflated (~0.8–1.6) and drops after the update. `try_zupt` is already false, so this is not a mid-flight ZUPT. After the snap the path is locally consistent again, so a single Umeyama over the whole flight looks huge. Hypothesis: a batch of MSCKF/SLAM features passed the default chi² gate while P was large and yanked position. Cautious retune tried `up_msckf_chi2_multipler` and `up_slam_chi2_multipler` 1 → 0.5 on all three sim overlays. Regression gates are unchanged. Isolated verification (11:13–11:47 IST): baseline 5/5 PASS (0.353, 0.510, 0.218, 0.192, 0.678; gate 0.70); low_texture 1/5 PASS (123.09, 244.37, 0.265, nan/`ov_published=false`, 352.96; gate 0.55) — worse than the pre-retune 3/5; faster_motion 0.176 PASS; wind 0.305 PASS. A later full run (`regression_20261110_115313`) still had a baseline snap (VIO xy 1.975). **chi² 0.5 is now baseline-only** (`gz_x500_mono_cam`). The low_texture and faster_motion overlays were restored to 1 because 0.5 made low_texture diverge. No further OpenVINS knob iteration.
 
+## Known limitations
+
+- **low_texture VIO (OpenVINS) is unreliable right now** (decision 2026-11-11
+  00:02 IST: keep as a known limitation for now). In the N=5 calibration at
+  `0088a85` it passed 1/5. The failures were VIO blow-ups of 1.64 m, 148 m and
+  363 m, plus one run with no VIO estimate (`vio_init_timeout=true`); see
+  "N=5 gate re-check" below. EKF2/GPS stayed fine in all five runs.
+  `low_texture` **stays gated** and its VIO xy limit **stays 0.55 m**, so a
+  full `./scripts/run-regression.sh` is expected to FAIL on `low_texture`
+  until this is fixed. No gate, script or OpenVINS setting was changed for
+  this note.
+
 ## References
 
 - **PX4 EKF2:** https://docs.px4.io/v1.17/en/advanced_config/tuning_the_ecl_ekf.html
