@@ -643,3 +643,84 @@ the airborne mask leaves 0 scored samples, so every gated scenario also checks
 `vio_origin_samples >= vio_origin_samples_min` (500, from `defaults`); if that
 key were ever dropped, the judge falls back to `>= 1` for gated scenarios.
 Covered by `drone_localization/test/test_judge_regression.py`.
+
+## N=5 gate re-check after c448de7 and the chi² change (2026-11-10 Asia/Calcutta)
+
+Review 1ada893..bf94d72 item 2. Five isolated flights per gated scenario,
+22:52–23:52 IST, code at `0088a85`, run one at a time with
+`SKIP_PYTEST=1 SCENARIOS=<one> ./scripts/run-regression.sh` (round-robin
+baseline → low_texture → faster_motion → wind, ×5; fresh SITL per flight,
+`GZ_SEED=1234`, `EKF2_EV_CTRL=0`, GstCamera off, VIO shadow, unique bag per
+flight). Driver, logs, `runs.json` and `tables.md`:
+`/data/results/n5_cal_20261110_225222/`. Gates were **not** changed.
+
+**Caveats:**
+
+- The gates in `config/regression_thresholds.yaml` were calibrated on
+  2026-11-09 (3 flights per scenario) **before** `c448de7` (every stress
+  flight now holds wp0 until `/ov_msckf/odomimu` publishes, timeout 20 s)
+  and **before** the chi² change (`114c033`, `bf94d72`).
+- `up_msckf_chi2_multipler` / `up_slam_chi2_multipler` = **0.5 on the baseline
+  overlay only** (`gz_x500_mono_cam`). The `low_texture` and `fast_motion`
+  overlays use **1**. Baseline and stress numbers are therefore **not from the
+  same estimator settings** and should not be compared as if they were.
+- chi² 0.5 was chosen from only a handful of bags (3 snap bags plus 5 isolated
+  baseline flights), so there is a real **overfitting risk**. Five more
+  baseline passes are encouraging, not proof.
+- N=5 is still small; the std values below are rough.
+
+**Per-run results** (Umeyama SE3 xy RMSE, metres):
+
+| Scenario | Run | Bag | VIO xy | EKF2 xy | Verdict | ov_published | vio_init_timeout | Failed checks |
+|---|---|---|---|---|---|---|---|---|
+| baseline | 1 | `20261110_225312` | 0.439 | 0.261 | PASS | True | False | — |
+| low_texture | 1 | `20261110_225609` | 363.388 | 0.253 | FAIL | True | False | vio_umeyama_xy_rmse, vio_umeyama_3d_rmse |
+| faster_motion | 1 | `20261110_225906` | 0.141 | 0.381 | PASS | True | False | — |
+| wind | 1 | `20261110_230200` | 0.365 | 0.258 | PASS | True | False | — |
+| baseline | 2 | `20261110_230459` | 0.395 | 0.255 | PASS | True | False | — |
+| low_texture | 2 | `20261110_230755` | 1.640 | 0.247 | FAIL | True | False | vio_umeyama_xy_rmse, vio_umeyama_3d_rmse |
+| faster_motion | 2 | `20261110_231056` | 0.141 | 0.398 | PASS | True | False | — |
+| wind | 2 | `20261110_231355` | 0.279 | 0.261 | PASS | True | False | — |
+| baseline | 3 | `20261110_231650` | 0.184 | 0.265 | PASS | True | False | — |
+| low_texture | 3 | `20261110_231951` | 0.223 | 0.252 | PASS | True | False | — |
+| faster_motion | 3 | `20261110_232254` | 0.201 | 0.398 | PASS | True | False | — |
+| wind | 3 | `20261110_232600` | 0.627 | 0.259 | PASS | True | False | — |
+| baseline | 4 | `20261110_232854` | 0.318 | 0.265 | PASS | True | False | — |
+| low_texture | 4 | `20261110_233143` | 147.903 | 0.243 | FAIL | True | False | vio_umeyama_xy_rmse, vio_umeyama_3d_rmse |
+| faster_motion | 4 | `20261110_233445` | 0.189 | 0.394 | PASS | True | False | — |
+| wind | 4 | `20261110_233745` | 0.469 | 0.261 | PASS | True | False | — |
+| baseline | 5 | `20261110_234044` | 0.164 | 0.259 | PASS | True | False | — |
+| low_texture | 5 | `20261110_234341` | — | 0.201 | FAIL | False | True | ov_published, vio_umeyama_xy_rmse, vio_umeyama_3d_rmse, vio_origin_samples |
+| faster_motion | 5 | `20261110_234631` | 0.164 | 0.385 | PASS | True | False | — |
+| wind | 5 | `20261110_234938` | 0.807 | 0.263 | PASS | True | False | — |
+
+**Summary** (std = sample std; low_texture VIO stats exclude r5, which had no
+VIO estimate):
+
+| Scenario | Pass | VIO xy mean ± std | VIO xy min / max | EKF2 xy mean ± std | EKF2 xy min / max | VIO xy gate |
+|---|---|---|---|---|---|---|
+| baseline | 5/5 | 0.300 ± 0.123 (n=5) | 0.164 / 0.439 | 0.261 ± 0.004 (n=5) | 0.255 / 0.265 | 0.7 |
+| low_texture | 1/5 | 128.288 ± 171.364 (n=4) | 0.223 / 363.388 | 0.239 ± 0.022 (n=5) | 0.201 / 0.253 | 0.55 |
+| faster_motion | 5/5 | 0.167 ± 0.027 (n=5) | 0.141 / 0.201 | 0.391 ± 0.008 (n=5) | 0.381 / 0.398 | 0.42 |
+| wind | 5/5 | 0.509 ± 0.211 (n=5) | 0.279 / 0.807 | 0.261 ± 0.002 (n=5) | 0.258 / 0.263 | 1.85 |
+
+**Reading:**
+
+- **baseline 5/5** (max 0.439 vs gate 0.70). No mid-flight snap this time.
+- **faster_motion 5/5** (max 0.201 vs gate 0.42). EKF2 xy max 0.398 vs gate 0.60.
+- **wind 5/5** (max 0.807 vs gate 1.85).
+- **low_texture 1/5.** Every failure is VIO. EKF2 was healthy in all five (max
+  0.253 vs gate 0.38). r1 (363 m) and r4 (148 m) blew up. r2 (1.64 m) drifted.
+  r5 never published VIO: `vio_init_timeout=true`, `ov_published=false`, 0
+  scored samples, so the new `vio_init_timeout` and min-sample checks caught
+  it. This matches earlier low_texture results (3/5 before the retune, 1/5
+  with chi² 0.5, 1/3 after the revert to 1). Low_texture VIO is unreliable
+  with the current overlay and world. It is not a gate-calibration problem.
+
+**Proposal only (not applied; needs Pallab's OK):** leave all gates as they
+are. Don't widen low_texture: a 0.55 m gate that real 148–363 m divergences
+fail is doing its job. Options for Pallab: (a) mark `low_texture`
+`non_gating` until its VIO is fixed (that is a gating change), or (b) keep it
+gating and accept that regression fails overall about 4 runs in 5 until a
+low_texture VIO fix lands. Don't tighten the baseline, faster_motion or wind
+gates from N=5 alone.
