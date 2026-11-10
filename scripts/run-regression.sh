@@ -48,20 +48,59 @@ mkdir -p "${REPORT_HOST}" "${REPO_DIR}/logs"
 START_EPOCH="$(date +%s)"
 REG_STARTED_QGC=0
 QGC_PID=""
+QGC_PGID=""
+
+# Extracted QGC binaries in the process group/session we started.
+qgc_ours() {
+    local pid
+    for pid in $(pgrep -f '/tmp/\.mount_QGroun[^/]*/usr/bin/QGroundControl' 2>/dev/null); do
+        if [ "$(ps -o pgid= -p "${pid}" 2>/dev/null | tr -d ' ')" = "${QGC_PGID}" ] \
+            || [ "$(ps -o sid= -p "${pid}" 2>/dev/null | tr -d ' ')" = "${QGC_PGID}" ]; then
+            echo "${pid}"
+        fi
+    done
+}
+
+stop_our_qgc() {
+    # Kill only the QGC this script started. $! is the AppImage runtime;
+    # the real binary is extracted to /tmp/.mount_QGroun*/usr/bin/QGroundControl
+    # and can outlive it. QGC was started with setsid, so it leads its own
+    # process group (pgid == QGC_PID) and we signal that whole group.
+    [ "${REG_STARTED_QGC:-0}" = "1" ] && [ -n "${QGC_PID:-}" ] || return 0
+    local i left pid
+    if [ -z "${QGC_PGID:-}" ] || [ "${QGC_PGID}" != "${QGC_PID}" ]; then
+        # Not a group leader: old behaviour, our pid only.
+        kill "${QGC_PID}" >/dev/null 2>&1 && echo "[REG] stopped QGC pid ${QGC_PID} (no own process group)"
+        return 0
+    fi
+    kill -TERM -- "-${QGC_PGID}" >/dev/null 2>&1 || true
+    for i in $(seq 1 10); do
+        left="$(qgc_ours)"
+        if [ -z "${left}" ] && ! kill -0 "${QGC_PID}" >/dev/null 2>&1; then
+            echo "[REG] stopped QGC (pgid ${QGC_PGID}) started by this regression run"
+            return 0
+        fi
+        sleep 0.5
+    done
+    echo "[REG] QGC (pgid ${QGC_PGID}) still running after TERM; sending KILL to its group"
+    kill -KILL -- "-${QGC_PGID}" >/dev/null 2>&1 || true
+    for pid in $(qgc_ours); do
+        kill -KILL "${pid}" >/dev/null 2>&1 || true
+    done
+    sleep 0.5
+    left="$(qgc_ours)"
+    if [ -n "${left}" ]; then
+        echo "[WARN] extracted QGroundControl still running: ${left}" >&2
+    else
+        echo "[REG] stopped QGC (pgid ${QGC_PGID}) after KILL"
+    fi
+}
 
 cleanup() {
     local ec=$?
     "${REPO_DIR}/scripts/stop-all.sh" >/dev/null 2>&1 || true
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
-    # Kill only the QGC process this script started. pkill -f on the
-    # AppImage name misses the extracted binary
-    # (/tmp/.mount_QGroun*/usr/bin/QGroundControl) and can leave it running.
-    if [ "${REG_STARTED_QGC:-0}" = "1" ] && [ -n "${QGC_PID:-}" ]; then
-        if kill -0 "${QGC_PID}" >/dev/null 2>&1; then
-            kill "${QGC_PID}" >/dev/null 2>&1 || true
-            echo "[REG] stopped QGC pid ${QGC_PID} started by this regression run"
-        fi
-    fi
+    stop_our_qgc
     exit "${ec}"
 }
 trap cleanup EXIT INT TERM
@@ -121,10 +160,21 @@ REG_STARTED_QGC=0
 if [ "${#FLIGHTS[@]}" -gt 0 ] && ! pgrep -af QGroundControl >/dev/null 2>&1; then
     echo "[WARN] QGroundControl not detected; trying AppImage..."
     if [ -x "${HOME}/Applications/QGroundControl-x86_64.AppImage" ]; then
-        nohup "${HOME}/Applications/QGroundControl-x86_64.AppImage" >/tmp/qgc-regression.log 2>&1 &
+        # setsid: new session + process group led by $! so cleanup can kill
+        # the AppImage runtime and the extracted QGroundControl together.
+        # (A background child of a non-interactive script is not a group
+        # leader, so setsid execs in place and $! is the group leader.)
+        setsid nohup "${HOME}/Applications/QGroundControl-x86_64.AppImage" >/tmp/qgc-regression.log 2>&1 &
         QGC_PID=$!
         REG_STARTED_QGC=1
         sleep 5
+        QGC_PGID="$(ps -o pgid= -p "${QGC_PID}" 2>/dev/null | tr -d ' ')"
+        if [ "${QGC_PGID}" != "${QGC_PID}" ]; then
+            # Never signal a group we do not lead (could be this script's own).
+            echo "[WARN] QGC pgid '${QGC_PGID}' != pid ${QGC_PID}; cleanup falls back to killing pid ${QGC_PID} only" >&2
+            QGC_PGID=""
+        fi
+        echo "[REG] started QGC pid ${QGC_PID} (pgid ${QGC_PGID})"
     fi
 fi
 
