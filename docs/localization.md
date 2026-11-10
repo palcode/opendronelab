@@ -473,6 +473,16 @@ WORLD=vio_test SQUARE_SPEED=6.0 SQUARE_YAW_SPIN=0.7 SQUARE_HOLD=0.5 \
   SQUARE_TIMEOUT=120.0 HOLD_FOR_TOPIC= ./scripts/run-vio-stress.sh faster_motion_aggressive
 ```
 
+**wp0 VIO hold and `vio_init_timeout`:** since `c448de7`, `run-vio-stress.sh`
+passes `hold_for_topic:=/ov_msckf/odomimu` (timeout `HOLD_FOR_TOPIC_TIMEOUT`,
+default 20 s), so `square_flight_cpp` stays at wp0 until OpenVINS publishes. If
+the hold times out the flight still continues, but the node records it in
+`<summary_dir>/flight_status.json` (`status_file` param), and the scorer copies
+it into `summary.json` as `vio_init_timeout: true` (`false` otherwise, including
+scenarios with no hold). The regression report shows `vio_init_timeout=` in each
+row and adds a note under a failed scenario when it is true. It is reported only,
+not a gate.
+
 **Low-texture OpenVINS overlay** (does not change the `vio_test` default config):
 ```bash
 WORLD=vio_low_texture ./scripts/run-vio-stress.sh low_texture

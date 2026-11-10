@@ -66,6 +66,8 @@ if [ -z "${FLIGHT_CMD:-}" ]; then
         ROS_ARGS+=(-p "hold_for_topic:=${HOLD_FOR_TOPIC}")
         ROS_ARGS+=(-p "hold_for_topic_timeout:=${HOLD_FOR_TOPIC_TIMEOUT:-20.0}")
     fi
+    # Flight status (vio_init_timeout) merged into summary.json below.
+    ROS_ARGS+=(-p "status_file:=${SUMMARY_DIR}/flight_status.json")
     # Normalize bare integers to floats for all -p values we add
     _norm=()
     for a in "${ROS_ARGS[@]+"${ROS_ARGS[@]}"}"; do
@@ -204,12 +206,19 @@ def ape_rmse(path):
 ekf2 = json.loads((out/'metrics_ekf2.json').read_text())
 vio_path = out/'metrics_vio.json'
 vio = json.loads(vio_path.read_text()) if vio_path.exists() else {}
+# square_flight_cpp status_file: vio_init_timeout true when the wp0 hold for
+# /ov_msckf/odomimu timed out (OpenVINS never published before the square).
+status_path = out/'flight_status.json'
+status = json.loads(status_path.read_text()) if status_path.exists() else {}
 # OV publish check from bag sample count
 summary = {
   'scenario': '${SCENARIO}',
   'gz_world': '${GZ_WORLD}',
   'bag': '${BAG}',
   'mission': '${MISSION}',
+  'vio_init_timeout': bool(status.get('vio_init_timeout', False)),
+  'hold_for_topic': status.get('hold_for_topic'),
+  'flight_status_found': status_path.exists(),
   'ov_published': bool(vio.get('estimate_count', 0) > 0 or vio.get('num_samples', 0) > 0),
   'ekf2_origin_h_rmse': ekf2.get('horizontal_rmse'),
   'ekf2_origin_v_rmse': ekf2.get('vertical_rmse'),

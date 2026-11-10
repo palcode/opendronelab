@@ -335,6 +335,7 @@ for j in judges:
     else:
         detail = (
             f"mission={s.get('mission')} ov={s.get('ov_published')} "
+            f"vio_init_timeout={s.get('vio_init_timeout')} "
             f"EKF2 xy/3D={s.get('ekf2_umeyama_xy_rmse')}/{s.get('ekf2_umeyama_3d_rmse')} "
             f"VIO xy/3D={s.get('vio_umeyama_xy_rmse')}/{s.get('vio_umeyama_3d_rmse')} "
             f"origin H/V={s.get('ekf2_origin_h_rmse')}/{s.get('ekf2_origin_v_rmse')}"
@@ -386,6 +387,11 @@ def _failed_section(title, items):
         for c in j.get("checks") or []:
             if not c.get("pass"):
                 lines.append(f"- `{c['name']}`: {c['detail']}")
+        if (j.get("summary") or {}).get("vio_init_timeout"):
+            lines.append(
+                "- note: `vio_init_timeout=true`: OpenVINS never published "
+                "`/ov_msckf/odomimu` during the wp0 hold; the square started without VIO"
+            )
         if j.get("error"):
             lines.append(f"- error: {j['error']}")
         lines.append("")

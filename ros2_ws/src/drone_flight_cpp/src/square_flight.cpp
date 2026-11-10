@@ -28,6 +28,8 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <fstream>
 #include <optional>
 #include <stdexcept>
 #include <limits>
@@ -60,6 +62,10 @@ public:
     // inited 1.1 s after leaving wp0, mid-translation, then diverged).
     hold_for_topic_ = declare_parameter("hold_for_topic", std::string(""));
     hold_for_topic_timeout_ = declare_parameter("hold_for_topic_timeout", 20.0);
+    // Optional: small JSON status file for the scorer (run-vio-stress.sh
+    // merges it into summary.json). Records vio_init_timeout so a regression
+    // report can explain a VIO fail where OpenVINS never published at wp0.
+    status_file_ = declare_parameter("status_file", std::string(""));
 
     // Bound aggressive stress params (PX4 MPC_XY_VEL_MAX is typically ~12; keep
     // a safer sim cap so corners remain reachable). Clamp with warning.
@@ -122,13 +128,22 @@ public:
       hold_for_topic_sub_ = create_subscription<nav_msgs::msg::Odometry>(
         hold_for_topic_, qos_vio,
         [this](nav_msgs::msg::Odometry::SharedPtr) {
-          if (!hold_for_topic_seen_) {
-            hold_for_topic_seen_ = true;
-            RCLCPP_INFO(get_logger(), "Received first message on %s", hold_for_topic_.c_str());
+          if (!hold_for_topic_received_) {
+            hold_for_topic_received_ = true;
+            if (!hold_for_topic_seen_) {
+              hold_for_topic_seen_ = true;
+              RCLCPP_INFO(get_logger(), "Received first message on %s", hold_for_topic_.c_str());
+            } else {
+              RCLCPP_WARN(
+                get_logger(), "First message on %s arrived after the wp0 hold timeout",
+                hold_for_topic_.c_str());
+            }
+            writeStatus();
           }
         });
     }
 
+    writeStatus();
     timer_ = create_wall_timer(50ms, std::bind(&SquareFlightNode::controlLoop, this));
 
     RCLCPP_INFO(
@@ -144,6 +159,33 @@ public:
 
 private:
   enum class State { Init, Preflight, Arming, Flying, Landing, Complete };
+
+  // Write {hold_for_topic, hold_for_topic_received, vio_init_timeout} to
+  // status_file_ (atomic tmp + rename). No-op when status_file is empty.
+  void writeStatus()
+  {
+    if (status_file_.empty()) {
+      return;
+    }
+    const std::string tmp = status_file_ + ".tmp";
+    {
+      std::ofstream out(tmp, std::ios::trunc);
+      if (!out) {
+        RCLCPP_WARN(get_logger(), "Cannot write status_file %s", status_file_.c_str());
+        return;
+      }
+      out << "{\n"
+          << "  \"hold_for_topic\": \"" << hold_for_topic_ << "\",\n"
+          << "  \"hold_for_topic_timeout\": " << hold_for_topic_timeout_ << ",\n"
+          << "  \"hold_for_topic_received\": " << (hold_for_topic_received_ ? "true" : "false")
+          << ",\n"
+          << "  \"vio_init_timeout\": " << (vio_init_timeout_ ? "true" : "false") << "\n"
+          << "}\n";
+    }
+    if (std::rename(tmp.c_str(), status_file_.c_str()) != 0) {
+      RCLCPP_WARN(get_logger(), "Cannot rename %s -> %s", tmp.c_str(), status_file_.c_str());
+    }
+  }
 
   uint64_t nowUs() const
   {
@@ -409,6 +451,8 @@ private:
                 "Timed out waiting for %s after extra %.1fs at waypoint 0; continuing",
                 hold_for_topic_.c_str(), hold_for_topic_timeout_);
               hold_for_topic_seen_ = true;  // do not warn again
+              vio_init_timeout_ = true;
+              writeStatus();
             }
             corner_arrival_.reset();
             ++corner_index_;
@@ -456,6 +500,9 @@ private:
   std::string hold_for_topic_;
   double hold_for_topic_timeout_{20.0};
   bool hold_for_topic_seen_{false};
+  bool hold_for_topic_received_{false};
+  bool vio_init_timeout_{false};
+  std::string status_file_;
   int hold_for_topic_waits_{0};
 
   std::vector<std::array<float, 3>> waypoints_;
