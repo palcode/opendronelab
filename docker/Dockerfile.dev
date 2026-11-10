@@ -18,14 +18,21 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
 # Keep apt downloads in the BuildKit cache mount across builds.
+# Retry flaky mirror fetches, and make `apt-get update` fail (instead of
+# warning and keeping old lists) if any index cannot be refreshed. A cold
+# phase5-verify build on 2026-11-10 hit a 404 from security.ubuntu.com for
+# perl 5.38.2-3.2ubuntu0.7, which resolved and downloaded fine on retry.
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
     && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
-        > /etc/apt/apt.conf.d/keep-cache
+        > /etc/apt/apt.conf.d/keep-cache \
+    && printf 'Acquire::Retries "5";\nAPT::Update::Error-Mode "any";\n' \
+        > /etc/apt/apt.conf.d/80-odl-robust
 
 # Install base dependencies
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+    rm -rf /var/lib/apt/lists/* \
+    && apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     gnupg \
