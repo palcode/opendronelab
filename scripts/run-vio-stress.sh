@@ -170,6 +170,11 @@ else
     echo "[WARN] Mission failed/timeout"
 fi
 echo "mission=${MISSION}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-mission.txt"
+# Keep the OpenVINS log (init/disparity/feature lines) with the results.
+# Report-only; ~1.5 MB per run; nothing is deleted.
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    cp /tmp/vio-launch.log "${SUMMARY_DIR}/vio-launch.log" 2>/dev/null \
+    || echo "[WARN] could not copy /tmp/vio-launch.log to ${SUMMARY_DIR}"
 wait "${RECORD_PID}" || true
 
 BAG="/data/bags/${STAMP}"
