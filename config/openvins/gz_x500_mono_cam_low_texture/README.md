@@ -15,3 +15,5 @@ Changes vs `gz_x500_mono_cam/` (defaults unchanged there):
 | `init_dyn_min_deg` | 5.0 | 3.0 |
 
 Kalibr chains are copies of the mono_cam sim calibration (same camera).
+
+The propeller-blade camera mask is the same file as in `gz_x500_mono_cam/` (`mask_x500_mono_cam_props.png`, `use_mask: true`). It is not a low-texture-only setting.

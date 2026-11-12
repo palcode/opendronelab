@@ -371,6 +371,21 @@ along +Y world. Use `WORLD=vio_test` (textured corridor + checker tiles along +Y
 featureless for VIO. Kalibr `T_cam_imu` maps IMU/FLU → ROS optical using the SDF
 joint `(0.12, 0.03, 0.242)` m.
 
+**Camera mask:** a propeller-blade mask is enabled on all current SITL VIO
+overlays (`config/openvins/gz_x500_mono_cam/`, `_low_texture`, `_fast_motion`)
+via `use_mask` and `mask_x500_mono_cam_props.png` (1280×960; OpenVINS polarity,
+255 = ignore). The x500 forward camera keeps the spinning blades in view on
+the pad and in hover. A 2026-11-12 diagnostic (`RECORD_CAMERA=1`, bag
+`20261112_201814`, analysis `/data/results/lt_prop_diag_20261112_201740/`)
+showed that after arm, still on the pad, the only moving pixels were those
+blades (Farneback up to 120 px on the blades; background KLT max 0.002 px).
+The mask covers the mid-left and mid-right swept regions plus the upper-left
+mid-hover blade location, dilated by 28 px. The pad and lower-frame ground
+texture are not masked (`y >= 420` is left usable). The same mask is used for
+baseline, low_texture, faster_motion and wind, because they share this
+airframe and camera; `hardware_placeholder` is unchanged. No other OpenVINS
+settings (chi², `init_dyn_use`, tracker parameters) were changed for this.
+
 ### Bring-up
 
 ```bash
@@ -590,9 +605,11 @@ Reading:
   with the vehicle still on the pad (IMU excitation 0.012), the tracker
   still shows spurious 25–33 px disparity. That disparity is in the older
   window when the takeoff jerk arrives. The new pad patch did **not** remove
-  it. Non-binding hypothesis: features on the spinning propellers (it starts
-  after arming). That would need an OpenVINS mask or tracker change, which
-  is not approved, or a camera-frame check (`RECORD_CAMERA=1`).
+  it. A 2026-11-12 `RECORD_CAMERA=1` flight confirmed the spinning propellers
+  as the source (see **Camera mask** above). Pallab approved a camera mask
+  over those blade streaks the same evening; it is now enabled on all current
+  SITL VIO overlays. No other OpenVINS settings were changed. A larger
+  low_texture confirm is still outstanding (ODL-76).
 - The two drift fails (0.65 / 0.97 m) both initialised at liftoff. Before the
   fixes, 13/15 liftoff inits passed; now it is 2/4. That sample is too small
   to tell whether the pad patch affects tracking after it leaves the view.

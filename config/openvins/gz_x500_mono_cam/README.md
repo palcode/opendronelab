@@ -31,3 +31,14 @@ Use `WORLD=vio_test` (props + colored boxes + checker tiles along Gazebo **+Y**)
 PX4 yaw 0 faces +Y; the mono_cam looks body +X, so that is the camera forward
 direction. `detection_test` props sit on +X and leave the forward view nearly
 textureless for VIO.
+
+## Camera mask
+
+`use_mask: true` and `mask_x500_mono_cam_props.png` (copied identically into
+the low_texture and fast_motion overlay directories so each scenario
+fingerprint includes the mask bytes). OpenVINS polarity is 255 = ignore, 0 =
+use. The mask hides the x500 forward-camera propeller blades (mid-left and
+mid-right swept regions plus the mid-hover upper-left blade, dilated 28 px)
+and leaves the pad / lower-frame ground texture unmasked. See
+`docs/localization.md`.
+

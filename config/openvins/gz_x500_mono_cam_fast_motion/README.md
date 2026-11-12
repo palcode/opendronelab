@@ -15,3 +15,5 @@ Leaves `gz_x500_mono_cam/` defaults unchanged.
 | `init_dyn_min_deg` | 5.0 | 3.0 |
 
 Pair with flight knobs: `yaw_spin_after_wp:=1`, `SQUARE_YAW_SPIN=0.35`.
+
+The propeller-blade camera mask is the same file as in `gz_x500_mono_cam/` (`mask_x500_mono_cam_props.png`, `use_mask: true`). It is not a fast-motion-only setting.

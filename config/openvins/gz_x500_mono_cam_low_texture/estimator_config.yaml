@@ -102,7 +102,12 @@ up_slam_chi2_multipler: 1
 up_aruco_sigma_px: 1
 up_aruco_chi2_multipler: 1
 
-use_mask: false
+# Camera mask over the x500 forward-camera propeller blades. OpenVINS
+# polarity: 255 = ignore, 0 = use (see ov_core Grider_FAST). Same airframe
+# camera on all current SITL VIO overlays; not used on hardware_placeholder.
+# Diagnostic: /data/results/lt_prop_diag_20261112_201740/. See docs/localization.md.
+use_mask: true
+mask0: "mask_x500_mono_cam_props.png"
 
 relative_config_imu: "kalibr_imu_chain.yaml"
 relative_config_imucam: "kalibr_imucam_chain.yaml"
