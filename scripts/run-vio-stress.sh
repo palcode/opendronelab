@@ -250,8 +250,10 @@ evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.t
 evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_vio_ape_xy.txt || true
 evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a > ${SUMMARY_DIR}/evo_vio_ape_3d.txt || true
 python3 - <<'PY'
-import json, math, re, pathlib
+import json, math, re, pathlib, sys
 out = pathlib.Path('${SUMMARY_DIR}')
+sys.path.insert(0, '/workspace/scripts')
+from scenario_fingerprint import compute_scenario_fingerprint
 def ape_rmse(path):
     # None (JSON null), not NaN: keep summary.json strict JSON.
     if not path.exists():
@@ -298,6 +300,8 @@ summary = {
   'vio_umeyama_3d_rmse': ape_rmse(out/'evo_vio_ape_3d.txt'),
 }
 summary = {k: json_safe(v) for k, v in summary.items()}
+summary['scenario_fingerprint'] = compute_scenario_fingerprint(
+    '/workspace', '${GZ_WORLD}', '${OV_CONFIG}')
 (out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 print(json.dumps(summary, indent=2))
 PY

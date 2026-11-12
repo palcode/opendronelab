@@ -364,11 +364,16 @@ n_flights = int(os.environ["N_FLIGHTS"])
 if n_flights == 0:
     overall = bool(pytest.get("pass", False))
     overall_pass_at_1 = overall
+    overall_excluding_known_limitations = overall
 else:
     gating = [j for j in judges if not j.get("non_gating")]
     # Every flown scenario must have a judge file; only gating ones affect overall.
     # pass@1 is the same set, but requires each gating scenario to have passed
     # on the first VIO-init attempt (retries would hide a regression).
+    # Known limitations share the non_gating flag (low_texture, and also
+    # faster_motion_aggressive); there is no separate known_limitation key.
+    # overall_excluding_known_limitations uses that same excluded set so a
+    # known-limitation fail cannot hide a baseline regression.
     overall = (
         bool(pytest.get("pass", False))
         and all(j.get("pass") for j in gating)
@@ -379,6 +384,7 @@ else:
         and all(j.get("pass_at_1") for j in gating)
         and len(judges) == n_flights
     )
+    overall_excluding_known_limitations = overall
 
 rows = []
 if not pytest.get("skipped"):
@@ -430,6 +436,11 @@ out = {
     "stamp": stamp,
     "overall_pass": overall,
     "overall_pass_at_1": overall_pass_at_1,
+    "overall_excluding_known_limitations": overall_excluding_known_limitations,
+    "scenario_fingerprints": {
+        j.get("scenario"): (j.get("summary") or {}).get("scenario_fingerprint")
+        for j in judges
+    },
     "elapsed_s": elapsed,
     "gz_seed": int(os.environ["GZ_SEED"]),
     "bag_duration_s": int(os.environ["BAG_DURATION"]),
@@ -449,6 +460,7 @@ lines = [
     f"# OpenDroneLab regression {stamp}",
     "",
     f"- **Overall:** **{mark(overall)}** (pass@1: **{mark(overall_pass_at_1)}**)",
+    f"- **Overall excluding known limitations:** **{mark(overall_excluding_known_limitations)}**",
     f"- Elapsed: {elapsed}s",
     f"- GZ_SEED={os.environ['GZ_SEED']}, BAG_DURATION={os.environ['BAG_DURATION']}, "
     "EKF2_EV_CTRL=0, GstCamera off, VIO shadow",
@@ -465,6 +477,25 @@ for r in rows:
         verdict = f"{verdict} (pass@1: {mark(r['pass_at_1'])})"
     lines.append(f"| {r['step']} | {verdict} | {r['detail']} |")
 lines.append("")
+fps = [j for j in judges if (j.get("summary") or {}).get("scenario_fingerprint")]
+if fps:
+    lines.extend([
+        "## Scenario fingerprints",
+        "",
+        "sha256 of the world SDF + OpenVINS overlay directory; changes when",
+        "those inputs change, not when unrelated files change. git SHA is extra.",
+        "",
+        "| Scenario | sha256 | world | overlay | git |",
+        "|----------|--------|-------|---------|-----|",
+    ])
+    for j in fps:
+        fp = (j.get("summary") or {}).get("scenario_fingerprint") or {}
+        lines.append(
+            f"| {j.get('scenario')} | `{fp.get('sha256', '')}` | "
+            f"{fp.get('world') or ''} | {fp.get('openvins_overlay') or ''} | "
+            f"`{fp.get('git_sha') or ''}` |"
+        )
+    lines.append("")
 
 def _failed_section(title, items):
     if not items:

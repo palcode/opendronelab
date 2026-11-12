@@ -234,3 +234,82 @@ def test_retries_used_falls_back_to_attempts(judge_mod):
     assert judge_mod.retries_used({'vio_init_retries': 1, 'vio_init_attempts': 9}) == 1
     assert judge_mod.retries_used({}) is None
 
+def _load_fingerprint():
+    import importlib.util
+    path = REPO / 'scripts' / 'scenario_fingerprint.py'
+    spec = importlib.util.spec_from_file_location('scenario_fingerprint', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture(scope='module')
+def fingerprint_mod():
+    return _load_fingerprint()
+
+
+def test_fingerprint_changes_with_world_or_overlay_not_unrelated(fingerprint_mod, tmp_path):
+    repo = tmp_path / 'repo'
+    world_dir = repo / 'worlds'
+    overlay = repo / 'config' / 'openvins' / 'cam'
+    world_dir.mkdir(parents=True)
+    overlay.mkdir(parents=True)
+    (world_dir / 'vio_test.sdf').write_text('<sdf>world-a</sdf>\n')
+    (overlay / 'estimator_config.yaml').write_text('chi2: 1\n')
+    (repo / 'README.md').write_text('unrelated\n')
+
+    first = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+    assert first['world'] == 'worlds/vio_test.sdf'
+    assert first['openvins_overlay'] == 'config/openvins/cam'
+    assert len(first['sha256']) == 64
+
+    # Unrelated file / git-only changes must not affect sha256.
+    (repo / 'README.md').write_text('unrelated, edited\n')
+    (repo / 'docs.md').write_text('also unrelated\n')
+    second = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+    assert second['sha256'] == first['sha256']
+
+    (world_dir / 'vio_test.sdf').write_text('<sdf>world-b</sdf>\n')
+    after_world = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+    assert after_world['sha256'] != first['sha256']
+
+    # Restore world, change overlay.
+    (world_dir / 'vio_test.sdf').write_text('<sdf>world-a</sdf>\n')
+    (overlay / 'estimator_config.yaml').write_text('chi2: 0.5\n')
+    after_overlay = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+    assert after_overlay['sha256'] != first['sha256']
+    assert after_overlay['sha256'] != after_world['sha256']
+
+
+def test_fingerprint_accepts_workspace_prefix(fingerprint_mod, tmp_path):
+    repo = tmp_path / 'repo'
+    overlay = repo / 'config' / 'openvins' / 'cam'
+    overlay.mkdir(parents=True)
+    (repo / 'worlds').mkdir()
+    (repo / 'worlds' / 'vio_low_texture.sdf').write_text('<sdf/>\n')
+    (overlay / 'estimator_config.yaml').write_text('x: 1\n')
+    a = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_low_texture',
+        '/workspace/config/openvins/cam/estimator_config.yaml')
+    b = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_low_texture',
+        'config/openvins/cam/estimator_config.yaml')
+    assert a['sha256'] == b['sha256']
+    assert a['openvins_overlay'] == 'config/openvins/cam'
+
+
+def test_repo_low_texture_fingerprint_differs_from_baseline(fingerprint_mod):
+    lt = fingerprint_mod.compute_scenario_fingerprint(
+        REPO, 'vio_low_texture',
+        'config/openvins/gz_x500_mono_cam_low_texture/estimator_config.yaml')
+    base = fingerprint_mod.compute_scenario_fingerprint(
+        REPO, 'vio_test',
+        'config/openvins/gz_x500_mono_cam/estimator_config.yaml')
+    assert lt['sha256'] != base['sha256']
+    assert lt['world'] == 'worlds/vio_low_texture.sdf'
+    assert base['world'] == 'worlds/vio_test.sdf'
+
