@@ -577,6 +577,26 @@ Image: `opendronelab-dev:latest` = `:phase5-verify` (`e98a336e9dda`, cold rebuil
   (`lt_pad_texture` in `worlds/vio_low_texture.sdf`) and `b2a6b43` set
   `init_dyn_use: false` on the low_texture overlay.
 
+  A second scenario break landed on 2026-11-12: north-end texture in
+  `worlds/vio_low_texture.sdf` (`lt_north_texture`, a 623-cell 3-tone
+  ground patch at x 0.20..17.00, y 16.60..23.80, seed 761; `lt_north_wall`
+  at Gazebo (10, 22); and two north anchors). This is so the yaw-0
+  forward camera has trackable features at the far-corner hold (wp2,
+  NED 10, 10) and on southbound leg 3, where the courtyard leaves the
+  FOV (RECORD_CAMERA bag `20261112_213946`, FAST mean 3.3 at the wp2
+  hold). The VIO xy/3D limits stay **0.55 / 0.56 m** and
+  `non_gating: true` is unchanged. No OpenVINS settings or the prop
+  mask were changed. Pre-this-change low_texture results are **not
+  comparable** with later runs, including the prop-mask N=5
+  (`lt_mask_n5_20261112_210226`), the camera flight `20261112_213946`,
+  and the 2026-11-09 0.55 m figure era after the pad texture. The
+  scenario fingerprint (sha256 of the world SDF bytes plus the
+  OpenVINS overlay files; `scripts/scenario_fingerprint.py`) changed
+  from
+  `9709abc11d99c15572d3686de529e744f8840a0564513a283c2e83250f6438f5`
+  to
+  `8b2c7db584912b6872374923189af86f60c6a070d76965605fc6769c15aba239`.
+
 ### low_texture fix verification (2026-11-11)
 
 Five isolated low_texture flights plus one each of baseline, faster_motion and
