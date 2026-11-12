@@ -81,8 +81,39 @@ def test_json_safe_nested():
 
 def test_gated_scenarios_present(thresholds):
     gated = _gated_scenarios(thresholds)
-    for name in ('baseline', 'low_texture', 'faster_motion', 'wind'):
+    for name in ('baseline', 'faster_motion', 'wind'):
         assert name in gated
+    for name in ('low_texture', 'faster_motion_aggressive'):
+        assert name not in gated
+        assert (thresholds.get('scenarios') or {})[name].get('non_gating') is True
+
+
+def test_non_gating_scenarios_are_scored_but_flagged(judge_mod, thresholds):
+    """Fails are still recorded; non_gating leaves overall verdict to the runner."""
+    for name in ('low_texture', 'faster_motion_aggressive'):
+        healthy = judge_mod.judge(_healthy_summary(), thresholds, name)
+        assert healthy['pass'], name
+        assert healthy['non_gating'] is True
+        s = _healthy_summary()
+        s['vio_umeyama_xy_rmse'] = 10.0
+        res = judge_mod.judge(s, thresholds, name)
+        assert not res['pass'], name
+        assert res['non_gating'] is True
+        failed = {c['name'] for c in res['checks'] if not c['pass']}
+        assert 'vio_umeyama_xy_rmse' in failed, name
+
+
+def test_low_texture_keeps_reported_xy_limit(judge_mod, thresholds):
+    sc = (thresholds.get('scenarios') or {})['low_texture']
+    assert sc.get('non_gating') is True
+    assert sc.get('vio_umeyama_xy_rmse_max') == 0.55
+    s = _healthy_summary()
+    s['vio_umeyama_xy_rmse'] = 0.55
+    assert judge_mod.judge(s, thresholds, 'low_texture')['pass']
+    s['vio_umeyama_xy_rmse'] = 0.551
+    res = judge_mod.judge(s, thresholds, 'low_texture')
+    assert not res['pass']
+    assert res['non_gating'] is True
 
 
 def test_healthy_summary_passes_every_gated_scenario(judge_mod, thresholds):

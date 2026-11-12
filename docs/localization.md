@@ -551,9 +551,16 @@ Image: `opendronelab-dev:latest` = `:phase5-verify` (`e98a336e9dda`, cold rebuil
     attempts. That run was cleanly not scored (`vio_init_failed`).
   - EKF2/GPS stayed fine.
 
-  `low_texture` **stays gated** and its VIO xy limit **stays 0.55 m**, so a
-  full `./scripts/run-regression.sh` is still expected to FAIL on
-  `low_texture` until it is fixed.
+  On 2026-11-12 Pallab decided to ungate `low_texture` and keep it as a
+  known limitation. The VIO xy limit **stays 0.55 m** and the scenario is
+  still run, scored, and listed in the report (`non_gating: true`, same
+  as `faster_motion_aggressive`), but a fail there does not fail overall
+  regression. Reliability work remains ODL-76.
+
+  Results from before 2026-11-11 are **not comparable** with later runs
+  or with the 2026-11-09 0.55 m figure: `27238b3` added the pad texture
+  (`lt_pad_texture` in `worlds/vio_low_texture.sdf`) and `b2a6b43` set
+  `init_dyn_use: false` on the low_texture overlay.
 
 ### low_texture fix verification (2026-11-11)
 

@@ -34,7 +34,13 @@ scenarios:
     vio_umeyama_xy_rmse_max: 0.70
     vio_umeyama_3d_rmse_max: 0.70
   low_texture:
+    # Known limitation (Pallab, 2026-11-12): still scored against the
+    # 2026-11-09 0.55 m VIO xy limit, but non_gating so a fail does not
+    # fail overall regression. Same pattern as faster_motion_aggressive.
+    # Results before 2026-11-11 (27238b3 pad texture, b2a6b43
+    # init_dyn_use: false) are not comparable with later runs.
     # Healthy VIO from r1/r3 only (r2 OV nan excluded).
+    non_gating: true
     ekf2_umeyama_xy_rmse_max: 0.38
     ekf2_umeyama_3d_rmse_max: 0.40
     ekf2_origin_h_rmse_max: 0.40
