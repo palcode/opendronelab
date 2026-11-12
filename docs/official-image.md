@@ -45,4 +45,4 @@ Then update `IMAGE_TAG` / `IMAGE_DIGEST` in `scripts/smoke-official-image.sh` an
 
 ## Laptop status (2026-11-06)
 
-The smoke image was **removed** from <host> after the smoke test to free disk (`docker image rm` of the `px4io/px4-sitl-gazebo-ros2:...` tag). Re-pull only if you need to re-run `./scripts/smoke-official-image.sh`. It is not required for day-to-day OpenDroneLab work (`opendronelab-dev:latest` = `:phase5-clean`; rollback `:phase4c-vio`).
+The smoke image was **removed** from <host> after the smoke test to free disk (`docker image rm` of the `px4io/px4-sitl-gazebo-ros2:...` tag). Re-pull only if you need to re-run `./scripts/smoke-official-image.sh`. It is not required for day-to-day OpenDroneLab work (`opendronelab-dev:latest` = `:phase5-verify`; rollback `:phase4c-vio`).

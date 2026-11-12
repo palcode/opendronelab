@@ -10,7 +10,7 @@ Bags from `scripts/record-bag.sh` live in `dronelab-data/bags/<timestamp>/` (`/d
 
 ## mcap CLI (in the image)
 
-`mcap` 0.4.0 (`mcap-rust/0.25.1`) is installed in `opendronelab-dev:latest` (= `:phase5-clean`) at `/usr/local/bin/mcap`. It is a pinned GitHub release binary verified by sha256 in `docker/Dockerfile.dev`. Run it from any container shell, for example a throwaway one:
+`mcap` 0.4.0 (`mcap-rust/0.25.1`) is installed in `opendronelab-dev:latest` (= `:phase5-verify`) at `/usr/local/bin/mcap`. It is a pinned GitHub release binary verified by sha256 in `docker/Dockerfile.dev`. Run it from any container shell, for example a throwaway one:
 
 ```bash
 docker run --rm -it --network none --user $(id -u):$(id -g) -e HOME=/tmp \

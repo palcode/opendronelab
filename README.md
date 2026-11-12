@@ -1,7 +1,7 @@
 # OpenDroneLab
 
-**Status:** Phase 4a/4b sim complete; image `opendronelab-dev:phase5-clean` (=`:latest`); GPS-only default; EV opt-in  
-**Last Updated:** 2026-11-09
+**Status:** Phase 4a/4b sim complete; image `opendronelab-dev:phase5-verify` (=`:latest`); GPS-only default; EV opt-in  
+**Last Updated:** 2026-11-12
 
 Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
 
