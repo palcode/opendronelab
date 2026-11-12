@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <ostream>
 #include <optional>
 #include <stdexcept>
 #include <limits>
@@ -175,6 +176,17 @@ public:
 private:
   enum class State { Init, Preflight, Arming, Flying, Landing, Complete };
 
+  // JSON number or null (matches Python json_safe / 4cca807). iostream's
+  // default double format would otherwise write "nan"/"inf", which is not JSON.
+  static void writeJsonDouble(std::ostream & out, double value)
+  {
+    if (std::isfinite(value)) {
+      out << value;
+    } else {
+      out << "null";
+    }
+  }
+
   // Write {hold_for_topic, hold_for_topic_received, vio_init_timeout} to
   // status_file_ (atomic tmp + rename). No-op when status_file is empty.
   void writeStatus()
@@ -191,20 +203,25 @@ private:
       }
       out << "{\n"
           << "  \"hold_for_topic\": \"" << hold_for_topic_ << "\",\n"
-          << "  \"hold_for_topic_timeout\": " << hold_for_topic_timeout_ << ",\n"
+          << "  \"hold_for_topic_timeout\": ";
+      writeJsonDouble(out, hold_for_topic_timeout_);
+      out << ",\n"
           << "  \"hold_for_topic_received\": " << (hold_for_topic_received_ ? "true" : "false")
           << ",\n"
           << "  \"vio_init_timeout\": " << (vio_init_timeout_ ? "true" : "false") << ",\n"
-          << "  \"vio_init_window\": " << vio_init_window_ << ",\n"
+          << "  \"vio_init_window\": ";
+      writeJsonDouble(out, vio_init_window_);
+      out << ",\n"
           << "  \"vio_init_missed\": " << (vio_init_missed_ ? "true" : "false") << ",\n"
           << "  \"first_msg_after_liftoff_s\": ";
-      if (first_msg_after_liftoff_) {
-        out << *first_msg_after_liftoff_;
+      if (first_msg_after_liftoff_ && std::isfinite(*first_msg_after_liftoff_)) {
+        writeJsonDouble(out, *first_msg_after_liftoff_);
       } else {
         out << "null";
       }
       out << "\n}\n";
     }
+
     if (std::rename(tmp.c_str(), status_file_.c_str()) != 0) {
       RCLCPP_WARN(get_logger(), "Cannot rename %s -> %s", tmp.c_str(), status_file_.c_str());
     }
