@@ -14,8 +14,11 @@
 #   VIO_INIT_WINDOW (default 2.0 s; 0 disables): with HOLD_FOR_TOPIC set, VIO
 #     must publish within this long after liftoff or the flight lands without
 #     the square and is retried (fresh OpenVINS, fresh bag) up to
-#     VIO_INIT_ATTEMPTS (default 3) times. Only the final attempt is scored;
-#     a run that misses on every attempt is not VIO-scored (fails).
+#     VIO_INIT_ATTEMPTS times (from config vio_init_retries_max + 1 when
+#     unset: 1 for baseline/faster_motion/wind, 3 for low_texture, else 3).
+#     Only the final attempt is scored; a run that misses on every attempt
+#     is not VIO-scored (fails). The judge also fails a scenario that used
+#     more retries than vio_init_retries_max (non_gating still ignored overall).
 #   HOLD_FOR_TOPIC (unset = hold wp0 for /ov_msckf/odomimu; set empty = no hold,
 #     used by faster_motion_aggressive), HOLD_FOR_TOPIC_TIMEOUT (default 20.0)
 #   FLIGHT_CMD overrides the constructed flight command entirely
@@ -104,7 +107,11 @@ docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${
 mkdir -p "${REPO_DIR}/logs"
 echo "summary_dir=${SUMMARY_DIR}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-${STAMP}.log"
 
-VIO_INIT_ATTEMPTS="${VIO_INIT_ATTEMPTS:-3}"
+if [ -z "${VIO_INIT_ATTEMPTS:-}" ]; then
+    VIO_INIT_ATTEMPTS="$(
+        python3 "${REPO_DIR}/scripts/judge-regression.py"             --thresholds "${REPO_DIR}/config/regression_thresholds.yaml"             --scenario "${SCENARIO}"             --print-vio-init-attempts
+    )"
+fi
 ATTEMPT=0
 RETRY_BAGS=()
 VIO_INIT_FAILED=0

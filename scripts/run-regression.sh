@@ -363,12 +363,20 @@ else:
 n_flights = int(os.environ["N_FLIGHTS"])
 if n_flights == 0:
     overall = bool(pytest.get("pass", False))
+    overall_pass_at_1 = overall
 else:
     gating = [j for j in judges if not j.get("non_gating")]
     # Every flown scenario must have a judge file; only gating ones affect overall.
+    # pass@1 is the same set, but requires each gating scenario to have passed
+    # on the first VIO-init attempt (retries would hide a regression).
     overall = (
         bool(pytest.get("pass", False))
         and all(j.get("pass") for j in gating)
+        and len(judges) == n_flights
+    )
+    overall_pass_at_1 = (
+        bool(pytest.get("pass", False))
+        and all(j.get("pass_at_1") for j in gating)
         and len(judges) == n_flights
     )
 
@@ -392,7 +400,7 @@ for j in judges:
             f"VIO xy/3D={s.get('vio_umeyama_xy_rmse')}/{s.get('vio_umeyama_3d_rmse')} "
             f"origin H/V={s.get('ekf2_origin_h_rmse')}/{s.get('ekf2_origin_v_rmse')}"
         )
-    rows.append({"step": j.get("scenario"), "pass": j.get("pass"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag")})
+    rows.append({"step": j.get("scenario"), "pass": j.get("pass"), "pass_at_1": j.get("pass_at_1"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag")})
 
 def _bags_report():
     # Report-only: size/count of the bag folder and free disk. Never deletes.
@@ -421,6 +429,7 @@ elapsed = int(os.environ["ELAPSED"])
 out = {
     "stamp": stamp,
     "overall_pass": overall,
+    "overall_pass_at_1": overall_pass_at_1,
     "elapsed_s": elapsed,
     "gz_seed": int(os.environ["GZ_SEED"]),
     "bag_duration_s": int(os.environ["BAG_DURATION"]),
@@ -439,7 +448,7 @@ def mark(p, non_gating=False):
 lines = [
     f"# OpenDroneLab regression {stamp}",
     "",
-    f"- **Overall:** **{mark(overall)}**",
+    f"- **Overall:** **{mark(overall)}** (pass@1: **{mark(overall_pass_at_1)}**)",
     f"- Elapsed: {elapsed}s",
     f"- GZ_SEED={os.environ['GZ_SEED']}, BAG_DURATION={os.environ['BAG_DURATION']}, "
     "EKF2_EV_CTRL=0, GstCamera off, VIO shadow",
@@ -451,7 +460,10 @@ lines = [
     "|------|---------|--------|",
 ]
 for r in rows:
-    lines.append(f"| {r['step']} | {mark(r['pass'], r.get('non_gating'))} | {r['detail']} |")
+    verdict = mark(r['pass'], r.get('non_gating'))
+    if r.get('step') != 'pytest' and 'pass_at_1' in r:
+        verdict = f"{verdict} (pass@1: {mark(r['pass_at_1'])})"
+    lines.append(f"| {r['step']} | {verdict} | {r['detail']} |")
 lines.append("")
 
 def _failed_section(title, items):

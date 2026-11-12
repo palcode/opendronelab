@@ -155,3 +155,82 @@ def test_judge_tolerates_null_and_nan_metrics(judge_mod, thresholds):
         assert 'not finite' in c['detail']
     assert not judge_mod._finite(None)
     assert not judge_mod._finite(math.nan)
+
+def test_retries_max_config_values(thresholds):
+    sc = thresholds.get('scenarios') or {}
+    for name in ('baseline', 'faster_motion', 'wind'):
+        assert sc[name].get('vio_init_retries_max') == 0, name
+    assert sc['low_texture'].get('vio_init_retries_max') == 2
+    # No land-and-retry on the aggressive profile (empty HOLD_FOR_TOPIC).
+    assert 'vio_init_retries_max' not in (sc['faster_motion_aggressive'] or {})
+
+
+def test_vio_init_attempts_for(judge_mod, thresholds):
+    assert judge_mod.vio_init_attempts_for(thresholds, 'baseline') == 1
+    assert judge_mod.vio_init_attempts_for(thresholds, 'faster_motion') == 1
+    assert judge_mod.vio_init_attempts_for(thresholds, 'wind') == 1
+    assert judge_mod.vio_init_attempts_for(thresholds, 'low_texture') == 3
+    assert judge_mod.vio_init_attempts_for(thresholds, 'faster_motion_aggressive') == 3
+
+
+def test_baseline_fails_when_retries_exceed_max(judge_mod, thresholds):
+    s = _healthy_summary()
+    s['vio_init_retries'] = 1
+    s['vio_init_attempts'] = 2
+    res = judge_mod.judge(s, thresholds, 'baseline')
+    assert not res['pass']
+    assert res['pass_at_1'] is False
+    failed = {c['name'] for c in res['checks'] if not c['pass']}
+    assert failed == {'vio_init_retries'}
+
+
+def test_baseline_passes_with_zero_retries(judge_mod, thresholds):
+    s = _healthy_summary()
+    s['vio_init_retries'] = 0
+    s['vio_init_attempts'] = 1
+    res = judge_mod.judge(s, thresholds, 'baseline')
+    assert res['pass']
+    assert res['pass_at_1'] is True
+
+
+def test_low_texture_allows_two_retries_but_not_three(judge_mod, thresholds):
+    s = _healthy_summary()
+    s['vio_init_retries'] = 2
+    s['vio_init_attempts'] = 3
+    res = judge_mod.judge(s, thresholds, 'low_texture')
+    assert res['pass']
+    assert res['pass_at_1'] is False
+    assert res['non_gating'] is True
+
+    s['vio_init_retries'] = 3
+    s['vio_init_attempts'] = 4
+    res = judge_mod.judge(s, thresholds, 'low_texture')
+    assert not res['pass']
+    assert res['pass_at_1'] is False
+    assert res['non_gating'] is True
+    failed = {c['name'] for c in res['checks'] if not c['pass']}
+    assert 'vio_init_retries' in failed
+
+
+def test_pass_at_1_false_when_retried_even_if_checks_pass(judge_mod, thresholds):
+    s = _healthy_summary()
+    s['vio_init_retries'] = 1
+    s['vio_init_attempts'] = 2
+    res = judge_mod.judge(s, thresholds, 'low_texture')
+    assert res['pass']
+    assert res['pass_at_1'] is False
+
+
+def test_legacy_summary_without_retry_fields_counts_as_zero(judge_mod, thresholds):
+    s = _healthy_summary()
+    assert 'vio_init_retries' not in s
+    res = judge_mod.judge(s, thresholds, 'baseline')
+    assert res['pass']
+    assert res['pass_at_1'] is True
+
+
+def test_retries_used_falls_back_to_attempts(judge_mod):
+    assert judge_mod.retries_used({'vio_init_attempts': 3}) == 2
+    assert judge_mod.retries_used({'vio_init_retries': 1, 'vio_init_attempts': 9}) == 1
+    assert judge_mod.retries_used({}) is None
+
