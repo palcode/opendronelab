@@ -49,6 +49,7 @@ START_EPOCH="$(date +%s)"
 REG_STARTED_QGC=0
 QGC_PID=""
 QGC_PGID=""
+QGC_MOUNTS=""
 
 # Extracted QGC binaries in the process group/session we started.
 qgc_ours() {
@@ -61,6 +62,75 @@ qgc_ours() {
     done
 }
 
+# /tmp/.mount_QGroun* FUSE targets belonging to our QGC pids (live processes).
+qgc_mounts_from_pids() {
+    local pid exe target
+    local pids=()
+    [ -n "${QGC_PID:-}" ] && pids+=("${QGC_PID}")
+    for pid in $(qgc_ours); do
+        pids+=("${pid}")
+    done
+    if [ -n "${QGC_PGID:-}" ]; then
+        for pid in $(pgrep -g "${QGC_PGID}" 2>/dev/null); do
+            pids+=("${pid}")
+        done
+    fi
+    for pid in "${pids[@]+"${pids[@]}"}"; do
+        [ -n "${pid}" ] || continue
+        exe="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
+        if [[ "${exe}" == /tmp/.mount_QGroun* ]]; then
+            target="${exe%%/usr/*}"
+            if [[ "${target}" == /tmp/.mount_QGroun* ]]; then
+                printf '%s\n' "${target}"
+            fi
+        fi
+        if [ -r "/proc/${pid}/mountinfo" ]; then
+            awk '$5 ~ /^\/tmp\/\.mount_QGroun/ {print $5}' "/proc/${pid}/mountinfo"
+        fi
+    done | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/' | sort -u
+}
+
+# Report leftover AppImage FUSE mounts with findmnt; unmount only those we
+# recorded as ours. Never sudo. Never touch unrelated /tmp/.mount_* mounts.
+cleanup_qgc_fuse() {
+    local leftover m cmd err ours_line
+    if command -v findmnt >/dev/null 2>&1; then
+        leftover="$(findmnt -n -o TARGET,FSTYPE,SOURCE 2>/dev/null \
+            | grep -E '/tmp/\.mount_QGroun' || true)"
+        if [ -n "${leftover}" ]; then
+            echo "[REG] leftover QGC FUSE mounts (findmnt):"
+            printf '%s\n' "${leftover}" | sed 's/^/[REG]   /'
+        else
+            echo "[REG] no leftover /tmp/.mount_QGroun* FUSE mounts (findmnt)"
+        fi
+    else
+        echo "[WARN] findmnt not found; cannot report leftover QGC FUSE mounts" >&2
+    fi
+    ours_line="$(printf '%s\n' "${QGC_OURS_MOUNTS:-}" | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/' | sort -u)"
+    if [ -z "${ours_line}" ]; then
+        return 0
+    fi
+    if command -v fusermount >/dev/null 2>&1; then
+        cmd=(fusermount -u)
+    elif command -v fusermount3 >/dev/null 2>&1; then
+        cmd=(fusermount3 -u)
+    else
+        echo "[WARN] fusermount not found; not unmounting leftover QGC FUSE mounts (never sudo)" >&2
+        return 0
+    fi
+    while IFS= read -r m; do
+        [ -n "${m}" ] || continue
+        if command -v findmnt >/dev/null 2>&1 && ! findmnt -n "${m}" >/dev/null 2>&1; then
+            continue
+        fi
+        if err="$("${cmd[@]}" "${m}" 2>&1)"; then
+            echo "[REG] unmounted our QGC FUSE mount ${m}"
+        else
+            echo "[WARN] ${cmd[*]} ${m} failed (never sudo): ${err}" >&2
+        fi
+    done <<< "${ours_line}"
+}
+
 stop_our_qgc() {
     # Kill only the QGC this script started. $! is the AppImage runtime;
     # the real binary is extracted to /tmp/.mount_QGroun*/usr/bin/QGroundControl
@@ -68,9 +138,14 @@ stop_our_qgc() {
     # process group (pgid == QGC_PID) and we signal that whole group.
     [ "${REG_STARTED_QGC:-0}" = "1" ] && [ -n "${QGC_PID:-}" ] || return 0
     local i left pid
+    # Snapshot our mounts while the processes may still be alive, unioned
+    # with what we recorded at start. This is the only set we will unmount.
+    QGC_OURS_MOUNTS="$( { qgc_mounts_from_pids; printf '%s\n' "${QGC_MOUNTS:-}"; } \
+        | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/' | sort -u )"
     if [ -z "${QGC_PGID:-}" ] || [ "${QGC_PGID}" != "${QGC_PID}" ]; then
         # Not a group leader: old behaviour, our pid only.
         kill "${QGC_PID}" >/dev/null 2>&1 && echo "[REG] stopped QGC pid ${QGC_PID} (no own process group)"
+        cleanup_qgc_fuse
         return 0
     fi
     kill -TERM -- "-${QGC_PGID}" >/dev/null 2>&1 || true
@@ -78,6 +153,7 @@ stop_our_qgc() {
         left="$(qgc_ours)"
         if [ -z "${left}" ] && ! kill -0 "${QGC_PID}" >/dev/null 2>&1; then
             echo "[REG] stopped QGC (pgid ${QGC_PGID}) started by this regression run"
+            cleanup_qgc_fuse
             return 0
         fi
         sleep 0.5
@@ -94,6 +170,7 @@ stop_our_qgc() {
     else
         echo "[REG] stopped QGC (pgid ${QGC_PGID}) after KILL"
     fi
+    cleanup_qgc_fuse
 }
 
 cleanup() {
@@ -175,6 +252,11 @@ if [ "${#FLIGHTS[@]}" -gt 0 ] && ! pgrep -af QGroundControl >/dev/null 2>&1; the
             QGC_PGID=""
         fi
         echo "[REG] started QGC pid ${QGC_PID} (pgid ${QGC_PGID})"
+        QGC_MOUNTS="$(qgc_mounts_from_pids)"
+        if [ -n "${QGC_MOUNTS}" ]; then
+            echo "[REG] recorded our QGC FUSE mounts:"
+            printf '%s\n' "${QGC_MOUNTS}" | sed 's/^/[REG]   /'
+        fi
     fi
 fi
 
