@@ -239,6 +239,42 @@ There is no separate `simulation/scenarios/*.yaml` runner. Use:
 - Square baseline: `scripts/run-baseline.sh` / `square_flight_cpp`
 - VIO / EV: `scripts/run-vio-baseline.sh`, `vio.launch.py`, `vio_ev.launch.py`
 - Hardware later: `docs/real-drone-readiness.md`
+- Scored regression: `scripts/run-regression.sh` (scenario list below)
+
+## Airframe registry and regression scenarios (multi-airframe Phase A)
+
+`config/airframes.yaml` is the single source for which PX4 SITL airframe
+(`MODEL`) each regression scenario flies, the spawned Gazebo instance name
+(ground truth `model_name`, `${MODEL#gz_}_0`), camera topics, the OpenVINS
+overlay, and whether VIO is scored. `scripts/airframe_registry.py` reads it;
+`run-regression.sh`, `run-vio-stress.sh` and `run-baseline.sh` use it instead
+of hardcoded `x500_mono_cam` strings. Gates stay in
+`config/regression_thresholds.yaml`.
+
+| Scenario | MODEL | Gz instance | World | OpenVINS overlay | Scored | Gating |
+|---|---|---|---|---|---|---|
+| `baseline` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_test` | `gz_x500_mono_cam` | EKF2 + VIO | yes |
+| `low_texture` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_low_texture` | `gz_x500_mono_cam_low_texture` | EKF2 + VIO | no |
+| `faster_motion` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_test` | `gz_x500_mono_cam_fast_motion` | EKF2 + VIO | yes |
+| `faster_motion_aggressive` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_test` | `gz_x500_mono_cam_fast_motion` | EKF2 + VIO | no |
+| `wind` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_wind` | `gz_x500_mono_cam` | EKF2 + VIO | yes |
+| `mc_gps` | `gz_x500` | `x500_0` | `vio_test` | none | EKF2 only | no (provisional) |
+
+- The default `run-regression.sh` list is still the five VIO-shadow scenarios.
+  `mc_gps` is opt-in: `SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh`.
+- `mc_gps` flies the same C++ 10 m square at 5 m. With `score_vio: false`
+  the runner starts only `localization.launch.py` (clock + ground truth for
+  `x500_0`), records the `--localization` bag topic set, skips the wp0 hold
+  for `/ov_msckf/odomimu`, and the judge drops the VIO gates and the
+  `ov_published` check. GPS default (`EKF2_EV_CTRL=0`) is unchanged.
+- Switching `MODEL` recreates `odl-sim` (`launch-sitl.sh`); PX4 resets params
+  when `SYS_AUTOSTART` changes. No image or PX4 source rebuild is needed for
+  stock airframes.
+- Scenario fingerprints still hash only world + overlay (+ shared mask).
+  `MODEL` is **not** hashed yet (ODL-92 pending), so `mc_gps` fingerprints as
+  `vio_test` with no overlay. Compare `mc_gps` results using the scenario name
+  and the `model` field in `summary.json`, not the hash alone.
+- Phases B (fixed-wing), C (VTOL) and D (rover) are planned in ODL-93.
 
 ## Logs and Data
 

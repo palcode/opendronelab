@@ -1,0 +1,71 @@
+# OpenDroneLab airframe + scenario registry (multi-airframe Phase A, ODL-93).
+#
+# Single source for which PX4 SITL airframe (MODEL) a regression scenario
+# flies, the Gazebo instance name ground truth must track, camera topics, the
+# OpenVINS overlay, and whether VIO is scored. Read by
+# scripts/airframe_registry.py (used by run-regression.sh, run-vio-stress.sh
+# and run-baseline.sh). Gates stay in config/regression_thresholds.yaml.
+#
+# Rules:
+# - The five VIO-shadow scenarios keep MODEL=gz_x500_mono_cam and their
+#   exact pre-registry world + overlay, so scenario fingerprints are unchanged.
+# - GPS stays the default everywhere (EKF2_EV_CTRL=0). Nothing here enables EV.
+# - MODEL is NOT part of the scenario fingerprint yet (ODL-92 pending Pallab).
+#   mc_gps therefore hashes as world-only (vio_test, no overlay).
+#
+# Placeholders in camera topics: {world} and {instance}.
+
+airframes:
+  gz_x500_mono_cam:
+    sys_autostart: 4010
+    vehicle_class: multicopter
+    # Spawned Gazebo instance = ${MODEL#gz_}_0
+    gz_instance: x500_mono_cam_0
+    camera: true
+    camera_image_topic: /world/{world}/model/{instance}/link/camera_link/sensor/imager/image
+    camera_info_topic: /world/{world}/model/{instance}/link/camera_link/sensor/imager/camera_info
+    openvins_overlay: config/openvins/gz_x500_mono_cam
+  gz_x500:
+    sys_autostart: 4001
+    vehicle_class: multicopter
+    gz_instance: x500_0
+    # Base quad: GPS/IMU/mag/baro only, no camera -> EKF2-only scoring.
+    camera: false
+    camera_image_topic: null
+    camera_info_topic: null
+    openvins_overlay: null
+
+scenarios:
+  baseline:
+    airframe: gz_x500_mono_cam
+    world: vio_test
+    openvins_overlay: config/openvins/gz_x500_mono_cam
+    score_vio: true
+  low_texture:
+    airframe: gz_x500_mono_cam
+    world: vio_low_texture
+    openvins_overlay: config/openvins/gz_x500_mono_cam_low_texture
+    score_vio: true
+  faster_motion:
+    airframe: gz_x500_mono_cam
+    world: vio_test
+    openvins_overlay: config/openvins/gz_x500_mono_cam_fast_motion
+    score_vio: true
+  faster_motion_aggressive:
+    airframe: gz_x500_mono_cam
+    world: vio_test
+    openvins_overlay: config/openvins/gz_x500_mono_cam_fast_motion
+    score_vio: true
+  wind:
+    airframe: gz_x500_mono_cam
+    world: vio_wind
+    openvins_overlay: config/openvins/gz_x500_mono_cam
+    score_vio: true
+  mc_gps:
+    # Phase A second multicopter: plain gz_x500, GPS only, same C++ 10 m
+    # square on vio_test. No OpenVINS, no camera bridge; EKF2 vs GT only.
+    # Opt-in (SCENARIOS=mc_gps); not in the default regression list.
+    airframe: gz_x500
+    world: vio_test
+    openvins_overlay: null
+    score_vio: false

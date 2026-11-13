@@ -185,9 +185,11 @@ Detailed guides will be added in future phases.
 ```bash
 ./scripts/run-regression.sh
 # subset: SCENARIOS=baseline,wind ./scripts/run-regression.sh
+# opt-in second airframe (gz_x500, GPS only, EKF2 scored):
+# SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh
 ```
 
-Runs pytest (31+) then scored VIO-shadow flights (baseline, low_texture, faster_motion, wind+gusts) with fresh SITL each. Gates in `config/regression_thresholds.yaml`. `low_texture` is scored against its 0.55 m VIO xy limit but is a known limitation (`non_gating`), so a fail there does not fail overall. Report: `/data/results/regression_<stamp>/report.md`. Exit nonzero on any FAIL of a gating check. See `docs/simulation-guide.md`.
+Runs pytest (31+) then scored VIO-shadow flights (baseline, low_texture, faster_motion, wind+gusts) with fresh SITL each. Gates in `config/regression_thresholds.yaml`. `low_texture` is scored against its 0.55 m VIO xy limit but is a known limitation (`non_gating`), so a fail there does not fail overall. Scenario airframes come from `config/airframes.yaml`: the five default scenarios (`baseline`, `low_texture`, `faster_motion`, `faster_motion_aggressive`, `wind`) fly `gz_x500_mono_cam` with OpenVINS shadow scoring. The opt-in `mc_gps` scenario flies plain `gz_x500` (no camera) on the same square and is scored EKF2 vs ground truth only (`non_gating`, provisional). Report: `/data/results/regression_<stamp>/report.md`. Exit nonzero on any FAIL of a gating check. See `docs/simulation-guide.md`.
 
 ## Scope
 

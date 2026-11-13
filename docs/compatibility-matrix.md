@@ -58,7 +58,8 @@ This matrix pins the exact software versions for the OpenDroneLab development en
 |-----------|---------|--------|-------------|
 | PX4 Autopilot | **v1.17.0** | [PX4-Autopilot v1.17.0](https://github.com/PX4/PX4-Autopilot/releases/tag/v1.17.0) | Not yet tested |
 | PX4 Build Target | `px4_sitl_default` | [PX4 Ubuntu Dev Env](https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html) | Not yet tested |
-| SITL Vehicle | `gz_x500` (quadrotor) | [PX4 Gazebo Simulation](https://docs.px4.io/main/en/sim_gazebo_gz/) | Not yet tested |
+| SITL Vehicle | `gz_x500` (quadrotor) | [PX4 Gazebo Simulation](https://docs.px4.io/main/en/sim_gazebo_gz/) | Regression scenario `mc_gps` (EKF2 only, non_gating) |
+| SITL Vehicle | `gz_x500_mono_cam` (quadrotor + forward mono camera) | [PX4 Gazebo Simulation](https://docs.px4.io/main/en/sim_gazebo_gz/) | Default regression vehicle (5 VIO-shadow scenarios) |
 | SITL World | `default` (empty world) | [PX4 Gazebo Simulation](https://docs.px4.io/main/en/sim_gazebo_gz/) | Not yet tested |
 
 **Notes:**

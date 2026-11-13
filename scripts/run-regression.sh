@@ -6,6 +6,11 @@
 #   SCENARIOS=baseline,wind ./scripts/run-regression.sh
 #   SCENARIOS=pytest ./scripts/run-regression.sh
 #   SKIP_PYTEST=1 SCENARIOS=faster_motion ./scripts/run-regression.sh
+#   SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh   # gz_x500, EKF2 only
+#
+# Scenario -> MODEL / world / OpenVINS overlay / score_vio comes from
+# config/airframes.yaml (scripts/airframe_registry.py). The default list is the
+# five gz_x500_mono_cam VIO-shadow scenarios; mc_gps is opt-in.
 #
 # Always: GPS default, EKF2_EV_CTRL=0, GstCamera off, fixed GZ_SEED.
 # Requires QGroundControl open (headless PX4 arming).
@@ -22,6 +27,7 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 REPORT_HOST="${DATA_DIR}/results/regression_${STAMP}"
 CONTAINER_NAME="odl-sim"
 
+# Default list (unchanged). Other registry scenarios (mc_gps) are opt-in.
 ALL_SCENARIOS=(baseline low_texture faster_motion faster_motion_aggressive wind)
 if [ -n "${SCENARIOS:-}" ]; then
     IFS=',' read -r -a WANT <<< "${SCENARIOS}"
@@ -339,7 +345,8 @@ pytest -q \
   ros2_ws/src/drone_localization/test/test_metrics.py \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
   ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
-  ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py
+  ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py \
+  ros2_ws/src/drone_localization/test/test_airframe_registry.py
 ' | tee "${REPORT_HOST}/pytest.txt"
     PY_EC=${PIPESTATUS[0]}
     set -e
@@ -417,10 +424,11 @@ timeout 2 ros2 topic echo /fmu/out/vehicle_status_v1 --once 2>/dev/null | grep -
 
 launch_sitl() {
     local world="$1"
+    local model="$2"
     "${REPO_DIR}/scripts/stop-all.sh" >/dev/null 2>&1 || true
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
     HEADLESS=1 MEM_LIMIT=12g GZ_SEED="${GZ_SEED}" WORLD="${world}" \
-      MODEL=gz_x500_mono_cam IMAGE_NAME="${IMAGE_NAME}" \
+      MODEL="${model}" IMAGE_NAME="${IMAGE_NAME}" \
       "${REPO_DIR}/scripts/launch-sitl.sh"
     "${REPO_DIR}/scripts/start-dds-agent.sh"
     local i
@@ -436,14 +444,29 @@ launch_sitl() {
 
 run_flight() {
     local scenario="$1"
-    local world=""
+    local world="" model="" reg=""
     local -a extra_env=()
 
+    # MODEL / world / overlay / score_vio from config/airframes.yaml.
+    if ! reg="$(python3 "${REPO_DIR}/scripts/airframe_registry.py" --scenario "${scenario}" --shell)"; then
+        echo "[ERROR] unknown scenario: ${scenario}" >&2
+        return 1
+    fi
+    local ODL_SCENARIO ODL_MODEL ODL_GZ_INSTANCE ODL_VEHICLE_CLASS ODL_CAMERA ODL_WORLD \
+        ODL_OPENVINS_OVERLAY ODL_OV_CONFIG ODL_SCORE_VIO ODL_CAMERA_IMAGE_TOPIC ODL_CAMERA_INFO_TOPIC
+    eval "${reg}"
+    world="${ODL_WORLD}"
+    model="${ODL_MODEL}"
+
+    # Per-scenario flight profile (square_flight_cpp params) stays here.
     case "${scenario}" in
-        baseline) world=vio_test ;;
-        low_texture) world=vio_low_texture ;;
+        baseline|low_texture|wind) ;;
+        mc_gps)
+            # Default square; no OpenVINS, so no wp0 hold for /ov_msckf/odomimu
+            # and no VIO init window / land-and-retry.
+            extra_env=(HOLD_FOR_TOPIC=)
+            ;;
         faster_motion)
-            world=vio_test
             # Cap yaw at 0.35 rad/s (~20 deg/s) and delay spin until after wp0 so
             # OpenVINS can finish dynamic init before aggressive rotation.
             # OV uses gz_x500_mono_cam_fast_motion overlay (via run-vio-stress).
@@ -462,7 +485,6 @@ run_flight() {
             # so the square starts right after the normal wp0 corner hold.
             # Run and reported, but non_gating in regression_thresholds.yaml so
             # it does not affect overall PASS/FAIL.
-            world=vio_test
             extra_env=(
                 SQUARE_SPEED=6.0
                 SQUARE_YAW_SPIN=0.7
@@ -471,18 +493,17 @@ run_flight() {
                 HOLD_FOR_TOPIC=
             )
             ;;
-        wind) world=vio_wind ;;
         *)
-            echo "[ERROR] unknown scenario: ${scenario}" >&2
+            echo "[ERROR] no flight profile for scenario: ${scenario}" >&2
             return 1
             ;;
     esac
 
     echo ""
     echo "----------------------------------------------------------------"
-    echo "[REG] scenario=${scenario} world=${world}"
+    echo "[REG] scenario=${scenario} world=${world} model=${model} score_vio=${ODL_SCORE_VIO}"
     echo "----------------------------------------------------------------"
-    launch_sitl "${world}"
+    launch_sitl "${world}" "${model}"
 
     docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
         bash -lc 'test -x /data/ros2_build/ws/install/drone_flight_cpp/lib/drone_flight_cpp/square_flight_cpp \
@@ -492,6 +513,7 @@ run_flight() {
     set +e
     (
       export WORLD="${world}" GZ_WORLD="${world}" BAG_DURATION="${BAG_DURATION}" FLIGHT_WALL=150
+      export MODEL="${model}" GZ_MODEL="${ODL_GZ_INSTANCE}" OV_CONFIG="${ODL_OV_CONFIG}" SCORE_VIO="${ODL_SCORE_VIO}"
       for e in "${extra_env[@]+"${extra_env[@]}"}"; do
         export "$e"
       done

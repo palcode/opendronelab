@@ -66,8 +66,24 @@ def retries_used(summary: dict):
     return None
 
 
+VIO_THRESHOLD_KEYS = (
+    'vio_umeyama_xy_rmse_max',
+    'vio_umeyama_3d_rmse_max',
+    'vio_origin_samples_min',
+    'vio_init_retries_max',
+)
+
+
 def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     sc = scenario_thresholds(thresholds, scenario)
+    # EKF2-only scenarios (score_vio: false, e.g. mc_gps on gz_x500): no
+    # OpenVINS runs, so drop the inherited VIO defaults and the OV truth
+    # check. EKF2 / mission checks still apply.
+    score_vio = bool(sc.get('score_vio', True))
+    if not score_vio:
+        for k in VIO_THRESHOLD_KEYS:
+            sc.pop(k, None)
+        sc['ov_published'] = False
 
     checks = []
 
@@ -109,8 +125,8 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     # ov_published=true (estimate_count>0) but an empty airborne mask
     # (num_samples=0) still fails. vio_origin_samples_min normally comes from
     # defaults; if a scenario/defaults ever drop it, fall back to >= 1.
-    if sc.get('vio_origin_samples_min') is None and sc.get('ov_published', True) \
-            and not sc.get('non_gating', False):
+    if score_vio and sc.get('vio_origin_samples_min') is None \
+            and sc.get('ov_published', True) and not sc.get('non_gating', False):
         sc['vio_origin_samples_min'] = 1
     min_check('vio_origin_samples', 'vio_origin_samples_min')
 
@@ -144,6 +160,7 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
         'pass': passed,
         'pass_at_1': pass_at_1,
         'non_gating': non_gating,
+        'score_vio': score_vio,
         'checks': checks,
         'summary': summary,
         'thresholds_applied': sc,

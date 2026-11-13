@@ -25,6 +25,12 @@
 #   HOLD_FOR_TOPIC (unset = hold wp0 for /ov_msckf/odomimu; set empty = no hold,
 #     used by faster_motion_aggressive), HOLD_FOR_TOPIC_TIMEOUT (default 20.0)
 #   FLIGHT_CMD overrides the constructed flight command entirely
+#   MODEL (default gz_x500_mono_cam), GZ_MODEL (Gazebo instance; default from
+#     config/airframes.yaml via scripts/airframe_registry.py, e.g. x500_0)
+#   SCORE_VIO (default: registry score_vio for SCENARIO, else 1). SCORE_VIO=0
+#     is the EKF2-only path (mc_gps): no OpenVINS or camera bridge, only
+#     localization.launch.py ground truth; no wp0 VIO hold, no VIO scoring,
+#     ov_published=false. GPS default (EKF2_EV_CTRL=0) either way.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,8 +40,26 @@ BAG_DURATION="${BAG_DURATION:-100}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 SUMMARY_DIR="/data/results/vio_stress_${SCENARIO}_${STAMP}"
 GZ_WORLD="${GZ_WORLD:-${WORLD:-vio_test}}"
+REG_SCORE_VIO=""
+REG_OV_CONFIG=""
+REG_MODEL=""
+if REG_OUT="$(python3 "${REPO_DIR}/scripts/airframe_registry.py" --scenario "${SCENARIO}" --shell 2>/dev/null)"; then
+    REG_MODEL="$(printf '%s\n' "${REG_OUT}" | sed -n 's/^ODL_MODEL=//p')"
+    REG_SCORE_VIO="$(printf '%s\n' "${REG_OUT}" | sed -n 's/^ODL_SCORE_VIO=//p')"
+    REG_OV_CONFIG="$(printf '%s\n' "${REG_OUT}" | sed -n "s/^ODL_OV_CONFIG=//p" | tr -d "'")"
+fi
+SCORE_VIO="${SCORE_VIO:-${REG_SCORE_VIO:-1}}"
+MODEL="${MODEL:-${REG_MODEL:-gz_x500_mono_cam}}"
+if [ -z "${GZ_MODEL:-}" ]; then
+    GZ_MODEL="$(python3 "${REPO_DIR}/scripts/airframe_registry.py" --gz-instance "${MODEL}")"
+fi
 # Optional OpenVINS estimator_config.yaml (low_texture uses overlay by default)
-if [ -z "${OV_CONFIG:-}" ]; then
+if [ "${SCORE_VIO}" = "0" ]; then
+    OV_CONFIG=""
+elif [ -z "${OV_CONFIG:-}" ] && [ -n "${REG_OV_CONFIG}" ]; then
+    OV_CONFIG="${REG_OV_CONFIG}"
+fi
+if [ "${SCORE_VIO}" != "0" ] && [ -z "${OV_CONFIG:-}" ]; then
     if [ "${SCENARIO}" = "low_texture" ] || [ "${GZ_WORLD}" = "vio_low_texture" ]; then
         OV_CONFIG="/workspace/config/openvins/gz_x500_mono_cam_low_texture/estimator_config.yaml"
     elif [ "${SCENARIO}" = "faster_motion" ] || [ "${SCENARIO}" = "faster_motion_aggressive" ]; then
@@ -78,6 +102,13 @@ resolve_vio_init_attempts() {
     fi
 }
 
+# Test hook: print the resolved airframe/overlay and exit (no docker).
+if [ "${PRINT_RESOLVED_ONLY:-0}" = "1" ]; then
+    printf 'MODEL=%s\nGZ_MODEL=%s\nSCORE_VIO=%s\nOV_CONFIG=%s\n' \
+        "${MODEL}" "${GZ_MODEL}" "${SCORE_VIO}" "${OV_CONFIG}"
+    exit 0
+fi
+
 resolve_vio_init_attempts
 if [ "${RESOLVE_VIO_INIT_ATTEMPTS_ONLY:-0}" = "1" ]; then
     echo "${VIO_INIT_ATTEMPTS}"
@@ -100,7 +131,10 @@ if [ -z "${FLIGHT_CMD:-}" ]; then
     [ -n "${SQUARE_TIMEOUT:-}" ] && ROS_ARGS+=(-p "mission_timeout:=${SQUARE_TIMEOUT}")
     # Stay at wp0 until OpenVINS odom exists (or timeout). Fixes late mid-air
     # init on low_texture (cal 20261109_224426) without waiting on the ground.
-    if [ -z "${HOLD_FOR_TOPIC+x}" ]; then
+    # EKF2-only (SCORE_VIO=0): never hold for an OpenVINS topic.
+    if [ "${SCORE_VIO}" = "0" ]; then
+        HOLD_FOR_TOPIC=""
+    elif [ -z "${HOLD_FOR_TOPIC+x}" ]; then
         HOLD_FOR_TOPIC="/ov_msckf/odomimu"
     fi
     if [ -n "${HOLD_FOR_TOPIC}" ]; then
@@ -134,7 +168,7 @@ if [ -z "${FLIGHT_CMD:-}" ]; then
     fi
 fi
 
-echo "[INFO] scenario=${SCENARIO} world=${GZ_WORLD} ov_config=${OV_CONFIG} flight=${FLIGHT_CMD}"
+echo "[INFO] scenario=${SCENARIO} world=${GZ_WORLD} model=${MODEL} gz_model=${GZ_MODEL} score_vio=${SCORE_VIO} ov_config=${OV_CONFIG} flight=${FLIGHT_CMD}"
 echo "[INFO] results -> ${SUMMARY_DIR}"
 docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${SUMMARY_DIR}"
 mkdir -p "${REPO_DIR}/logs"
@@ -148,15 +182,37 @@ ATTEMPT=$((ATTEMPT + 1))
 if [ "${ATTEMPT}" -gt 1 ]; then BAG_STAMP="$(date +%Y%m%d_%H%M%S)"; else BAG_STAMP="${STAMP}"; fi
 echo "[INFO] VIO init attempt ${ATTEMPT}/${VIO_INIT_ATTEMPTS}"
 
-# Restart VIO for a clean OpenVINS init
-echo "[INFO] (Re)starting vio.launch.py gz_world:=${GZ_WORLD}..."
-docker exec "${CONTAINER_NAME}" bash -lc 'pkill -f "[r]os2 launch drone_bringup vio" >/dev/null 2>&1 || true; pkill -f "[r]un_subscribe_msckf" >/dev/null 2>&1 || true; pkill -f "[g]round_truth_publisher" >/dev/null 2>&1 || true; pkill -f "[i]mage_bridge" >/dev/null 2>&1 || true; pkill -f "[p]arameter_bridge" >/dev/null 2>&1 || true; true'
+# Restart VIO for a clean OpenVINS init (or GT only when SCORE_VIO=0)
+docker exec "${CONTAINER_NAME}" bash -lc 'pkill -f "[r]os2 launch drone_bringup vio" >/dev/null 2>&1 || true; pkill -f "[r]os2 launch drone_bringup localization" >/dev/null 2>&1 || true; pkill -f "[r]un_subscribe_msckf" >/dev/null 2>&1 || true; pkill -f "[g]round_truth_publisher" >/dev/null 2>&1 || true; pkill -f "[i]mage_bridge" >/dev/null 2>&1 || true; pkill -f "[p]arameter_bridge" >/dev/null 2>&1 || true; true'
 sleep 3
-docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
-    -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
-    bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=${GZ_WORLD} gz_model:=x500_mono_cam_0 config_path:=${OV_CONFIG} start_ground_truth:=true > /tmp/vio-launch.log 2>&1"
+if [ "${SCORE_VIO}" = "0" ]; then
+    echo "[INFO] (Re)starting localization.launch.py (GT only) gz_pose_topic:=/world/${GZ_WORLD}/pose/info model_name:=${GZ_MODEL}..."
+    docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
+        -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
+        bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup localization.launch.py gz_pose_topic:=/world/${GZ_WORLD}/pose/info model_name:=${GZ_MODEL} > /tmp/vio-launch.log 2>&1"
+else
+    echo "[INFO] (Re)starting vio.launch.py gz_world:=${GZ_WORLD} gz_model:=${GZ_MODEL}..."
+    docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
+        -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
+        bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=${GZ_WORLD} gz_model:=${GZ_MODEL} config_path:=${OV_CONFIG} start_ground_truth:=true > /tmp/vio-launch.log 2>&1"
+fi
 
 for i in $(seq 1 30); do
+    if [ "${SCORE_VIO}" = "0" ]; then
+        HAS_GT=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+            bash -c "${SOURCE_CMD}; ros2 topic list" 2>/dev/null | grep -c '/ground_truth/odometry' || true)
+        if [ "${HAS_GT}" != "0" ]; then
+            echo "[INFO] ground-truth bridge up (EKF2-only) at try ${i}"
+            break
+        fi
+        if [ "$i" -eq 30 ]; then
+            echo "[ERROR] localization bridge did not come up" >&2
+            docker exec "${CONTAINER_NAME}" tail -40 /tmp/vio-launch.log || true
+            exit 1
+        fi
+        sleep 2
+        continue
+    fi
     HAS_CAM=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
         bash -c "${SOURCE_CMD}; ros2 topic list" 2>/dev/null | grep -c '/camera/image_raw' || true)
     HAS_IMU=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
@@ -197,7 +253,7 @@ if [ "${GT_OK}" != "1" ]; then
 fi
 
 # Feature wait is best-effort on low-texture (may never get disparity)
-if ! "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 45; then
+if [ "${SCORE_VIO}" != "0" ] && ! "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 45; then
     echo "[WARN] OpenVINS feature wait timed out (expected on low_texture); continuing"
 fi
 sleep 2
@@ -208,7 +264,8 @@ sleep 2
 # capped SQUARE_YAW_SPIN, and the gz_x500_mono_cam_fast_motion overlay.
 
 echo "[INFO] Recording ${BAG_DURATION}s -> /data/bags/${BAG_STAMP}..."
-BAG_PATH="/data/bags/${BAG_STAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" --vio &
+if [ "${SCORE_VIO}" = "0" ]; then BAG_MODE=--localization; else BAG_MODE=--vio; fi
+BAG_PATH="/data/bags/${BAG_STAMP}" "${REPO_DIR}/scripts/record-bag.sh" "${BAG_DURATION}" "${BAG_MODE}" &
 RECORD_PID=$!
 sleep 5
 
@@ -268,7 +325,7 @@ mkdir -p ${SUMMARY_DIR}/tum_ekf2 ${SUMMARY_DIR}/tum_vio
 ros2 run drone_localization localization_metrics ${BAG} \
   --output-dir ${SUMMARY_DIR} --metrics-name metrics_ekf2.json --tum-dir ${SUMMARY_DIR}/tum_ekf2
 # Never score a VIO estimate when init missed liftoff on every attempt.
-if [ ${VIO_INIT_FAILED} != 1 ]; then
+if [ ${VIO_INIT_FAILED} != 1 ] && [ ${SCORE_VIO} != 0 ]; then
 ros2 run drone_localization localization_metrics ${BAG} \
   --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
   --output-dir ${SUMMARY_DIR} --metrics-name metrics_vio.json --tum-dir ${SUMMARY_DIR}/tum_vio
@@ -304,6 +361,9 @@ status = json.loads(status_path.read_text()) if status_path.exists() else {}
 summary = {
   'scenario': '${SCENARIO}',
   'gz_world': '${GZ_WORLD}',
+  'model': '${MODEL}',
+  'gz_model': '${GZ_MODEL}',
+  'score_vio': bool(${SCORE_VIO}),
   'bag': '${BAG}',
   'mission': '${MISSION}',
   'vio_init_timeout': bool(status.get('vio_init_timeout', False)),

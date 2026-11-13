@@ -85,3 +85,12 @@ scenarios:
     ekf2_origin_v_rmse_max: 0.11
     vio_umeyama_xy_rmse_max: 1.85
     vio_umeyama_3d_rmse_max: 1.90
+  mc_gps:
+    # Multi-airframe Phase A (ODL-93): plain gz_x500 (no camera), GPS only
+    # (EKF2_EV_CTRL=0), default C++ 10 m square on vio_test. EKF2 vs GT only:
+    # score_vio false drops the VIO defaults and the ov_published check.
+    # non_gating until calibrated from N>=5 flights. Until then the EKF2
+    # limits are the inherited defaults (report-only).
+    non_gating: true
+    score_vio: false
+    ov_published: false

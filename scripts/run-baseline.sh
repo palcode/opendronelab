@@ -14,11 +14,16 @@ FLIGHT_CMD="${FLIGHT_CMD:-ros2 run drone_flight_cpp square_flight_cpp}"
 # Match launch-sitl so GT pose topic + model name are correct.
 WORLD="${WORLD:-}"
 MODEL="${MODEL:-gz_x500}"
-case "${MODEL}" in
-    gz_x500_mono_cam*) GT_MODEL_NAME="x500_mono_cam_0" ;;
-    gz_x500*) GT_MODEL_NAME="x500_0" ;;
-    *) GT_MODEL_NAME="${MODEL#gz_}_0" ;;
-esac
+# Gazebo instance for GT from config/airframes.yaml (falls back to
+# ${MODEL#gz_}_0 for airframes not in the registry).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if ! GT_MODEL_NAME="$(python3 "${SCRIPT_DIR}/airframe_registry.py" --gz-instance "${MODEL}" 2>/dev/null)"; then
+    case "${MODEL}" in
+        gz_x500_mono_cam*) GT_MODEL_NAME="x500_mono_cam_0" ;;
+        gz_x500*) GT_MODEL_NAME="x500_0" ;;
+        *) GT_MODEL_NAME="${MODEL#gz_}_0" ;;
+    esac
+fi
 if [ -n "${WORLD}" ]; then
     GT_GZ_POSE="/world/${WORLD}/pose/info"
 else
