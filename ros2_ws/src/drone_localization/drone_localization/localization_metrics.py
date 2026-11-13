@@ -310,6 +310,12 @@ def compute_metrics(gt_positions, est_positions, airborne_mask=None):
 # its 3D distance exceeds contemporaneous GT displacement + this margin.
 DEFAULT_VIO_JUMP_MARGIN_M = 0.30
 
+# Brand colours from docs/brand.md. Plot-only; never used in metrics
+# or scenario fingerprints.
+COLOR_GROUND_TRUTH = '#19C3B1'
+COLOR_ESTIMATE = '#FF6B1A'
+COLOR_SLATE = '#8A99AD'
+
 
 def detect_pose_jumps(timestamps_s, est_positions, gt_positions,
                       margin_m=DEFAULT_VIO_JUMP_MARGIN_M):
@@ -422,19 +428,29 @@ def plot_trajectory(gt_positions, est_positions, output_path):
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.plot(
         gt_positions[:, 1], gt_positions[:, 0],
-        'g-', label='Ground Truth', linewidth=2,
+        color=COLOR_GROUND_TRUTH, solid_capstyle='round',
+        label='Ground Truth', linewidth=2,
     )
     ax.plot(
         est_positions[:, 1], est_positions[:, 0],
-        'r--', label='Estimated', linewidth=2,
+        color=COLOR_ESTIMATE, linestyle='--', solid_capstyle='round',
+        label='Estimated', linewidth=2,
     )
-    ax.plot(gt_positions[0, 1], gt_positions[0, 0], 'go', markersize=10, label='Start')
-    ax.plot(gt_positions[-1, 1], gt_positions[-1, 0], 'gs', markersize=10, label='End')
+    ax.plot(
+        gt_positions[0, 1], gt_positions[0, 0],
+        'o', color=COLOR_GROUND_TRUTH, markersize=10, label='Start',
+        markeredgecolor='#0B1F33', markeredgewidth=0.6,
+    )
+    ax.plot(
+        gt_positions[-1, 1], gt_positions[-1, 0],
+        's', color=COLOR_GROUND_TRUTH, markersize=10, label='End',
+        markeredgecolor='#0B1F33', markeredgewidth=0.6,
+    )
     ax.set_xlabel('East (m)')
     ax.set_ylabel('North (m)')
     ax.set_title('Trajectory Comparison (XY Plane, NED Frame)')
     ax.legend()
-    ax.grid(True)
+    ax.grid(True, color=COLOR_SLATE, alpha=0.35)
     ax.axis('equal')
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
@@ -449,17 +465,17 @@ def plot_errors(timestamps, gt_positions, est_positions, output_path):
     time_s = (timestamps - timestamps[0]) / 1e9
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-    ax1.plot(time_s, horizontal_errors, 'b-', linewidth=1.5)
+    ax1.plot(time_s, horizontal_errors, color=COLOR_ESTIMATE, linewidth=1.5)
     ax1.set_xlabel('Time (s)')
     ax1.set_ylabel('Horizontal Error (m)')
     ax1.set_title('Horizontal Position Error Over Time')
-    ax1.grid(True)
+    ax1.grid(True, color=COLOR_SLATE, alpha=0.35)
 
-    ax2.plot(time_s, vertical_errors, 'r-', linewidth=1.5)
+    ax2.plot(time_s, vertical_errors, color=COLOR_ESTIMATE, linewidth=1.5)
     ax2.set_xlabel('Time (s)')
     ax2.set_ylabel('Vertical Error (m)')
     ax2.set_title('Vertical Position Error Over Time')
-    ax2.grid(True)
+    ax2.grid(True, color=COLOR_SLATE, alpha=0.35)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)

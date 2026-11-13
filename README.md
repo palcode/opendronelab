@@ -1,5 +1,19 @@
 # OpenDroneLab
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-dark.svg">
+  <img src="docs/media/logo-light.svg" alt="OpenDroneLab" height="48">
+</picture>
+
+[![CI](https://img.shields.io/github/actions/workflow/status/palcode/opendronelab/ci.yml?branch=main&style=flat&label=CI)](https://github.com/palcode/opendronelab/actions/workflows/ci.yml)
+[![License AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue?style=flat)](LICENSE)
+![PX4 v1.17](https://img.shields.io/badge/PX4-v1.17-blue?style=flat)
+![ROS 2 Jazzy](https://img.shields.io/badge/ROS%202-Jazzy-blue?style=flat)
+![Gazebo Harmonic](https://img.shields.io/badge/Gazebo-Harmonic-blue?style=flat)
+![GHCR image pending](https://img.shields.io/badge/GHCR-pending-lightgrey?style=flat)
+[![Docs](https://img.shields.io/badge/docs-docs%2F-blue?style=flat)](docs/)
+![Discussions pending](https://img.shields.io/badge/discussions-pending-lightgrey?style=flat)
+
 OpenDroneLab is a simulation-first research stack for PX4 SITL: Gazebo Harmonic, ROS 2 Jazzy, and optional OpenVINS visual-inertial odometry, with a scored regression suite.
 
 The verified path today is software-in-the-loop. This project is **not flight-certified** and must not be used to operate a real aircraft without separate safety, legal, and range review. See [docs/real-drone-readiness.md](docs/real-drone-readiness.md).
@@ -82,7 +96,7 @@ A 2026-11-04 GPS-only square on the default world (historical Python flight node
 ```
 config/          Airframes, regression gates, OpenVINS overlays, Gazebo server configs
 docker/          Development image
-docs/            Setup, simulation, localization, perception, safety
+docs/            Setup, simulation, localization, perception, safety, brand
 ros2_ws/         First-party ROS 2 packages
 scripts/         Launch, regression, evaluation (source scripts/odl-env.sh)
 worlds/          Gazebo worlds (default.sdf is a vendored PX4 stock world)
