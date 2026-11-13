@@ -395,14 +395,18 @@ On 2026-11-13 the three per-overlay PNG copies were replaced by that shared
 file (ODL-91). Mask bytes and polarity did not change, so flight results
 remain comparable. Scenario fingerprints changed because the `mask0` path
 string and hash inputs changed (`scripts/scenario_fingerprint.py` now also
-hashes a mask referenced outside the overlay directory):
+hashes a mask referenced outside the overlay directory), and because the
+same commit edited each overlay README (those files are part of the hash).
+The new hashes below were recomputed at `c6651fa` with
+`scripts/scenario_fingerprint.py`. The table first recorded in that commit
+omitted the README edits:
 
 | Scenario | old sha256 | new sha256 |
 |---|---|---|
-| baseline (`vio_test` + `gz_x500_mono_cam`) | `d60721c79593bd59e538c315655dd11db3d9e1fe548fcc53cde4d7ca3efab754` | `6dc9a8cde7e883c471ca8e30bd090d8c03b92ecf054dae4b083c750a3e450b8f` |
-| wind (`vio_wind` + `gz_x500_mono_cam`) | `2267aeeb171d599b35200cc130f95c559c614e79fcb8016518cbd501eb294fba` | `e5f54ec8b41131410a59e55b97d1c85ac90a4e9e9fa6dd6f81ab1f257aab133b` |
-| low_texture (`vio_low_texture` + `gz_x500_mono_cam_low_texture`) | `8b2c7db584912b6872374923189af86f60c6a070d76965605fc6769c15aba239` | `64a796d675a241b7cfa9b81b4241ba1c066866b9434ebbf34d969839728a3571` |
-| faster_motion / faster_motion_aggressive (`vio_test` + `gz_x500_mono_cam_fast_motion`) | `c4f5442b74c60fbf2e31020ede36e7a92d27c4de3fd3e8831c8ebc420b790466` | `bea7da818bb0d56e324aabeac00321c68f84b8f004601dc6b750cb8dfa2a50b1` |
+| baseline (`vio_test` + `gz_x500_mono_cam`) | `d60721c79593bd59e538c315655dd11db3d9e1fe548fcc53cde4d7ca3efab754` | `e730382e0d054c0630f815395fd13116e0b41729267d714c451f3c8a981479df` |
+| wind (`vio_wind` + `gz_x500_mono_cam`) | `2267aeeb171d599b35200cc130f95c559c614e79fcb8016518cbd501eb294fba` | `97201132f2070b7ea903b6a682dd3cd90a6fa43574c49f6f93a297789189768e` |
+| low_texture (`vio_low_texture` + `gz_x500_mono_cam_low_texture`) | `8b2c7db584912b6872374923189af86f60c6a070d76965605fc6769c15aba239` | `ab61657c2d46de8a15bf0d8f2a34e810100f48abb51182705c9b6251e66ab8ee` |
+| faster_motion / faster_motion_aggressive (`vio_test` + `gz_x500_mono_cam_fast_motion`) | `c4f5442b74c60fbf2e31020ede36e7a92d27c4de3fd3e8831c8ebc420b790466` | `9832949ddac49a1f2ff8ea70432d9c62de5d7346fbbb7f2506cac5884ba9e69a` |
 
 ### Bring-up
 
