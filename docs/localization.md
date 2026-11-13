@@ -570,7 +570,9 @@ Image: `opendronelab-dev:latest` = `:phase5-verify` (`e98a336e9dda`, cold rebuil
   known limitation. The VIO xy limit **stays 0.55 m** and the scenario is
   still run, scored, and listed in the report (`non_gating: true`, same
   as `faster_motion_aggressive`), but a fail there does not fail overall
-  regression. Reliability work remains ODL-76.
+  regression. The report also has an `overall_all_scenarios` verdict that
+  includes non_gating flights, so a known-limitation fail is still visible.
+  Reliability work remains ODL-76.
 
   Results from before 2026-11-11 are **not comparable** with later runs
   or with the 2026-11-09 0.55 m figure: `27238b3` added the pad texture

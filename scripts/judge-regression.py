@@ -150,6 +150,37 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     }
 
 
+
+def overall_verdicts(pytest_pass: bool, judges: list, n_flights: int) -> dict:
+    """Overall verdicts for a regression report.
+
+    overall / overall_pass_at_1 use only gating scenarios (non_gating ignored).
+    overall_all_scenarios includes every flown scenario, including non_gating.
+    When n_flights == 0, all three follow pytest_pass.
+    """
+    pytest_ok = bool(pytest_pass)
+    if n_flights == 0:
+        return {
+            'overall': pytest_ok,
+            'overall_pass_at_1': pytest_ok,
+            'overall_all_scenarios': pytest_ok,
+        }
+    complete = len(judges) == n_flights
+    gating = [j for j in judges if not j.get('non_gating')]
+    overall = pytest_ok and complete and all(j.get('pass') for j in gating)
+    overall_pass_at_1 = (
+        pytest_ok and complete and all(j.get('pass_at_1') for j in gating)
+    )
+    overall_all_scenarios = (
+        pytest_ok and complete and all(j.get('pass') for j in judges)
+    )
+    return {
+        'overall': overall,
+        'overall_pass_at_1': overall_pass_at_1,
+        'overall_all_scenarios': overall_all_scenarios,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--summary', required=False)

@@ -424,6 +424,7 @@ export FLIGHT_ORDER="$(IFS=,; echo "${FLIGHTS[*]}")"
 
 set +e
 python3 << 'PY'
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -443,30 +444,21 @@ if flight_order:
 else:
     judges = list(judges_by.values())
 n_flights = int(os.environ["N_FLIGHTS"])
-if n_flights == 0:
-    overall = bool(pytest.get("pass", False))
-    overall_pass_at_1 = overall
-    overall_excluding_known_limitations = overall
-else:
-    gating = [j for j in judges if not j.get("non_gating")]
-    # Every flown scenario must have a judge file; only gating ones affect overall.
-    # pass@1 is the same set, but requires each gating scenario to have passed
-    # on the first VIO-init attempt (retries would hide a regression).
-    # Known limitations share the non_gating flag (low_texture, and also
-    # faster_motion_aggressive); there is no separate known_limitation key.
-    # overall_excluding_known_limitations uses that same excluded set so a
-    # known-limitation fail cannot hide a baseline regression.
-    overall = (
-        bool(pytest.get("pass", False))
-        and all(j.get("pass") for j in gating)
-        and len(judges) == n_flights
-    )
-    overall_pass_at_1 = (
-        bool(pytest.get("pass", False))
-        and all(j.get("pass_at_1") for j in gating)
-        and len(judges) == n_flights
-    )
-    overall_excluding_known_limitations = overall
+# overall / overall_pass_at_1 ignore non_gating scenarios (known limitations
+# such as low_texture and faster_motion_aggressive). overall_all_scenarios
+# includes those non_gating flights so a fail there is still visible.
+_judge_path = (
+    Path(os.environ["THRESHOLDS"]).resolve().parent.parent
+    / "scripts" / "judge-regression.py"
+)
+_spec = importlib.util.spec_from_file_location("judge_regression", _judge_path)
+_judge = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_judge)
+_verdicts = _judge.overall_verdicts(
+    bool(pytest.get("pass", False)), judges, n_flights)
+overall = _verdicts["overall"]
+overall_pass_at_1 = _verdicts["overall_pass_at_1"]
+overall_all_scenarios = _verdicts["overall_all_scenarios"]
 
 rows = []
 if not pytest.get("skipped"):
@@ -518,7 +510,7 @@ out = {
     "stamp": stamp,
     "overall_pass": overall,
     "overall_pass_at_1": overall_pass_at_1,
-    "overall_excluding_known_limitations": overall_excluding_known_limitations,
+    "overall_all_scenarios": overall_all_scenarios,
     "scenario_fingerprints": {
         j.get("scenario"): (j.get("summary") or {}).get("scenario_fingerprint")
         for j in judges
@@ -542,7 +534,7 @@ lines = [
     f"# OpenDroneLab regression {stamp}",
     "",
     f"- **Overall:** **{mark(overall)}** (pass@1: **{mark(overall_pass_at_1)}**)",
-    f"- **Overall excluding known limitations:** **{mark(overall_excluding_known_limitations)}**",
+    f"- **Overall all scenarios (including non-gating):** **{mark(overall_all_scenarios)}**",
     f"- Elapsed: {elapsed}s",
     f"- GZ_SEED={os.environ['GZ_SEED']}, BAG_DURATION={os.environ['BAG_DURATION']}, "
     "EKF2_EV_CTRL=0, GstCamera off, VIO shadow",

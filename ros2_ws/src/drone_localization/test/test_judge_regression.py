@@ -385,3 +385,50 @@ def test_legacy_summary_with_fingerprint_none_still_tolerates_missing(judge_mod,
     res = judge_mod.judge(s, thresholds, 'baseline')
     assert res['pass']
     assert res['pass_at_1'] is True
+
+
+def test_overall_verdicts_ignores_nongating_for_overall_only(judge_mod):
+    gating_pass = {'pass': True, 'pass_at_1': True, 'non_gating': False}
+    gating_fail = {'pass': False, 'pass_at_1': False, 'non_gating': False}
+    nongate_fail = {'pass': False, 'pass_at_1': False, 'non_gating': True}
+    nongate_pass = {'pass': True, 'pass_at_1': True, 'non_gating': True}
+
+    v = judge_mod.overall_verdicts(True, [gating_pass, nongate_fail], 2)
+    assert v['overall'] is True
+    assert v['overall_pass_at_1'] is True
+    assert v['overall_all_scenarios'] is False
+
+    v = judge_mod.overall_verdicts(True, [gating_fail, nongate_pass], 2)
+    assert v['overall'] is False
+    assert v['overall_pass_at_1'] is False
+    assert v['overall_all_scenarios'] is False
+
+    v = judge_mod.overall_verdicts(True, [gating_pass, nongate_pass], 2)
+    assert v['overall'] is True
+    assert v['overall_pass_at_1'] is True
+    assert v['overall_all_scenarios'] is True
+
+    # Missing judge file: len(judges) != n_flights.
+    v = judge_mod.overall_verdicts(True, [gating_pass], 2)
+    assert v['overall'] is False
+    assert v['overall_pass_at_1'] is False
+    assert v['overall_all_scenarios'] is False
+
+    v = judge_mod.overall_verdicts(False, [], 0)
+    assert v['overall'] is False
+    assert v['overall_pass_at_1'] is False
+    assert v['overall_all_scenarios'] is False
+
+    v = judge_mod.overall_verdicts(True, [], 0)
+    assert v == {
+        'overall': True,
+        'overall_pass_at_1': True,
+        'overall_all_scenarios': True,
+    }
+
+    # pass@1 can fail overall_pass_at_1 while overall stays True.
+    gating_retry = {'pass': True, 'pass_at_1': False, 'non_gating': False}
+    v = judge_mod.overall_verdicts(True, [gating_retry, nongate_pass], 2)
+    assert v['overall'] is True
+    assert v['overall_pass_at_1'] is False
+    assert v['overall_all_scenarios'] is True
