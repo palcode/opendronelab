@@ -276,6 +276,32 @@ of hardcoded `x500_mono_cam` strings. Gates stay in
   and the `model` field in `summary.json`, not the hash alone.
 - Phases B (fixed-wing), C (VTOL) and D (rover) are planned in ODL-93.
 
+### mc_gps calibration (2026-11-13 Asia/Calcutta, provisional)
+
+N=5 flights at `7fbf0f4`, `GZ_SEED=1234`, GstCamera off, `EKF2_EV_CTRL=0`,
+plain `gz_x500` (`x500_0` spawned and tracked), default square on
+`vio_test`. Results `/data/results/regression_20261113_{194115,194409,194712,195009,195300}`;
+bags `/data/bags/20261113_{194142,194442,194738,195035,195326}` (no camera topics).
+Fingerprint `db105a65ed6d0b4d94481ebac8173713563372ef3bc0c7a001d2b4e3211bb2f3`
+(world-only; see note above).
+
+| Run | Mission | Retries | EKF2 Umeyama xy | 3D | origin H | origin V | samples |
+|---|---|---|---|---|---|---|---|
+| r1 | success | 0 | 0.2535 | 0.2613 | 0.2762 | 0.0787 | 1541 |
+| r2 | success | 0 | 0.2576 | 0.2639 | 0.2787 | 0.0621 | 1551 |
+| r3 | success | 0 | 0.2592 | 0.2664 | 0.2817 | 0.0663 | 1581 |
+| r4 | success | 0 | 0.2569 | 0.2665 | 0.2792 | 0.0733 | 1578 |
+| r5 | success | 0 | 0.2587 | 0.2667 | 0.2813 | 0.0648 | 1554 |
+| mean ± σ | 5/5 | pass@1 5/5 | 0.2572 ± 0.0022 | 0.2650 ± 0.0024 | 0.2794 ± 0.0022 | 0.0690 ± 0.0068 | |
+
+Provisional gates (`round_up(max(mean+3σ, 1.5×worst))`): xy 0.39, 3D 0.41,
+H 0.43, V 0.12, samples ≥ 500 (default). `mc_gps` stays `non_gating`; promoting
+it to gating, and adding it to the default list, is Pallab's call.
+
+Same-session `baseline` check (`regression_20261113_195550`, `gz_x500_mono_cam`):
+PASS, pass@1, 0 retries, EKF2 xy 0.258 / 3D 0.269, VIO xy 0.445, fingerprint
+`e730382e…` unchanged. EKF2 on plain `gz_x500` matches the camera vehicle.
+
 ## Logs and Data
 
 ### PX4 Logs (.ulg)

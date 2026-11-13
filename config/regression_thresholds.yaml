@@ -89,8 +89,16 @@ scenarios:
     # Multi-airframe Phase A (ODL-93): plain gz_x500 (no camera), GPS only
     # (EKF2_EV_CTRL=0), default C++ 10 m square on vio_test. EKF2 vs GT only:
     # score_vio false drops the VIO defaults and the ov_published check.
-    # non_gating until calibrated from N>=5 flights. Until then the EKF2
-    # limits are the inherited defaults (report-only).
+    # PROVISIONAL EKF2 gates from N=5 GZ_SEED=1234 flights, 2026-11-13
+    # Asia/Calcutta at 7fbf0f4 (regression_20261113_194115 .. _195300), same
+    # rule: round_up(max(mean + 3σ, 1.5 × worst)); 1.5 × worst dominates. All
+    # tighter than the inherited defaults. Still non_gating: reported, does
+    # not affect overall PASS/FAIL. 5/5 pass, pass@1 5/5, 0 retries.
+    # See docs/simulation-guide.md "mc_gps calibration".
     non_gating: true
     score_vio: false
     ov_published: false
+    ekf2_umeyama_xy_rmse_max: 0.39
+    ekf2_umeyama_3d_rmse_max: 0.41
+    ekf2_origin_h_rmse_max: 0.43
+    ekf2_origin_v_rmse_max: 0.12
