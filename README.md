@@ -24,15 +24,27 @@ export ODL_DATA="$(cd "$ODL_ROOT/.." && pwd)/dronelab-data"
 mkdir -p "$ODL_DATA"
 
 # One-time: build the development image (NVIDIA Container Toolkit recommended).
+# Skip this if `opendronelab-dev:latest` is already present on the host.
 docker build -t opendronelab-dev:latest \
   --build-arg USER_UID="$(id -u)" --build-arg USER_GID="$(id -g)" \
   -f docker/Dockerfile.dev docker/
+
+# One-time: build ROS 2 packages into $ODL_DATA (px4_msgs + first-party
+# packages). Required before pytest. This is not an image rebuild.
+# Skip if $ODL_DATA/ros2_build/ws/install/setup.bash already exists.
+docker run --rm \
+  -v "$ODL_ROOT":/workspace -v "$ODL_DATA":/data \
+  -u "$(id -u):$(id -g)" -e HOME=/tmp -w /workspace \
+  opendronelab-dev:latest \
+  /workspace/scripts/build-workspace.sh
 
 # One command: headless unit tests (no GPU flights).
 SCENARIOS=pytest ./scripts/run-regression.sh
 ```
 
-`scripts/odl-env.sh` is sourced by the launch and regression scripts, so you can omit the `export` lines if you are happy with those defaults. To fly the scored SITL suite (GPU, takes a while):
+The HTTPS clone URL works once the repository is public. While it is private, clone with SSH if you have access.
+
+`scripts/odl-env.sh` is sourced by the launch and regression scripts, so you can omit the `export` lines if you are happy with those defaults. If you do export `ODL_DATA`, it takes precedence over a leftover `DATA_DIR` in the environment. To fly the scored SITL suite (GPU, takes a while):
 
 ```bash
 HEADLESS=1 ./scripts/run-regression.sh

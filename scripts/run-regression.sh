@@ -327,6 +327,15 @@ PYTEST_JSON="${REPORT_HOST}/pytest.json"
 if [ "${RUN_PYTEST}" = "1" ]; then
     echo ""
     echo "[REG] pytest..."
+    if [ ! -f "${DATA_DIR}/ros2_build/deps/install/setup.bash" ] \
+        || [ ! -f "${DATA_DIR}/ros2_build/ws/install/setup.bash" ]; then
+        echo "[REG] pytest needs a built ROS 2 workspace in \$ODL_DATA/ros2_build" >&2
+        echo "[REG] (px4_msgs plus the first-party packages). Build it once:" >&2
+        echo "[REG]   docker run --rm -v \"\$ODL_ROOT\":/workspace -v \"\$ODL_DATA\":/data \\" >&2
+        echo "[REG]     -u \$(id -u):\$(id -g) -e HOME=/tmp -w /workspace \\" >&2
+        echo "[REG]     opendronelab-dev:latest /workspace/scripts/build-workspace.sh" >&2
+        exit 1
+    fi
     set +e
     docker run --rm --network none \
         -v "${REPO_DIR}":/workspace:ro \

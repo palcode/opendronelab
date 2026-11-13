@@ -40,9 +40,11 @@ if [ -z "${ODL_DATA:-}" ]; then
 fi
 
 export ODL_ROOT ODL_DATA
-REPO_DIR="${REPO_DIR:-${ODL_ROOT}}"
-DATA_DIR="${DATA_DIR:-${ODL_DATA}}"
-WORKSPACE_DIR="${WORKSPACE_DIR:-${ODL_ROOT}}"
+# Legacy aliases always track the resolved ODL_* values. A leftover
+# DATA_DIR in the environment must not override an explicit ODL_DATA.
+REPO_DIR="${ODL_ROOT}"
+DATA_DIR="${ODL_DATA}"
+WORKSPACE_DIR="${ODL_ROOT}"
 export REPO_DIR DATA_DIR WORKSPACE_DIR
 ODL_ENV_LOADED=1
 export ODL_ENV_LOADED
