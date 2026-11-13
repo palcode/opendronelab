@@ -538,3 +538,37 @@ written (never loosen). Pallab to decide: (a) smooth the approach in
 (b) accept a looser FW-specific gate, (c) score the approach window
 separately, and/or (d) compensate the GT/EKF2 time offset for fast vehicles
 (would need applying to MC too, or FW only).
+
+### fw_mission v2 N=5 (2026-11-13 Asia/Calcutta, at `b0f0e7a`) — gates NOT set
+
+Downwind/base/final pattern. `GZ_SEED=1234`, GstCamera off, `EKF2_EV_CTRL=0`,
+`FW_LND_USETER=0`. Results
+`/data/results/regression_20261113_{213242,213750,214251,214758,215259}`;
+bags `/data/bags/20261113_{213305,213812,214319,214820,215321}`.
+Fingerprint `0818407e823c…` (unchanged world-only hash).
+
+| Run | Mission | Arm→disarm | EKF2 Umeyama xy | 3D | origin H | origin V | samples |
+|---|---|---|---|---|---|---|---|
+| r1 | success | 168 s | 1.487 | 1.495 | 1.668 | 0.231 | 7659 |
+| r2 | success | 166 s | 1.505 | 1.512 | 1.685 | 0.200 | 7553 |
+| r3 | success | 167 s | 1.509 | 1.521 | 1.691 | 0.230 | 7566 |
+| r4 | success | 172 s | 1.481 | 1.494 | 1.666 | 0.297 | 7743 |
+| r5 | success | 168 s | 1.458 | 1.465 | 1.630 | 0.212 | 7636 |
+| mean ± σ | 5/5, 0 retries | | 1.488 ± 0.020 | 1.497 ± 0.022 | 1.668 ± 0.024 | 0.234 ± 0.038 | |
+
+- **GNSS-fusion dropout did not recur.** 0 wind-dead-reckoning onsets and 0
+  `cs_gnss_vel` drops in all 5 bags (v1 r3: 6 onsets, 1 drop).
+- **Remaining transient, every run, same place:** at the base→final turn
+  (~30 m) EKF2 does a magnetometer in-flight heading realignment with
+  `delta_heading` ≈ +2.70–2.74 rad. About 1.15 s later a second heading reset
+  (−2.40 to −2.55 rad) restores yaw with an xy reset of 12.7–13.5 m. xy error
+  peaks at 16–17 m for ~1.1 s, then returns to ~1.5 m. This is stock EKF2 mag
+  behaviour; no EKF2 params were changed.
+- **Timing lag share:** the best constant shift is 0.100–0.105 s (EKF2 ahead
+  of GT, mean along-track error +1.36 to +1.42 m at ~13.2 m/s). Removing it
+  would cut xy RMSE from ~1.67 to ~0.93 m (origin-aligned), i.e. **~68–69 %
+  of the mean-square xy error**. Not compensated (Pallab, 2026-11-13).
+- **Calibration rule:** xy 2.27 / 3D 2.29 / H 2.54 / V 0.45 m. All are looser
+  than the 0.60 / 0.62 / 0.60 / 0.13 m defaults `fw_mission` inherits, so **no
+  gate was written**. `fw_mission` stays `non_gating` and opt-in; the judge
+  reports FAIL against the defaults on every run.
