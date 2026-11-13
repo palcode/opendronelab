@@ -15,7 +15,10 @@
 #     must publish within this long after liftoff or the flight lands without
 #     the square and is retried (fresh OpenVINS, fresh bag) up to
 #     VIO_INIT_ATTEMPTS times (from config vio_init_retries_max + 1 when
-#     unset: 1 for baseline/faster_motion/wind, 3 for low_texture, else 3).
+#     unset: 1 for baseline/faster_motion/wind, 3 for low_texture, else
+#     retries_max+1 or 3 if the scenario has no cap). The value is required
+#     to match ^[1-9][0-9]*$; a failed or non-numeric result (for example
+#     PyYAML missing) is a hard error, never a silent fallback to 3.
 #     Only the final attempt is scored; a run that misses on every attempt
 #     is not VIO-scored (fails). The judge also fails a scenario that used
 #     more retries than vio_init_retries_max (non_gating still ignored overall).
@@ -50,6 +53,36 @@ source /opt/ros/jazzy/setup.bash
 set -u
 export ROS_DOMAIN_ID=42
 export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST'
+
+
+# Resolve and validate VIO_INIT_ATTEMPTS. Never silently default to 3.
+# Set RESOLVE_VIO_INIT_ATTEMPTS_ONLY=1 to print the value and exit (no docker).
+resolve_vio_init_attempts() {
+    local out ec
+    if [ -z "${VIO_INIT_ATTEMPTS:-}" ]; then
+        set +e
+        out="$(python3 "${REPO_DIR}/scripts/judge-regression.py" \
+            --thresholds "${REPO_DIR}/config/regression_thresholds.yaml" \
+            --scenario "${SCENARIO}" \
+            --print-vio-init-attempts 2>&1)"
+        ec=$?
+        set -e
+        if [ "${ec}" -ne 0 ] || ! [[ "${out}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "[ERROR] VIO_INIT_ATTEMPTS from judge-regression.py --print-vio-init-attempts must be a positive integer matching ^[1-9][0-9]*$ (got $(printf '%q' "${out}"), exit ${ec}). This often means PyYAML is missing or the thresholds file could not be read. Refusing to fall back to 3, which would hide baseline retries." >&2
+            exit 1
+        fi
+        VIO_INIT_ATTEMPTS="${out}"
+    elif ! [[ "${VIO_INIT_ATTEMPTS}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[ERROR] VIO_INIT_ATTEMPTS must be a positive integer matching ^[1-9][0-9]*$ (got $(printf '%q' "${VIO_INIT_ATTEMPTS}")). Refusing to fall back to 3, which would hide baseline retries." >&2
+        exit 1
+    fi
+}
+
+resolve_vio_init_attempts
+if [ "${RESOLVE_VIO_INIT_ATTEMPTS_ONLY:-0}" = "1" ]; then
+    echo "${VIO_INIT_ATTEMPTS}"
+    exit 0
+fi
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "[ERROR] ${CONTAINER_NAME} not running" >&2
@@ -107,11 +140,6 @@ docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${
 mkdir -p "${REPO_DIR}/logs"
 echo "summary_dir=${SUMMARY_DIR}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-${STAMP}.log"
 
-if [ -z "${VIO_INIT_ATTEMPTS:-}" ]; then
-    VIO_INIT_ATTEMPTS="$(
-        python3 "${REPO_DIR}/scripts/judge-regression.py"             --thresholds "${REPO_DIR}/config/regression_thresholds.yaml"             --scenario "${SCENARIO}"             --print-vio-init-attempts
-    )"
-fi
 ATTEMPT=0
 RETRY_BAGS=()
 VIO_INIT_FAILED=0

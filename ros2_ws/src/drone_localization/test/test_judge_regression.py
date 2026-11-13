@@ -313,3 +313,44 @@ def test_repo_low_texture_fingerprint_differs_from_baseline(fingerprint_mod):
     assert lt['world'] == 'worlds/vio_low_texture.sdf'
     assert base['world'] == 'worlds/vio_test.sdf'
 
+
+
+def test_run_vio_stress_validates_vio_init_attempts(tmp_path):
+    """RESOLVE_VIO_INIT_ATTEMPTS_ONLY exercises the runner without docker or a flight."""
+    import os
+    import subprocess
+    script = REPO / 'scripts' / 'run-vio-stress.sh'
+    env = os.environ.copy()
+    env['RESOLVE_VIO_INIT_ATTEMPTS_ONLY'] = '1'
+    env.pop('VIO_INIT_ATTEMPTS', None)
+
+    def run(scenario, extra_env=None):
+        e = env.copy()
+        if extra_env:
+            e.update(extra_env)
+        return subprocess.run(
+            [str(script), scenario],
+            cwd=str(REPO), env=e, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+
+    r = run('baseline')
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == '1'
+    r = run('low_texture')
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == '3'
+
+    r = run('baseline', {'VIO_INIT_ATTEMPTS': '2'})
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == '2'
+
+    r = run('baseline', {'VIO_INIT_ATTEMPTS': '3'})
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == '3'
+
+    for bad in ('0', '3abc', ' 3', '-1'):
+        r = run('baseline', {'VIO_INIT_ATTEMPTS': bad})
+        assert r.returncode != 0, (bad, r.stdout, r.stderr)
+        assert 'Refusing to fall back to 3' in r.stderr
+        assert '^[1-9][0-9]*$' in r.stderr or 'positive integer' in r.stderr
