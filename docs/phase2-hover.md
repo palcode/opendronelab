@@ -17,8 +17,8 @@ docker run -dit --name odl-sim \
   --gpus all --device /dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
   -e DISPLAY=$DISPLAY -e NVIDIA_DRIVER_CAPABILITIES=all \
   -e __NV_PRIME_RENDER_OFFLOAD=1 -e __GLX_VENDOR_LIBRARY_NAME=nvidia \
-  -v ~/workspace/dronelab:/workspace \
-  -v ~/workspace/dronelab-data:/data -w /data/PX4-Autopilot \
+  -v $ODL_ROOT:/workspace \
+  -v $ODL_DATA:/data -w /data/PX4-Autopilot \
   opendronelab-dev:latest bash -lc 'make px4_sitl gz_x500'
 ```
 
@@ -50,7 +50,7 @@ Phase 2 builds the containerized development environment and validates the compl
 ### Build Image
 
 ```bash
-cd ~/workspace/dronelab/docker
+cd $ODL_ROOT/docker
 
 # Build image with matching host UID/GID
 docker build \
@@ -83,14 +83,14 @@ docker images | grep opendronelab-dev
 ### Launch Development Shell
 
 ```bash
-cd ~/workspace/dronelab
+cd $ODL_ROOT
 ./scripts/dev-shell.sh
 ```
 
 This script:
 - Creates/starts the `opendronelab-dev` container
-- Maps `~/workspace/dronelab` → `/workspace`
-- Maps `~/workspace/dronelab-data` → `/data`
+- Maps `$ODL_ROOT` → `/workspace`
+- Maps `$ODL_DATA` → `/data`
 - Runs as host user (uid 1000) for X11 access
 - Enables GPU passthrough and PRIME offload
 
@@ -315,7 +315,7 @@ Hover profile:
 After Phase 2 completion:
 
 ```
-~/workspace/dronelab-data/
+$ODL_DATA/
 ├── PX4-Autopilot/          ~2.5 GB (source + submodules)
 │   └── build/              ~1.5 GB (first build)
 │       └── logs/           ~50 MB (accumulated .ulg logs)
@@ -374,7 +374,7 @@ exit
 ### Restart Container
 
 ```bash
-cd ~/workspace/dronelab
+cd $ODL_ROOT
 ./scripts/dev-shell.sh
 # Reattaches to existing container
 cd /data/PX4-Autopilot
@@ -386,7 +386,7 @@ make px4_sitl gz_x500
 ```bash
 docker stop opendronelab-dev
 docker rm opendronelab-dev
-# Data in ~/workspace/dronelab-data preserved
+# Data in $ODL_DATA preserved
 ```
 
 ### Remove Everything
@@ -400,7 +400,7 @@ docker rm opendronelab-dev
 docker rmi opendronelab-dev:latest
 
 # Remove data (CAUTION: deletes PX4 builds and logs)
-rm -rf ~/workspace/dronelab-data
+rm -rf $ODL_DATA
 
 # Revoke X11 access (optional)
 xhost -SI:localuser:$(whoami)
@@ -428,7 +428,7 @@ After successful Phase 2:
 **Error: "No space left on device"**
 ```bash
 # Check disk usage
-df -h ~/workspace/dronelab-data
+df -h $ODL_DATA
 # Clean ccache if needed
 ccache -C
 ```
@@ -450,7 +450,7 @@ docker exec opendronelab-dev id
 # Should show: uid=1000 gid=1000
 
 # Check /data mount
-ls -ld ~/workspace/dronelab-data
+ls -ld $ODL_DATA
 # Should show: drwxr-xr-x pallab pallab
 ```
 

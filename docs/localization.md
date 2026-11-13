@@ -80,7 +80,7 @@ PX4 uses EKF2 (Extended Kalman Filter 2) for sensor fusion and state estimation.
 
 ### Measured Sensor Rates
 
-**Measured on <host>, 2026-11-04, gz_x500/default world:**
+**Measured on the reference host, 2026-11-04, gz_x500/default world:**
 
 **ROS 2 Topics (PX4 uXRCE-DDS):**
 

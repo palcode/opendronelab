@@ -18,7 +18,7 @@ def _load_thresholds(path: Path) -> dict:
     text = path.read_text()
     if yaml is not None:
         return yaml.safe_load(text)
-    # Minimal fallback: not expected on <host> (PyYAML present).
+    # Minimal fallback: not expected when PyYAML is installed (host and image).
     raise SystemExit(f'PyYAML required to read {path}')
 
 

@@ -201,7 +201,7 @@ Output: `/data/bags/<timestamp>/` (MCAP or SQLite3 format)
 
 These are **baseline values** for an idle camera. During flight missions with active PX4 control, latency may increase.
 
-### Verified Results (<host>, 2026-11-04)
+### Verified Results (the reference host, 2026-11-04)
 
 Measured on the HP OMEN (RTX 5060 Laptop GPU, 23 GB RAM), container `odl-sim` running
 `make px4_sitl gz_x500_mono_cam` with the XRCE agent, camera bridge, edge overlay node and
@@ -263,7 +263,7 @@ prefers `CUDAExecutionProvider` and falls back to CPU. Pinning lives in
 
 ```bash
 docker run --rm --gpus all --user $(id -u):$(id -g) -e HOME=/tmp \
-  -v $PWD:/workspace -v ~/workspace/dronelab-data:/data \
+  -v $PWD:/workspace -v $ODL_DATA:/data \
   opendronelab-dev:latest \
   python3 /workspace/scripts/bench-detector.py --require-cuda
 ```
@@ -436,7 +436,7 @@ Record detections without raw frames:
 # or: ./scripts/record-bag.sh --no-raw-camera 10
 ```
 
-### Detector measurements (<host>, 2026-11-04)
+### Detector measurements (the reference host, 2026-11-04)
 
 Measured on the ground with the detection world, the XRCE agent, the camera bridge, the
 YOLOX node and rqt_image_view all running (100 s of 1 Hz node logs).

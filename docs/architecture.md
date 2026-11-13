@@ -457,24 +457,24 @@ docker run -p 14550:14550/udp -p 8888:8888/udp ...
 
 **Workspace (Development Files)**
 ```bash
--v ~/workspace/dronelab:/workspace
+-v $ODL_ROOT:/workspace
 ```
 - Mount repository from host into container at `/workspace`
 - Edit code on host with IDE (VSCode, vim, etc.)
 - Build and run inside container
-- Repository path on host: `~/workspace/dronelab`
+- Repository path on host: `$ODL_ROOT`
 
 **PX4 Source (Optional, for development)**
 ```bash
--v ~/workspace/PX4-Autopilot:/opt/PX4-Autopilot
+-v $ODL_DATA/PX4-Autopilot:/opt/PX4-Autopilot
 ```
-- Share PX4 source between containers
-- Avoid re-cloning for multiple containers
-- Clone PX4 once on host, mount into containers
+- The dev image already includes PX4 at `/opt/PX4-Autopilot`. Bind-mount a
+  host checkout only if you are iterating on PX4 itself.
+- Share one host checkout between containers to avoid re-cloning.
 
 **Data (Logs, Bags, Datasets)**
 ```bash
--v ~/workspace/dronelab-data:/data
+-v $ODL_DATA:/data
 ```
 - Persist logs and datasets outside container
 - Survive container rebuilds

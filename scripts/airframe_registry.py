@@ -20,7 +20,7 @@ DEFAULT_REGISTRY = REPO / 'config' / 'airframes.yaml'
 
 
 def load_registry(path: str | Path | None = None) -> dict:
-    import yaml  # PyYAML is present on <host> and in the image
+    import yaml  # PyYAML is expected on the host and in the image
     p = Path(path) if path else DEFAULT_REGISTRY
     data = yaml.safe_load(p.read_text()) or {}
     data.setdefault('airframes', {})

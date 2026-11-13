@@ -17,8 +17,8 @@
 # Writes /data/results/regression_<stamp>/{report.md,report.json}; exit 1 on fail.
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DATA_DIR="${DATA_DIR:-/home/$(whoami)/workspace/dronelab-data}"
+# shellcheck source=odl-env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odl-env.sh"
 IMAGE_NAME="${IMAGE_NAME:-opendronelab-dev:latest}"
 GZ_SEED="${GZ_SEED:-1234}"
 BAG_DURATION="${BAG_DURATION:-100}"

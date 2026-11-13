@@ -14,7 +14,7 @@ Bags from `scripts/record-bag.sh` live in `dronelab-data/bags/<timestamp>/` (`/d
 
 ```bash
 docker run --rm -it --network none --user $(id -u):$(id -g) -e HOME=/tmp \
-  -v ~/workspace/dronelab-data:/data opendronelab-dev:latest bash
+  -v $ODL_DATA:/data opendronelab-dev:latest bash
 B=/data/bags/20261104_230415/20261104_230415_0.mcap
 ```
 

@@ -2,12 +2,12 @@
 
 How to undo every host change made for OpenDroneLab, newest first. Every `sudo` line here is run by Pallab himself. None of these touch Windows, the EFI partition, GRUB or Secure Boot.
 
-Before any future host change: take a snapshot of the state you might roll back to, e.g. `apt list --installed > ~/workspace/dronelab-data/apt-baseline-$(date +%F).txt`, and back up any file you are about to edit (`sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak-$(date +%F)`).
+Before any future host change: take a snapshot of the state you might roll back to, e.g. `apt list --installed > $ODL_DATA/apt-baseline-$(date +%F).txt`, and back up any file you are about to edit (`sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak-$(date +%F)`).
 
 
 ## Available local tags (2026-11-12)
 
-On <host> after Pallab-approved deletion of `:phase5-clean`:
+On the reference host after Pallab-approved deletion of `:phase5-clean`:
 
 - `opendronelab-dev:latest` = `:phase5-verify` (`e98a336e9dda`, 11.2 GB) — current image (cold rebuild 2026-11-11, retagged as latest 2026-11-11)
 - `opendronelab-dev:phase4c-vio` (`46a2186aea3b`, 11.2 GB) — **only** rollback
@@ -113,7 +113,7 @@ Previous `:latest` remains `:phase4c-vio` (`46a2186aea3b`), which is still the
 only local rollback.
 
 **Official image** `px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9`
-(4.84 GB, smoke test only). Already removed from <host> (2026-11-06). If
+(4.84 GB, smoke test only). Already removed from the reference host (2026-11-06). If
 re-pulled, remove with
 `docker image rm px4io/px4-sitl-gazebo-ros2:v1.18.0-beta1-660-g61907962c9`.
 
@@ -145,7 +145,7 @@ Pallab. The image did not share its ID with any other tag. Command used:
 `:latest` and `:phase5-verify` remain `e98a336e9dda` (11,170,453,047 bytes);
 `:phase4c-vio` remains `46a2186aea3b` (11,174,482,703 bytes).
 
-`docker system df` on <host> (Asia/Calcutta):
+`docker system df` on the reference host (Asia/Calcutta):
 
 | | Images (count) | Images size | Reclaimable | Build cache |
 |---|---|---|---|---|

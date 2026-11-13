@@ -7,7 +7,9 @@
 # Never touches anything outside this project. Usage: stop-all.sh [--keep-sim]
 set -uo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=odl-env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odl-env.sh"
+REPO_DIR="${REPO_DIR:-${ODL_ROOT}}"
 PID_DIR="${REPO_DIR}/logs/.pids"
 KEEP_SIM=""
 [ "${1:-}" = "--keep-sim" ] && KEEP_SIM=1
@@ -39,7 +41,7 @@ if [ "${SKIP_BUILD_CACHE_PRUNE:-0}" != "1" ]; then
 fi
 # Report-only: bag folder size/count and free space. Never deletes anything;
 # removing bags needs Pallab's explicit OK.
-BAGS_DIR="${DATA_DIR:-/home/$(whoami)/workspace/dronelab-data}/bags"
+BAGS_DIR="${ODL_DATA}/bags"
 if [ -d "${BAGS_DIR}" ]; then
     bags_size="$(du -sh "${BAGS_DIR}" 2>/dev/null | cut -f1)"
     bags_count="$(find "${BAGS_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"

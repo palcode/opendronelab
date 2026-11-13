@@ -7,8 +7,9 @@ set -euo pipefail
 # Configuration
 IMAGE_NAME="opendronelab-dev:latest"
 CONTAINER_NAME="opendronelab-dev"
-REPO_DIR="~/workspace/dronelab"
-DATA_DIR="~/workspace/dronelab-data"
+# shellcheck source=odl-env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odl-env.sh"
+
 
 # Colors for output
 RED='\033[0;31m'
@@ -19,7 +20,7 @@ NC='\033[0m' # No Color
 # Check if running on correct host
 if [[ ! -d "$REPO_DIR" ]]; then
     echo -e "${RED}Error: Repository not found at $REPO_DIR${NC}"
-    echo "This script expects the repository at $REPO_DIR"
+    echo "Set ODL_ROOT to the repository checkout (default: directory containing scripts/)."
     exit 1
 fi
 

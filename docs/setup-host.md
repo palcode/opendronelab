@@ -286,17 +286,17 @@ git --version
 cmake --version
 gcc --version
 
-# Repository is already at ~/workspace/dronelab
-cd ~/workspace/dronelab
+# Repository is already at $ODL_ROOT
+cd $ODL_ROOT
 pwd
-# Should show: ~/workspace/dronelab
+# Should show: $ODL_ROOT
 ```
 
 **Status:** PROPOSED, NOT RUN  
 **Risk:** Low (standard Ubuntu packages)  
 **Approval needed:** YES  
 **Note:** Only for host-side repo operations; heavy building happens in containers  
-**Repository path:** `~/workspace/dronelab` (already cloned)
+**Repository path:** `$ODL_ROOT` (already cloned)
 
 ---
 
@@ -482,7 +482,7 @@ docker run -it --name px4-dev-test \
     -e DISPLAY=$DISPLAY \
     -e __NV_PRIME_RENDER_OFFLOAD=1 \
     -e __GLX_VENDOR_LIBRARY_NAME=nvidia \
-    -v ~/workspace/dronelab:/workspace \
+    -v $ODL_ROOT:/workspace \
     -w /workspace \
     ubuntu:24.04 bash
 
@@ -502,7 +502,7 @@ docker run -it --name px4-dev-test \
 - `-e DISPLAY=$DISPLAY` - Display identifier
 - `-e __NV_PRIME_RENDER_OFFLOAD=1` - Force NVIDIA rendering on hybrid GPU
 - `-e __GLX_VENDOR_LIBRARY_NAME=nvidia` - Use NVIDIA OpenGL
-- `-v ~/workspace/dronelab:/workspace` - Mount repository
+- `-v $ODL_ROOT:/workspace` - Mount repository
 - `-w /workspace` - Set working directory in container
 
 **Status:** PROPOSED, NOT RUN  

@@ -22,8 +22,8 @@ set -euo pipefail
 
 CONTAINER_NAME="odl-sim"
 IMAGE_NAME="${IMAGE_NAME:-opendronelab-dev:latest}"
-WORKSPACE_DIR="${WORKSPACE_DIR:-/home/$(whoami)/workspace/dronelab}"
-DATA_DIR="${DATA_DIR:-/home/$(whoami)/workspace/dronelab-data}"
+# shellcheck source=odl-env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odl-env.sh"
 MODEL="${MODEL:-gz_x500}"
 WORLD="${WORLD:-}"
 # HEADLESS=1 starts only the Gazebo server (no GUI): lighter, used for baselines.

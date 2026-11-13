@@ -31,7 +31,7 @@ What it does (from the image's own quick start: entrypoint `/usr/local/bin/ros2-
 - passes when Gazebo reports the world ready, `gz_bridge` spawns `x500_0`, the uXRCE-DDS client creates its data writers, `/fmu/out/vehicle_odometry` is listed in `ros2 topic list`, and one message is received with `ros2 topic echo --once`;
 - always removes the container; logs go to `logs/official-image-smoke.log` and `logs/official-image-topics.log` (git-ignored).
 
-**Result 2026-11-06 (<host>):** PASS in 25 s: world `default.sdf`, model `x500_0`, 69 `/fmu/*` topics, odometry message received.
+**Result 2026-11-06 (the reference host):** PASS in 25 s: world `default.sdf`, model `x500_0`, 69 `/fmu/*` topics, odometry message received.
 
 ## Updating the pin
 
@@ -45,4 +45,4 @@ Then update `IMAGE_TAG` / `IMAGE_DIGEST` in `scripts/smoke-official-image.sh` an
 
 ## Laptop status (2026-11-06)
 
-The smoke image was **removed** from <host> after the smoke test to free disk (`docker image rm` of the `px4io/px4-sitl-gazebo-ros2:...` tag). Re-pull only if you need to re-run `./scripts/smoke-official-image.sh`. It is not required for day-to-day OpenDroneLab work (`opendronelab-dev:latest` = `:phase5-verify`; rollback `:phase4c-vio`).
+The smoke image was **removed** from the reference host after the smoke test to free disk (`docker image rm` of the `px4io/px4-sitl-gazebo-ros2:...` tag). Re-pull only if you need to re-run `./scripts/smoke-official-image.sh`. It is not required for day-to-day OpenDroneLab work (`opendronelab-dev:latest` = `:phase5-verify`; rollback `:phase4c-vio`).

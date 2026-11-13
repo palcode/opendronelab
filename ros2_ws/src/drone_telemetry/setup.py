@@ -15,7 +15,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='OpenDroneLab',
-    maintainer_email='dev@opendronelab.local',
+    maintainer_email='13868623+palcode@users.noreply.github.com',
     description='PX4 telemetry subscriber for OpenDroneLab',
     license='MIT',
     tests_require=['pytest'],

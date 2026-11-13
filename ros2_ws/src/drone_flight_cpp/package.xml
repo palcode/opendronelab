@@ -4,7 +4,7 @@
   <name>drone_flight_cpp</name>
   <version>0.1.0</version>
   <description>C++ square flight via classic PX4 OFFBOARD (classic PX4 OFFBOARD square mission).</description>
-  <maintainer email="pallab@example.com">Pallab Sarkar</maintainer>
+  <maintainer email="13868623+palcode@users.noreply.github.com">Pallab Sarkar</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rclcpp</depend>

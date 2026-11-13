@@ -115,7 +115,7 @@ dronelab/
 └── tools/foxglove/              # Layout JSON only (app optional)
 ```
 
-Runtime data lives under `~/workspace/dronelab-data` (bags, PX4 build, overlays) — not in git.
+Runtime data lives under `$ODL_DATA` (bags, PX4 build, overlays) — not in git.
 
 ## Getting Started
 
@@ -123,8 +123,8 @@ Runtime data lives under `~/workspace/dronelab-data` (bags, PX4 build, overlays)
 
 ```bash
 # Clone repository to designated location
-mkdir -p ~/workspace
-cd ~/workspace
+mkdir -p $ODL_ROOT/..
+cd $ODL_ROOT/..
 git clone <repository-url> dronelab
 cd dronelab
 
@@ -140,9 +140,9 @@ cat docs/setup-host.md
 cat docs/architecture.md
 ```
 
-**Repository Path:** `~/workspace/dronelab` (used in all container volume mounts)
+**Repository Path:** `$ODL_ROOT` (used in all container volume mounts)
 
-### Phase 1: Host Setup (Complete on <host>)
+### Phase 1: Host Setup (Complete on the reference host)
 
 ⚠️ **IMPORTANT:** Review `docs/setup-host.md` before proceeding.
 

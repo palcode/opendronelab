@@ -22,8 +22,8 @@
 # Usage: evo-check.sh [bag_dir_name ...]
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DATA_DIR="${DATA_DIR:-${HOME}/workspace/dronelab-data}"
+# shellcheck source=odl-env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odl-env.sh"
 IMAGE="${IMAGE:-opendronelab-dev:latest}"
 if [ "$#" -gt 0 ]; then BAGS=("$@"); else
     BAGS=(20261104_230415 20261104_231131 20261104_231610); fi

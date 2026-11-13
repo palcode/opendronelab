@@ -4,7 +4,7 @@
   <name>drone_telemetry</name>
   <version>0.1.0</version>
   <description>PX4 telemetry subscriber for OpenDroneLab</description>
-  <maintainer email="dev@opendronelab.local">OpenDroneLab</maintainer>
+  <maintainer email="13868623+palcode@users.noreply.github.com">OpenDroneLab</maintainer>
   <license>MIT</license>
 
   <depend>rclpy</depend>

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # OpenDroneLab Phase 1 host install (approved 2026-11-03). Run: sudo bash scripts/phase1-install.sh
-# Stops on the first error. Log: ~/workspace/dronelab/phase1-install.log
+# Stops on the first error. Log: $ODL_ROOT/phase1-install.log
 set -euo pipefail
-LOG=~/workspace/dronelab/phase1-install.log
+# shellcheck source=odl-env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odl-env.sh"
+LOG="${ODL_ROOT}/phase1-install.log"
 exec > >(tee -a "$LOG") 2>&1
 trap 'echo "!!! FAILED at line $LINENO: $BASH_COMMAND"' ERR
 [[ $EUID -eq 0 ]] || { echo "Run with sudo"; exit 1; }

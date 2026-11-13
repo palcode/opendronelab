@@ -19,7 +19,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='OpenDroneLab',
-    maintainer_email='dev@opendronelab.local',
+    maintainer_email='13868623+palcode@users.noreply.github.com',
     description='Launch files for OpenDroneLab',
     license='MIT',
     tests_require=['pytest'],

@@ -231,8 +231,8 @@ This matrix pins the exact software versions for the OpenDroneLab development en
 | px4_msgs | **Container** | Git clone from https://github.com/PX4/px4_msgs |
 
 **Container Volume Mounts:**
-- Repository: `~/workspace/dronelab` (host) → `/workspace` (container)
-- Data/logs: `~/workspace/dronelab-data` (host) → `/data` (container)
+- Repository: `$ODL_ROOT` (host) → `/workspace` (container)
+- Data/logs: `$ODL_DATA` (host) → `/data` (container)
 
 ## Version Locking Strategy
 
