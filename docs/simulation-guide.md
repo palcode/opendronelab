@@ -497,3 +497,39 @@ No image rebuild, no PX4 source edits.
   At 1 m/s (square) that is ~0.15 m; at ~14 m/s (cessna) it is ~1.5 m and
   dominates the FW xy RMSE. Scoring is left unchanged (no time-offset
   compensation) so numbers stay comparable; see calibration below.
+
+### fw_mission N=5 (2026-11-13 Asia/Calcutta, at `60c930f`) — gates NOT set
+
+`GZ_SEED=1234`, GstCamera off, `EKF2_EV_CTRL=0`. Results
+`/data/results/regression_20261113_{205624,210045,210506,210938,211359}`;
+bags `/data/bags/20261113_{205646,210107,210528,211000,211421}` (~20 MB each).
+Fingerprint `0818407e823c…` (world-only, `worlds/default.sdf`).
+
+| Run | Mission | Arm→disarm | EKF2 Umeyama xy | 3D | origin H | origin V | samples | judge (inherited 0.60 defaults) |
+|---|---|---|---|---|---|---|---|---|
+| r1 | success | 142 s | 1.532 | 1.544 | 1.700 | 0.226 | 6376 | FAIL |
+| r2 | success | 142 s | 5.108 | 5.111 | 5.392 | 0.169 | 6388 | FAIL |
+| r3 | success | 141 s | 7.130 | 7.132 | 7.497 | 0.185 | 6355 | FAIL |
+| r4 | success | 143 s | 1.530 | 1.545 | 1.708 | 0.217 | 6359 | FAIL |
+| r5 | success | 142 s | 1.400 | 1.409 | 1.567 | 0.274 | 6381 | FAIL |
+
+Mission 5/5, 0 retries. EKF2 error is bimodal:
+
+- **Healthy runs (r1, r4, r5), xy ≈ 1.4–1.5 m:** dominated by the
+  ~0.11 s receive-time offset between EKF2 and GT at ~14 m/s (see the latency
+  note). Bias/offset-removed xy is ~0.65–0.9 m.
+- **r2, r3, 20–43 m transient:** right after the ~180° turn onto the
+  landing approach (approach waypoint (0, −300) at 25 m). EKF2 stops fusing
+  GNSS intermittently (`cs_wind_dead_reckoning` toggling, `cs_gnss_vel`
+  drop), dead-reckons on airspeed + wind for ~8 s, overestimates ground
+  speed, then resets xy/vxy (`xy_reset_counter` 5→6). It recovers to ~1.3 m
+  error for the flare. This is real stock-EKF2 behaviour on this mission
+  geometry, not a scorer bug.
+
+The calibration rule would give xy 11.25 / 3D 11.25 / H 11.75 / V 0.42 m. That
+is far looser than the 0.60 m defaults `fw_mission` inherits now, so no gate was
+written (never loosen). Pallab to decide: (a) smooth the approach in
+`fw_mission.py` (downwind/base legs, no hard turn at 25 m) and re-fly N=5,
+(b) accept a looser FW-specific gate, (c) score the approach window
+separately, and/or (d) compensate the GT/EKF2 time offset for fast vehicles
+(would need applying to MC too, or FW only).
