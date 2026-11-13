@@ -150,6 +150,34 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
             add('vio_init_retries', ok,
                 f"{used} <= {retries_max}" if _finite(used) else f"{used} (not finite)")
 
+    # Report-only VIO pose-jump diagnostic (ODL-86). Never included in
+    # ``checks`` and never changes pass / pass_at_1 / the 0.70 gate.
+    diagnostics = []
+    jumps = summary.get('vio_pose_jumps') or summary.get('pose_jumps')
+    if isinstance(jumps, dict):
+        count = jumps.get('count', 0) or 0
+        if count:
+            detail = (
+                f"count={count}, max={jumps.get('max_jump_m')} m "
+                f"at t={jumps.get('max_jump_t_s')} s "
+                f"(abs {jumps.get('max_jump_t_abs_s')} s, "
+                f"dt={jumps.get('max_jump_dt_s')} s, "
+                f"bound={jumps.get('max_jump_bound_m')} m, report-only)"
+            )
+        else:
+            detail = 'count=0 (report-only)'
+        diagnostics.append({
+            'name': 'vio_pose_jumps',
+            'gating': False,
+            'count': int(count),
+            'max_jump_m': jumps.get('max_jump_m'),
+            'max_jump_t_s': jumps.get('max_jump_t_s'),
+            'max_jump_t_abs_s': jumps.get('max_jump_t_abs_s'),
+            'max_jump_dt_s': jumps.get('max_jump_dt_s'),
+            'max_jump_bound_m': jumps.get('max_jump_bound_m'),
+            'detail': detail,
+        })
+
     passed = all(c['pass'] for c in checks)
     non_gating = bool(sc.get('non_gating', False))
     # pass@1: all checks passed and VIO started on the first attempt.
@@ -165,6 +193,7 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
         'non_gating': non_gating,
         'score_vio': score_vio,
         'checks': checks,
+        'diagnostics': diagnostics,
         'summary': summary,
         'thresholds_applied': sc,
     }
@@ -223,12 +252,15 @@ def main() -> int:
     summary = json.loads(Path(args.summary).read_text())
     result = judge(summary, thresholds, args.scenario)
     Path(args.out).write_text(json.dumps(result, indent=2) + '\n')
-    print(json.dumps({
+    printed = {
         'scenario': args.scenario,
         'pass': result['pass'],
         'pass_at_1': result['pass_at_1'],
         'non_gating': result['non_gating'],
-    }, indent=2))
+    }
+    if result.get('diagnostics'):
+        printed['diagnostics'] = result['diagnostics']
+    print(json.dumps(printed, indent=2))
     # Per-scenario exit still reflects this flight's checks. Overall
     # pass/fail in run-regression.sh ignores non_gating scenarios.
     return 0 if result['pass'] else 1

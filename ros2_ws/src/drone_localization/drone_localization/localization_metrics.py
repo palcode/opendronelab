@@ -306,6 +306,117 @@ def compute_metrics(gt_positions, est_positions, airborne_mask=None):
     }
 
 
+# Report-only diagnostic (ODL-86). Not a gate. A VIO step is a "jump" when
+# its 3D distance exceeds contemporaneous GT displacement + this margin.
+DEFAULT_VIO_JUMP_MARGIN_M = 0.30
+
+
+def detect_pose_jumps(timestamps_s, est_positions, gt_positions,
+                      margin_m=DEFAULT_VIO_JUMP_MARGIN_M):
+    """Flag single-step estimate motion beyond GT velocity × dt + margin.
+
+    ``timestamps_s`` are seconds on one time base (TUM or bag time).
+    ``est_positions`` and ``gt_positions`` are Nx3, already time-aligned.
+    The bound for step i is ``||p_gt[i+1] - p_gt[i]|| + margin_m``.
+    Origin-alignment is a constant offset and does not change step lengths.
+
+    Returns a JSON-safe dict. ``gating`` is always False: callers must not
+    use the count to fail a scenario. Empty or single-sample inputs yield
+    count 0 and null max-jump fields.
+    """
+    t = np.asarray(timestamps_s, dtype=np.float64)
+    est = np.asarray(est_positions, dtype=np.float64)
+    gt = np.asarray(gt_positions, dtype=np.float64)
+    if not (len(t) == len(est) == len(gt)):
+        raise ValueError('timestamps, est and gt differ in length')
+    margin_m = float(margin_m)
+    empty = {
+        'report_only': True,
+        'gating': False,
+        'margin_m': margin_m,
+        'count': 0,
+        'max_jump_m': None,
+        'max_jump_t_s': None,
+        'max_jump_t_abs_s': None,
+        'max_jump_dt_s': None,
+        'max_jump_bound_m': None,
+        'jumps': [],
+    }
+    if len(t) < 2:
+        return empty
+
+    dt = np.diff(t)
+    d_est = np.linalg.norm(np.diff(est, axis=0), axis=1)
+    d_gt = np.linalg.norm(np.diff(gt, axis=0), axis=1)
+    # Non-positive dt is itself anomalous; treat bound as margin only.
+    bound = d_gt + margin_m
+    bound = np.where(dt > 0.0, bound, margin_m)
+    flagged = d_est > bound
+    jumps = []
+    t0 = float(t[0])
+    for i in np.flatnonzero(flagged):
+        jumps.append({
+            't_s': float(t[i] - t0),
+            't_abs_s': float(t[i]),
+            'dt_s': float(dt[i]),
+            'distance_m': float(d_est[i]),
+            'bound_m': float(bound[i]),
+            'gt_step_m': float(d_gt[i]),
+        })
+    if jumps:
+        top = max(jumps, key=lambda j: j['distance_m'])
+        max_jump = top['distance_m']
+        max_t = top['t_s']
+        max_t_abs = top['t_abs_s']
+        max_dt = top['dt_s']
+        max_bound = top['bound_m']
+    else:
+        max_jump = max_t = max_t_abs = max_dt = max_bound = None
+    return {
+        'report_only': True,
+        'gating': False,
+        'margin_m': margin_m,
+        'count': int(len(jumps)),
+        'max_jump_m': max_jump,
+        'max_jump_t_s': max_t,
+        'max_jump_t_abs_s': max_t_abs,
+        'max_jump_dt_s': max_dt,
+        'max_jump_bound_m': max_bound,
+        'jumps': jumps,
+    }
+
+
+def load_tum_xyz(path):
+    """Load TUM ``timestamp tx ty tz ...`` as (N,) times and (N, 3) positions."""
+    times = []
+    xyz = []
+    for line in Path(path).read_text().splitlines():
+        if not line.strip() or line.startswith('#'):
+            continue
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        times.append(float(parts[0]))
+        xyz.append((float(parts[1]), float(parts[2]), float(parts[3])))
+    return np.asarray(times, dtype=np.float64), np.asarray(xyz, dtype=np.float64)
+
+
+def detect_pose_jumps_from_tum(est_tum, gt_tum, margin_m=DEFAULT_VIO_JUMP_MARGIN_M):
+    """Run ``detect_pose_jumps`` on a TUM pair (same timestamps, NED)."""
+    t_est, p_est = load_tum_xyz(est_tum)
+    t_gt, p_gt = load_tum_xyz(gt_tum)
+    if len(t_est) != len(t_gt) or (
+            len(t_est) and not np.allclose(t_est, t_gt, atol=1e-9, rtol=0)):
+        # TUM timestamps are already seconds; do not use interpolate_trajectory
+        # (that helper assumes nanoseconds).
+        if len(t_gt) < 2:
+            raise ValueError('GT TUM too short to interpolate onto estimate')
+        p_gt = np.column_stack([
+            np.interp(t_est, t_gt, p_gt[:, i]) for i in range(3)
+        ])
+    return detect_pose_jumps(t_est, p_est, p_gt, margin_m=margin_m)
+
+
 def plot_trajectory(gt_positions, est_positions, output_path):
     """Plot XY trajectory comparison (NED: X=North, Y=East)."""
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -504,6 +615,13 @@ def main(args=None):
     print('Computing metrics...')
     metrics = compute_metrics(gt_aligned, est_aligned, airborne_mask)
     metrics.update(extra)
+    # Report-only VIO/estimate pose-jump diagnostic (does not affect gates).
+    ts_s = aligned_ts[airborne_mask] / 1e9
+    metrics['pose_jumps'] = detect_pose_jumps(
+        ts_s,
+        est_aligned[airborne_mask],
+        gt_aligned[airborne_mask],
+    )
 
     metrics_path = output_dir / parsed.metrics_name
     write_metrics_json(metrics_path, metrics)
@@ -542,6 +660,17 @@ def main(args=None):
     print(f"Vertical Max:    {metrics['vertical_max']:.3f} m")
     print(f"Airborne Samples: {metrics['num_samples']}")
     print(f"Origin aligned:   {metrics['origin_aligned']}")
+    jumps = metrics.get('pose_jumps') or {}
+    if jumps.get('count'):
+        print(
+            f"Pose jumps (report-only, bound = GT step + {jumps['margin_m']} m): "
+            f"count={jumps['count']}, max={jumps['max_jump_m']:.3f} m "
+            f"at t={jumps['max_jump_t_s']:.2f} s "
+            f"(abs {jumps.get('max_jump_t_abs_s')} s, "
+            f"dt={jumps['max_jump_dt_s']:.4f} s)"
+        )
+    else:
+        print('Pose jumps (report-only): none')
 
     print('\nGenerating plots...')
     traj_path = output_dir / 'trajectory.png'

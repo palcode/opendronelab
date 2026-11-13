@@ -410,6 +410,7 @@ summary = {
   'ekf2_umeyama_3d_rmse': ape_rmse(out/'evo_ekf2_ape_3d.txt'),
   'vio_umeyama_xy_rmse': ape_rmse(out/'evo_vio_ape_xy.txt'),
   'vio_umeyama_3d_rmse': ape_rmse(out/'evo_vio_ape_3d.txt'),
+  'vio_pose_jumps': vio.get('pose_jumps'),
 }
 summary = {k: json_safe(v) for k, v in summary.items()}
 summary['scenario_fingerprint'] = compute_scenario_fingerprint(

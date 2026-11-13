@@ -260,3 +260,82 @@ def test_airborne_mask_uses_raw_gt_z_when_ov_inits_mid_air():
     # Scoring must use the raw-z mask on origin-aligned positions.
     metrics = compute_metrics(gt_al, est_al, raw_mask)
     assert metrics['num_samples'] == 3
+
+
+def test_detect_pose_jumps_smooth_trajectory_is_clean():
+    """150 Hz 1 m/s track with 1 cm noise stays under the 0.30 m margin."""
+    from drone_localization.localization_metrics import detect_pose_jumps
+    dt = 1.0 / 150.0
+    t = np.arange(0.0, 2.0, dt)
+    gt = np.column_stack([t * 1.0, np.zeros(len(t)), np.full(len(t), -5.0)])
+    rng = np.random.default_rng(0)
+    est = gt + rng.normal(0.0, 0.01, gt.shape)
+    out = detect_pose_jumps(t, est, gt, margin_m=0.30)
+    assert out['gating'] is False
+    assert out['report_only'] is True
+    assert out['count'] == 0
+    assert out['max_jump_m'] is None
+    assert out['jumps'] == []
+
+
+def test_detect_pose_jumps_flags_implanted_impulse():
+    """A 2 m step in 6 ms is flagged; bound is GT step + margin."""
+    from drone_localization.localization_metrics import detect_pose_jumps
+    dt = 0.006
+    t = np.arange(0.0, 1.0, dt)
+    gt = np.column_stack([t * 1.0, np.zeros(len(t)), np.full(len(t), -5.0)])
+    est = gt.copy()
+    jump_i = int(0.5 / dt)
+    est[jump_i + 1:] += np.array([2.0, 0.0, 0.0])
+    out = detect_pose_jumps(t, est, gt, margin_m=0.30)
+    assert out['count'] == 1
+    assert out['gating'] is False
+    assert abs(out['max_jump_m'] - 2.0) < 0.02
+    assert abs(out['max_jump_t_s'] - t[jump_i]) < dt * 0.51
+    assert out['max_jump_dt_s'] == pytest.approx(dt, abs=1e-9)
+    assert out['jumps'][0]['bound_m'] == pytest.approx(1.0 * dt + 0.30, abs=1e-6)
+    assert out['max_jump_t_abs_s'] == pytest.approx(t[jump_i], abs=1e-9)
+
+
+def test_detect_pose_jumps_bound_is_gt_step_plus_margin():
+    """A step equal to GT displacement + half margin is clean; over margin flags."""
+    from drone_localization.localization_metrics import detect_pose_jumps
+    t = np.array([0.0, 0.1, 0.2])
+    gt = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]])
+    margin = 0.30
+    est_ok = np.array([[0.0, 0.0, 0.0], [1.15, 0.0, 0.0], [2.15, 0.0, 0.0]])
+    assert detect_pose_jumps(t, est_ok, gt, margin_m=margin)['count'] == 0
+    est_bad = np.array([[0.0, 0.0, 0.0], [1.60, 0.0, 0.0], [2.20, 0.0, 0.0]])
+    out = detect_pose_jumps(t, est_bad, gt, margin_m=margin)
+    assert out['count'] == 1
+    assert out['jumps'][0]['distance_m'] == pytest.approx(1.60, abs=1e-9)
+    assert out['jumps'][0]['bound_m'] == pytest.approx(1.30, abs=1e-9)
+
+
+def test_detect_pose_jumps_empty_and_singleton():
+    from drone_localization.localization_metrics import detect_pose_jumps
+    out = detect_pose_jumps([], [], [])
+    assert out['count'] == 0
+    assert out['gating'] is False
+    t = np.array([1.0])
+    p = np.array([[0.0, 0.0, 0.0]])
+    assert detect_pose_jumps(t, p, p)['count'] == 0
+
+
+def test_detect_pose_jumps_from_tum_roundtrip(tmp_path):
+    """TUM pair written by export_tum_pair is scored the same as in-memory arrays."""
+    from drone_localization.localization_metrics import (
+        detect_pose_jumps_from_tum, export_tum_pair,
+    )
+    ts = np.array([10e9, 10.006e9, 10.012e9])
+    # Stationary GT so the implanted 2 m VIO step is exact (not 2 m + v*dt).
+    gt = np.array([[0.0, 0.0, -5.0], [0.0, 0.0, -5.0], [0.0, 0.0, -5.0]])
+    est = gt.copy()
+    est[1:] += np.array([2.0, 0.0, 0.0])
+    gt_path, est_path = export_tum_pair(
+        tmp_path, ts, gt, est, np.zeros(3), np.zeros(3)
+    )
+    out = detect_pose_jumps_from_tum(est_path, gt_path, margin_m=0.30)
+    assert out['count'] == 1
+    assert out['max_jump_m'] == pytest.approx(2.0, abs=1e-6)
+    assert out['gating'] is False

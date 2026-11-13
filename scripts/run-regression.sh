@@ -652,6 +652,12 @@ for j in judges:
             f"VIO xy/3D={s.get('vio_umeyama_xy_rmse')}/{s.get('vio_umeyama_3d_rmse')} "
             f"origin H/V={s.get('ekf2_origin_h_rmse')}/{s.get('ekf2_origin_v_rmse')}"
         )
+        jumps = s.get("vio_pose_jumps") or {}
+        if jumps.get("count"):
+            detail += (
+                f" VIO jumps (report-only)={jumps.get('count')}/"
+                f"{jumps.get('max_jump_m')} m at t={jumps.get('max_jump_t_s')} s"
+            )
     rows.append({"step": j.get("scenario"), "pass": j.get("pass"), "pass_at_1": j.get("pass_at_1"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag")})
 
 def _bags_report():
@@ -772,6 +778,15 @@ failed_gating = [j for j in judges if not j.get("pass") and not j.get("non_gatin
 failed_nongate = [j for j in judges if not j.get("pass") and j.get("non_gating")]
 _failed_section("## Failed checks", failed_gating)
 _failed_section("## Non-gating failures (ignored for overall pass/fail)", failed_nongate)
+
+diag_lines = []
+for j in judges:
+    for d in j.get("diagnostics") or []:
+        diag_lines.append(
+            f"- `{j.get('scenario')}` `{d.get('name')}`: {d.get('detail')}"
+        )
+if diag_lines:
+    lines.extend(["## Diagnostics (report-only, not gated)", ""] + diag_lines + [""])
 (report_dir / "report.md").write_text("\n".join(lines) + "\n")
 print("\n".join(lines))
 print(f"\n[REG] wrote {report_dir / 'report.md'}")

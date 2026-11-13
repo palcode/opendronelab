@@ -485,3 +485,37 @@ def test_fingerprint_does_not_double_hash_in_overlay_mask(fingerprint_mod, tmp_p
         repo, 'vio_test', overlay / 'estimator_config.yaml')
     # Adding a comment-only change is already covered elsewhere; just assert it hashes.
     assert len(a['sha256']) == 64
+
+
+def test_pose_jumps_are_report_only_and_do_not_fail(judge_mod, thresholds):
+    """A flagged VIO jump is attached as diagnostics and does not change the 0.70 gate."""
+    s = _healthy_summary()
+    s['vio_pose_jumps'] = {
+        'report_only': True,
+        'gating': False,
+        'margin_m': 0.30,
+        'count': 2,
+        'max_jump_m': 2.1,
+        'max_jump_t_s': 25.8,
+        'max_jump_t_abs_s': 25.8,
+        'max_jump_dt_s': 0.006,
+        'max_jump_bound_m': 0.31,
+        'jumps': [],
+    }
+    res = judge_mod.judge(s, thresholds, 'baseline')
+    assert res['pass'] is True
+    assert res['pass_at_1'] is True
+    assert all(c['name'] != 'vio_pose_jumps' for c in res['checks'])
+    assert res['diagnostics']
+    diag = res['diagnostics'][0]
+    assert diag['name'] == 'vio_pose_jumps'
+    assert diag['gating'] is False
+    assert diag['count'] == 2
+    assert 'report-only' in diag['detail']
+
+
+def test_pose_jumps_absent_is_fine(judge_mod, thresholds):
+    """Legacy summaries without the diagnostic still pass and have empty diagnostics."""
+    res = judge_mod.judge(_healthy_summary(), thresholds, 'baseline')
+    assert res['pass'] is True
+    assert res.get('diagnostics') == []

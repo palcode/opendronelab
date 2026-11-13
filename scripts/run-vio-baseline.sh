@@ -98,6 +98,7 @@ summary = {
   'vio_umeyama_xy_rmse': ape_rmse(out/'evo_vio_ape_xy.txt'),
   'vio_umeyama_3d_rmse': ape_rmse(out/'evo_vio_ape_3d.txt'),
   'ekf2_noalign_xy_rmse': ape_rmse(out/'evo_ekf2_ape_xy_noalign.txt'),
+  'vio_pose_jumps': vio.get('pose_jumps'),
 }
 (out/'summary.json').write_text(json.dumps(summary, indent=2))
 print(json.dumps(summary, indent=2))
