@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # evo-check.sh: cross-check localization_metrics against evo (evo_ape / evo_rpe).
 #
 # evo is GPL-3 and lives in /opt/evo inside the image; it is only ever run as

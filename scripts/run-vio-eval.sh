@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # run-vio-eval.sh: One square-flight bag with OpenVINS + EKF2 vs ground truth.
 # Prerequisites:
 #   - odl-sim running: WORLD=detection_test MODEL=gz_x500_mono_cam HEADLESS=1 GZ_SEED=1234

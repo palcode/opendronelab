@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # smoke-official-image.sh: smoke-test PX4's official SITL image, pinned by digest.
 # Reference baseline only; docker/Dockerfile.dev stays the daily-driver image.
 #

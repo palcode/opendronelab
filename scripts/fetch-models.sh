@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # fetch-models.sh: Download YOLOX-nano ONNX model for object detection
 # Model stored in /data/models (persists across container restarts)
 set -euo pipefail

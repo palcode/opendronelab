@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>Launch files for OpenDroneLab</description>
   <maintainer email="13868623+palcode@users.noreply.github.com">OpenDroneLab</maintainer>
-  <license>MIT</license>
+  <license>AGPL-3.0-only</license>
 
   <depend>drone_telemetry</depend>
   <depend>drone_mission_manager</depend>

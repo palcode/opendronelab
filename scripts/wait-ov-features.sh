@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # Wait until OpenVINS log shows enough features for disparity (tracking live).
 # Does not require successful init (that should happen on takeoff jerk).
 set -euo pipefail

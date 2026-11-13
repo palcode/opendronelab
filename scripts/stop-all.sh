@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # stop-all.sh: stop OpenDroneLab background helpers and the sim container.
 # - Host helpers that record a pidfile in logs/.pids/ (e.g. memory-logger)
 # - Running record-bag.sh sessions (bag recorder is stopped with SIGINT so the

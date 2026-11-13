@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Setup script for drone_localization package."""
 from setuptools import setup
 
@@ -17,7 +20,7 @@ setup(
     maintainer='OpenDroneLab',
     maintainer_email='13868623+palcode@users.noreply.github.com',
     description='Localization evaluation and baseline missions for OpenDroneLab',
-    license='MIT',
+    license='AGPL-3.0-only',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

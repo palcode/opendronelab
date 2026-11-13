@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # OpenDroneLab Phase 0 Host Diagnostic
 # Strictly read-only system inspection
 # No sudo, no installs, no writes outside stdout/optional report file

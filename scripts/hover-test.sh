@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # hover-test.sh: Automated hover test with pyulog analysis
 # Executes a 5m takeoff/hover/land sequence and analyzes the ulog
 set -euo pipefail

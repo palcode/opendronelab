@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # start-dds-agent.sh: Start Micro XRCE-DDS Agent in container
 # Runs MicroXRCEAgent in background inside the odl-sim container
 set -euo pipefail

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Launch the C++ square flight (classic OFFBOARD, matches Python).
 
 Optional args (defaults match baseline GPS square):

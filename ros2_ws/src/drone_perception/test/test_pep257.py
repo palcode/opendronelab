@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Test pep257 docstring compliance."""
 from ament_pep257.main import main
 import pytest

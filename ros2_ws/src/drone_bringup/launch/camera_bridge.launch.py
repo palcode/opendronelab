@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Launch file for Gazebo camera bridge."""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument

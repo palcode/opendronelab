@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # One scored VIO-shadow square flight for a stress scenario.
 # Prerequisites: odl-sim up with matching WORLD, QGC open, OpenVINS built.
 # Usage:

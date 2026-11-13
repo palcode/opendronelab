@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # run-vio-baseline.sh: N consecutive VIO+EKF2 square flights with matching metrics.
 # Assumes odl-sim is up (WORLD=vio_test MODEL=gz_x500_mono_cam) and QGC is open.
 # Restarts vio.launch between runs so a post-land OV diverge does not poison the next flight.

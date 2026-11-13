@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Setup script for drone_bringup package."""
 import os
 from glob import glob
@@ -21,6 +24,6 @@ setup(
     maintainer='OpenDroneLab',
     maintainer_email='13868623+palcode@users.noreply.github.com',
     description='Launch files for OpenDroneLab',
-    license='MIT',
+    license='AGPL-3.0-only',
     tests_require=['pytest'],
 )

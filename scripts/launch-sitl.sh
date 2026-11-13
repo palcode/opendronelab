@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # launch-sitl.sh: Idempotent SITL container launcher for OpenDroneLab
 # Starts the odl-sim container with PX4 SITL and Gazebo if not already running.
 # MODEL defaults to gz_x500; use MODEL=gz_x500_mono_cam for the camera drone.

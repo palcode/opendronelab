@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Judge one scenario summary.json against config/regression_thresholds.yaml."""
 from __future__ import annotations
 

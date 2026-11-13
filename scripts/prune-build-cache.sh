@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # prune-build-cache.sh: keep BuildKit cache under MAX_USED_SPACE (default
 # 20gb, Pallab-approved cap). Never removes images, containers, or volumes;
 # build cache only. Safe to call from stop-all.

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 cmake_minimum_required(VERSION 3.8)
 project(drone_flight_cpp)
 if(NOT CMAKE_CXX_STANDARD)

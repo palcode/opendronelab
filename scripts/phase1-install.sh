@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # OpenDroneLab Phase 1 host install (approved 2026-11-03). Run: sudo bash scripts/phase1-install.sh
 # Stops on the first error. Log: $ODL_ROOT/phase1-install.log
 set -euo pipefail

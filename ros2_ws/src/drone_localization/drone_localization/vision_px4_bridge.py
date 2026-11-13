@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Bridge OpenVINS odometry to PX4 vehicle_visual_odometry (optional EV path).
 
 GPL-3 OpenVINS stays a separate process; this first-party node only consumes

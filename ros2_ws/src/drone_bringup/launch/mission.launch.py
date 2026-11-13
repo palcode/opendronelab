@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Launch Phase 2 hover mission (drone_mission_manager).
 
 Production square flights use drone_flight_cpp / scripts/run-baseline.sh.

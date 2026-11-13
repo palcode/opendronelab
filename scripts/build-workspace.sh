@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # build-workspace.sh: Build ROS 2 workspace inside container
 # Builds px4_msgs from /data/ros2_deps and ros2_ws with artifacts in /data/ros2_build
 set -euo pipefail

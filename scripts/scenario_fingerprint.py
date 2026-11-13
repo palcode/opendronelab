@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Scenario fingerprint: sha256 of the world SDF + OpenVINS overlay directory
 plus any maskN files the overlay config references outside that directory.
 

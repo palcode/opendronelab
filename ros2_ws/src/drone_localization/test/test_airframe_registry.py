@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Tests for config/airframes.yaml, scripts/airframe_registry.py and the
 EKF2-only (score_vio: false) judge path (multi-airframe Phase A, ODL-93)."""
 import importlib.util

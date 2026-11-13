@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Pallab Sarkar
 // C++ port of drone_localization/square_flight.py.
 //
 // Same OFFBOARD profile as Python: stream OffboardControlMode +

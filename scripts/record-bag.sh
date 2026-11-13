@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # record-bag.sh: Record ROS 2 bag files for camera and telemetry
 # Stores bags in /data/bags/<timestamp> (never in the repo)
 # Usage: record-bag.sh [duration] [--vio] [--localization] [--raw-camera|--no-raw-camera]

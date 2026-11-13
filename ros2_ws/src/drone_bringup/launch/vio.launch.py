@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Launch OpenVINS VIO (Phase 4b).
 
 OpenVINS (GPL-3) is a separate process from an isolated overlay

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Mock ROS / ONNX / cv_bridge so pure-function tests can import the node module."""
 import sys
 from unittest.mock import MagicMock

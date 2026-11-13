@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """VIO + optional PX4 external-vision bridge (does not change GPS defaults).
 
 Start SITL with EV enabled explicitly, e.g.:

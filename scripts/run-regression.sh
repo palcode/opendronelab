@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # One-command SITL regression: pytest + scored VIO-shadow flights + PASS/FAIL report.
 #
 # Usage:

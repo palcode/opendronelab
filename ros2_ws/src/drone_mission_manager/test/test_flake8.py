@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Test flake8 style compliance."""
 from ament_flake8.main import main_with_errors
 import pytest

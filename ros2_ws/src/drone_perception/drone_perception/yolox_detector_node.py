@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """YOLOX object detector node for real-time detection.
 
 Uses YOLOX-nano ONNX with CUDA EP when available, CPU EP otherwise.

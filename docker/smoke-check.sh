@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # Build-time smoke checks for opendronelab-dev. Fail the image build on error.
 set -euo pipefail
 

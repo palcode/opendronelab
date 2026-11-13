@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # build-openvins.sh: Build OpenVINS (GPL-3) into an isolated colcon workspace.
 # MUST run inside odl-sim (or any opendronelab-dev container with ROS Jazzy).
 # OpenVINS is NEVER linked into drone_* first-party packages — same isolation

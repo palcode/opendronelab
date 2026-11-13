@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+
 """Launch file for localization ground truth bridge.
 
 Bridges /clock, and runs ground_truth_publisher, which reads Gazebo Pose_V

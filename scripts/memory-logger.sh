@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
 # memory-logger.sh: log odl-sim RAM/CPU, Gazebo server RSS, and GPU temp/power
 # every INTERVAL seconds. Runs in the background and records its PID in
 # logs/.pids/memory-logger.pid so scripts/stop-all.sh can stop it.
