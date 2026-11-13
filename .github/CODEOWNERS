@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Default reviewer for every path. More specific lines below still apply.
+* @palcode
+
+# Regression gates (official Umeyama / origin thresholds).
+/config/regression_thresholds.yaml @palcode
+
+# Contributor License Agreement (in force).
+/CLA.md @palcode

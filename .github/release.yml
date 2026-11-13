@@ -1,0 +1,20 @@
+# Categories for GitHub-generated release notes.
+# Labels themselves are not created by this file.
+changelog:
+  categories:
+    - title: Features
+      labels:
+        - enhancement
+        - feature
+    - title: Fixes
+      labels:
+        - bug
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Continuous Integration
+      labels:
+        - ci
+    - title: Other Changes
+      labels:
+        - "*"
