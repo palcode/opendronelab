@@ -10,7 +10,7 @@ First-party code is licensed under [AGPL-3.0-only](LICENSE). Commercial licenses
 
 ![OpenDroneLab SITL demo](docs/media/demo.gif)
 
-*Placeholder: a short looping SITL GIF (square flight or VIO overlay) will be added at `docs/media/demo.gif` before the public launch. See [docs/media/README.md](docs/media/README.md).*
+*About 10 s of the onboard camera on the `low_texture` SITL world, with a ground-truth / OpenVINS path inset (Umeyama-aligned). See [docs/media/README.md](docs/media/README.md).*
 
 ## Quickstart
 
