@@ -22,22 +22,15 @@ makes dual AGPL-3.0-only and commercial licensing possible. You keep
 your copyright. The official source is
 <https://www.harmonyagreements.org/docs/ha-cla-i-v1.pdf>.
 
-**That agreement is not yet in force.** It has not had a lawyer
-review. Please do not sign it yet. Two official fill-in fields
-(`[JURISDICTION]` and `[LIST_OF_MEDIA_LICENSES]`) are still
-placeholders. Pallab will say when a final CLA is approved.
-
-A CLA-assistant GitHub Action is checked in under
-`.github/workflows-disabled/` so it can be enabled later. It is
-**not** active. It will not be moved into `.github/workflows/` or
-turned on until the CLA text is approved.
-
 This project uses a CLA, not a Developer Certificate of Origin (DCO)
 sign-off, because dual licensing needs an explicit relicensing grant.
 
-When the CLA is in force, you will typically sign it on a pull request
-by posting the comment the CLA assistant requests (the exact wording
-will be in the action and in the approved CLA).
+Sign the CLA on a pull request by posting the comment the CLA assistant
+requests (the exact wording is in `.github/workflows/cla.yml` and in
+CLA.md). Fill-in fields in the official Harmony text are set: the
+project is OpenDroneLab, the party ("Us") is Pallab Sarkar, jurisdiction
+is India, and media licenses are Creative Commons Attribution 4.0
+International (CC BY 4.0).
 
 ## How to contribute
 

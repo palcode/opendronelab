@@ -1,10 +1,5 @@
 # OpenDroneLab Contributor License Agreement
 
-> **NOT YET ACTIVE.** This agreement is not in force and must not be signed
-> yet. The CLA-assistant GitHub Action remains disabled under
-> `.github/workflows-disabled/` until Pallab Sarkar approves a final text
-> after legal review.
->
 > **Source:** Harmony Individual Contributor License Agreement (HA-CLA-I),
 > Version 1.0, 4 July 2011,
 > <https://www.harmonyagreements.org/docs/ha-cla-i-v1.pdf>

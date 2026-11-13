@@ -1,24 +1,25 @@
-# DISABLED. This file lives outside .github/workflows/ so GitHub will not
-# run it. Do not move or copy it there until Pallab Sarkar has approved
-# a final CLA text (CLA.md is Harmony HA-CLA-I v1.0 Option Five; not yet in force).
-#
-# Pin: contributor-assistant/github-action v2.6.1
+# CLA-assistant. Pin: contributor-assistant/github-action v2.6.1
 #      ca4a40a7d1004f18d9960b404b97e5f30a505a08
 # The upstream repository is archived; the pin is the v2.6.1 tag SHA.
+#
+# Private-repo notes (no secrets or repo settings were changed here):
+# signatures are committed to signatures/version1/cla.json on branch
+# `main` using GITHUB_TOKEN. If main is protected, or if signatures
+# should live on a separate branch, add a PAT with `repo` scope as the
+# Actions secret PERSONAL_ACCESS_TOKEN and point `branch` at that
+# branch. Until then, workflow_dispatch / same-repo PRs depend on
+# GITHUB_TOKEN being allowed to write that path on `main`.
 
 name: CLA Assistant
 
 on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, closed, synchronize]
   workflow_dispatch:
 
-# The live configuration, once enabled, should use:
-#   issue_comment: { types: [created] }
-#   pull_request_target: { types: [opened, closed, synchronize] }
-# Those events are intentionally omitted here so that even a mistaken
-# copy into .github/workflows/ cannot collect signatures against a draft CLA.
-
 permissions:
-  actions: write
   contents: write
   pull-requests: write
   statuses: write

@@ -96,7 +96,7 @@ worlds/          Gazebo worlds (default.sdf is a vendored PX4 stock world)
 
 ## Contributing
 
-Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). A signed [Contributor License Agreement](CLA.md) will be required. The text is the official Harmony HA-CLA-I v1.0 with outbound Option Five; it is **not in force** until it has a lawyer review and the copyright holder approves it.
+Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). A signed [Contributor License Agreement](CLA.md) is required. The text is the official Harmony HA-CLA-I v1.0 with outbound Option Five.
 
 Please use the issue and pull request templates. Do not loosen regression gates. Do not add secrets or personal host paths.
 

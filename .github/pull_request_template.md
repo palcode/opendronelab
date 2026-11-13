@@ -4,10 +4,9 @@
 
 ## CLA
 
-I have read `CLA.md` and I understand that a signed Contributor License
-Agreement will be required once the draft is approved and the assistant
-workflow is enabled. I will not include secrets, credentials, or personal
-host paths in this pull request.
+I have read `CLA.md` and I will sign the Contributor License Agreement
+when the CLA assistant asks on this pull request. I will not include
+secrets, credentials, or personal host paths in this pull request.
 
 ## Checklist
 
