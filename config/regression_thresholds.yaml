@@ -92,10 +92,10 @@ scenarios:
     # PROVISIONAL EKF2 gates from N=5 GZ_SEED=1234 flights, 2026-11-13
     # Asia/Calcutta at 7fbf0f4 (regression_20261113_194115 .. _195300), same
     # rule: round_up(max(mean + 3σ, 1.5 × worst)); 1.5 × worst dominates. All
-    # tighter than the inherited defaults. Still non_gating: reported, does
-    # not affect overall PASS/FAIL. 5/5 pass, pass@1 5/5, 0 retries.
+    # tighter than the inherited defaults. 5/5 pass, pass@1 5/5, 0 retries.
+    # Promoted to GATING 2026-11-13 ~20:34 Asia/Calcutta (Pallab) with these
+    # provisional gates unchanged; in the default run-regression.sh list.
     # See docs/simulation-guide.md "mc_gps calibration".
-    non_gating: true
     score_vio: false
     ov_published: false
     ekf2_umeyama_xy_rmse_max: 0.39

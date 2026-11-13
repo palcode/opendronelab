@@ -258,10 +258,11 @@ of hardcoded `x500_mono_cam` strings. Gates stay in
 | `faster_motion` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_test` | `gz_x500_mono_cam_fast_motion` | EKF2 + VIO | yes |
 | `faster_motion_aggressive` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_test` | `gz_x500_mono_cam_fast_motion` | EKF2 + VIO | no |
 | `wind` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_wind` | `gz_x500_mono_cam` | EKF2 + VIO | yes |
-| `mc_gps` | `gz_x500` | `x500_0` | `vio_test` | none | EKF2 only | no (provisional) |
+| `mc_gps` | `gz_x500` | `x500_0` | `vio_test` | none | EKF2 only | yes (since 2026-11-13) |
 
-- The default `run-regression.sh` list is still the five VIO-shadow scenarios.
-  `mc_gps` is opt-in: `SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh`.
+- The default `run-regression.sh` list is the five VIO-shadow scenarios plus
+  `mc_gps` (added 2026-11-13 ~20:34 Asia/Calcutta, Pallab). Run it alone with
+  `SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh`.
 - `mc_gps` flies the same C++ 10 m square at 5 m. With `score_vio: false`
   the runner starts only `localization.launch.py` (clock + ground truth for
   `x500_0`), records the `--localization` bag topic set, skips the wp0 hold
@@ -295,8 +296,9 @@ Fingerprint `db105a65ed6d0b4d94481ebac8173713563372ef3bc0c7a001d2b4e3211bb2f3`
 | mean ± σ | 5/5 | pass@1 5/5 | 0.2572 ± 0.0022 | 0.2650 ± 0.0024 | 0.2794 ± 0.0022 | 0.0690 ± 0.0068 | |
 
 Provisional gates (`round_up(max(mean+3σ, 1.5×worst))`): xy 0.39, 3D 0.41,
-H 0.43, V 0.12, samples ≥ 500 (default). `mc_gps` stays `non_gating`; promoting
-it to gating, and adding it to the default list, is Pallab's call.
+H 0.43, V 0.12, samples ≥ 500 (default). Promoted to **gating** and added to
+the default list on 2026-11-13 ~20:34 Asia/Calcutta (Pallab) with these gates
+unchanged. They are still N=5 values; never loosen them silently.
 
 Same-session `baseline` check (`regression_20261113_195550`, `gz_x500_mono_cam`):
 PASS, pass@1, 0 retries, EKF2 xy 0.258 / 3D 0.269, VIO xy 0.445, fingerprint

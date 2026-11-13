@@ -10,7 +10,7 @@
 #
 # Scenario -> MODEL / world / OpenVINS overlay / score_vio comes from
 # config/airframes.yaml (scripts/airframe_registry.py). The default list is the
-# five gz_x500_mono_cam VIO-shadow scenarios; mc_gps is opt-in.
+# five gz_x500_mono_cam VIO-shadow scenarios plus mc_gps (gz_x500, EKF2 only).
 #
 # Always: GPS default, EKF2_EV_CTRL=0, GstCamera off, fixed GZ_SEED.
 # Requires QGroundControl open (headless PX4 arming).
@@ -27,8 +27,8 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 REPORT_HOST="${DATA_DIR}/results/regression_${STAMP}"
 CONTAINER_NAME="odl-sim"
 
-# Default list (unchanged). Other registry scenarios (mc_gps) are opt-in.
-ALL_SCENARIOS=(baseline low_texture faster_motion faster_motion_aggressive wind)
+# Default list. mc_gps (gz_x500, EKF2 only) gated since 2026-11-13.
+ALL_SCENARIOS=(baseline low_texture faster_motion faster_motion_aggressive wind mc_gps)
 if [ -n "${SCENARIOS:-}" ]; then
     IFS=',' read -r -a WANT <<< "${SCENARIOS}"
 else

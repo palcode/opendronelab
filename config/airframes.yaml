@@ -64,7 +64,7 @@ scenarios:
   mc_gps:
     # Phase A second multicopter: plain gz_x500, GPS only, same C++ 10 m
     # square on vio_test. No OpenVINS, no camera bridge; EKF2 vs GT only.
-    # Opt-in (SCENARIOS=mc_gps); not in the default regression list.
+    # In the default regression list and gating since 2026-11-13 (Pallab).
     airframe: gz_x500
     world: vio_test
     openvins_overlay: null

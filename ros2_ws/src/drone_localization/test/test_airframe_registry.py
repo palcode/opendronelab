@@ -174,9 +174,14 @@ def _ekf2_only_summary():
     }
 
 
-def test_mc_gps_thresholds_non_gating_ekf2_only(thresholds):
+def test_mc_gps_thresholds_gating_ekf2_only(thresholds):
     sc = thresholds['scenarios']['mc_gps']
-    assert sc['non_gating'] is True
+    # Promoted to gating 2026-11-13 (Pallab); provisional N=5 gates kept.
+    assert not sc.get('non_gating', False)
+    assert sc['ekf2_umeyama_xy_rmse_max'] == 0.39
+    assert sc['ekf2_umeyama_3d_rmse_max'] == 0.41
+    assert sc['ekf2_origin_h_rmse_max'] == 0.43
+    assert sc['ekf2_origin_v_rmse_max'] == 0.12
     assert sc['score_vio'] is False
     assert sc['ov_published'] is False
 
@@ -186,7 +191,7 @@ def test_mc_gps_judge_skips_vio_checks(judge_mod, thresholds):
     names = {c['name'] for c in res['checks']}
     assert res['pass'] is True
     assert res['pass_at_1'] is True
-    assert res['non_gating'] is True
+    assert res['non_gating'] is False
     assert res['score_vio'] is False
     assert not any(n.startswith('vio_') for n in names)
     assert {'mission', 'ekf2_umeyama_xy_rmse', 'ekf2_origin_samples'} <= names
@@ -209,3 +214,10 @@ def test_vio_scenarios_still_score_vio(judge_mod, thresholds):
         res = judge_mod.judge(s, thresholds, name)
         assert res['score_vio'] is True
         assert res['pass'] is False, name
+
+
+def test_mc_gps_in_default_regression_list():
+    text = (REPO / 'scripts' / 'run-regression.sh').read_text()
+    line = next(l for l in text.splitlines() if l.startswith('ALL_SCENARIOS=('))
+    assert line == ('ALL_SCENARIOS=(baseline low_texture faster_motion '
+                    'faster_motion_aggressive wind mc_gps)')

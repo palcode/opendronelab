@@ -41,6 +41,12 @@ def _gated_scenarios(thr):
     return out
 
 
+def _gated_vio_scenarios(thr):
+    """Gated scenarios that score VIO (score_vio: false ones, e.g. mc_gps, skip VIO)."""
+    sc = thr.get('scenarios') or {}
+    return [n for n in _gated_scenarios(thr) if (sc.get(n) or {}).get('score_vio', True)]
+
+
 def _healthy_summary():
     return {
         'mission': 'success',
@@ -81,7 +87,7 @@ def test_json_safe_nested():
 
 def test_gated_scenarios_present(thresholds):
     gated = _gated_scenarios(thresholds)
-    for name in ('baseline', 'faster_motion', 'wind'):
+    for name in ('baseline', 'faster_motion', 'wind', 'mc_gps'):
         assert name in gated
     for name in ('low_texture', 'faster_motion_aggressive'):
         assert name not in gated
@@ -124,7 +130,7 @@ def test_healthy_summary_passes_every_gated_scenario(judge_mod, thresholds):
 
 def test_ov_published_but_zero_samples_fails_every_gated_scenario(judge_mod, thresholds):
     """ov_published true via estimate_count, but empty mask -> must FAIL."""
-    for name in _gated_scenarios(thresholds):
+    for name in _gated_vio_scenarios(thresholds):
         s = _healthy_summary()
         s['vio_origin_samples'] = 0
         res = judge_mod.judge(s, thresholds, name)
@@ -138,7 +144,7 @@ def test_min_samples_fallback_when_threshold_missing(judge_mod, thresholds):
     thr['defaults'].pop('vio_origin_samples_min', None)
     for sc in thr['scenarios'].values():
         sc.pop('vio_origin_samples_min', None)
-    for name in _gated_scenarios(thr):
+    for name in _gated_vio_scenarios(thr):
         s = _healthy_summary()
         s['vio_origin_samples'] = 0
         res = judge_mod.judge(s, thr, name)
