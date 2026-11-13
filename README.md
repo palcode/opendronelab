@@ -217,7 +217,7 @@ See `docs/compatibility-matrix.md` for full hardware details.
 
 ## Contributing
 
-This is a personal R&D project. Contributions are not currently accepted.
+Contributions will be accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). A signed Contributor License Agreement (CLA) will be required; the CLA text is currently a draft and is not in force. See also the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## AI Agent Guidelines
 
@@ -236,7 +236,9 @@ AI agents working on this project must follow the guidelines in `AGENTS.md`. Key
 
 ## License
 
-This project's license will be specified in a future commit. Until then, all rights reserved.
+This project's first-party code is licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only). See [LICENSE](LICENSE).
+
+Commercial licenses are available from the copyright holder; see [COMMERCIAL-LICENSING.md](COMMERCIAL-LICENSING.md).
 
 ## References
 
