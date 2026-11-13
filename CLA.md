@@ -1,147 +1,194 @@
 # OpenDroneLab Contributor License Agreement
 
-> **DRAFT — NOT IN FORCE**
+> **NOT YET ACTIVE.** This agreement is not in force and must not be signed
+> yet. The CLA-assistant GitHub Action remains disabled under
+> `.github/workflows-disabled/` until Pallab Sarkar approves a final text
+> after legal review.
 >
-> This document is a **draft**. It has not been reviewed by a lawyer and is
-> **not** currently in use. Do not sign it yet. The CLA-assistant GitHub
-> Action that would collect signatures is disabled until Pallab Sarkar
-> approves a final text after legal review.
+> **Source:** Harmony Individual Contributor License Agreement (HA-CLA-I),
+> Version 1.0, 4 July 2011,
+> <https://www.harmonyagreements.org/docs/ha-cla-i-v1.pdf>
+> (see also <https://www.harmonyagreements.org/>). The official Harmony text
+> is licensed under Creative Commons Attribution 3.0 Unported; that notice
+> is retained at the end.
 >
-> This draft is adapted from the Apache Software Foundation Individual
-> Contributor License Agreement (ICLA) V2.2, with project-specific changes
-> so the copyright holder can relicense contributions under AGPL-3.0-only
-> and under alternative commercial terms (dual licensing). Those
-> adaptations are legal changes, not a drop-in copy of the Apache ICLA.
+> **Options taken from that official template** (legal wording otherwise
+> unmodified): Individual contributor; inbound copyright license (not
+> assignment); Section 2.3 outbound **Option Five** — the project may license
+> a contribution under any license, including copyleft, permissive,
+> commercial, or proprietary licenses, and as a condition also licenses it
+> under the project's license(s) as of the Submission Date, which is what
+> makes dual AGPL-3.0-only and commercial licensing possible. Unused
+> outbound Options One through Four are omitted so only the selected option
+> appears.
+>
+> **Fill-in fields:** the project is OpenDroneLab; the party ("Us") is
+> Pallab Sarkar. Submission instructions point to `CONTRIBUTING.md`. The
+> non-owner contact is mailme.pallabsarkar@gmail.com. **Jurisdiction is
+> not filled in** (`[JURISDICTION]` below), and no additional Media licenses
+> are listed (`[LIST_OF_MEDIA_LICENSES]`). Those two official placeholders
+> should be completed before the CLA is activated.
+>
+> ---
 
-Thank you for your interest in OpenDroneLab (the "Project"), whose
-copyright holder is Pallab Sarkar (the "Copyright Holder"). To clarify
-the intellectual property license granted with Contributions from any
-person or entity, the Copyright Holder must have a signed Contributor
-License Agreement ("Agreement") from each Contributor, indicating
-agreement with the license terms below. This Agreement is for your
-protection as a Contributor as well as the protection of the Copyright
-Holder and the Project's users. It does not change your rights to use
-your own Contributions for any other purpose.
 
-Once this Agreement is in force (it is not today), you will be asked
-to complete and sign it through the project's CLA assistant on GitHub,
-or by another method the Copyright Holder publishes. Until then, do
-not sign this draft. Keep a copy for your records when a final version
-is issued.
+Harmony Individual Contributor License Agreement
 
-You accept and agree to the following terms and conditions for Your
-Contributions (present and future) that you submit to the Project. In
-return, the Copyright Holder shall make first-party Project source
-that incorporates Your Contributions available under the GNU Affero
-General Public License version 3.0 only (AGPL-3.0-only), and may also
-offer alternative commercial licenses for the same work. Except for
-the license granted herein to the Copyright Holder and recipients of
-software distributed by the Copyright Holder, You reserve all right,
-title, and interest in and to Your Contributions.
+Thank you for your interest in contributing to OpenDroneLab ("We" or "Us").
 
-1. Definitions.
+This contributor agreement ("Agreement") documents the rights granted by contributors to Us. To
+make this document effective, please sign it and send it to Us by mail, email, fax, or electronic
+submission, following the instructions at CONTRIBUTING.md in the OpenDroneLab repository. This is a legally binding
+document, so please read it carefully before agreeing to it. The Agreement may cover more than one
+software project managed by Us.
 
-   "You" (or "Your") shall mean the copyright owner or legal entity
-   authorized by the copyright owner that is making this Agreement
-   with the Copyright Holder. For legal entities, the entity making a
-   Contribution and all other entities that control, are controlled
-   by, or are under common control with that entity are considered to
-   be a single Contributor. For the purposes of this definition,
-   "control" means (i) the power, direct or indirect, to cause the
-   direction or management of such entity, whether by contract or
-   otherwise, or (ii) ownership of fifty percent (50%) or more of the
-   outstanding shares, or (iii) beneficial ownership of such entity.
+1. Definitions
 
-   "Contribution" shall mean any original work of authorship,
-   including any modifications or additions to an existing work, that
-   is intentionally submitted by You to the Copyright Holder for
-   inclusion in, or documentation of, any of the products owned or
-   managed by the Copyright Holder as part of the Project (the
-   "Work"). For the purposes of this definition, "submitted" means
-   any form of electronic, verbal, or written communication sent to
-   the Copyright Holder or the Copyright Holder's representatives,
-   including but not limited to communication on electronic mailing
-   lists, source code control systems, and issue tracking systems
-   that are managed by, or on behalf of, the Copyright Holder for the
-   purpose of discussing and improving the Work, but excluding
-   communication that is conspicuously marked or otherwise designated
-   in writing by You as "Not a Contribution."
+     "You" means the individual who Submits a Contribution to Us.
 
-2. Grant of Copyright License. Subject to the terms and conditions of
-   this Agreement, You hereby grant to the Copyright Holder and to
-   recipients of software distributed by the Copyright Holder a
-   perpetual, worldwide, non-exclusive, no-charge, royalty-free,
-   irrevocable copyright license to reproduce, prepare derivative
-   works of, publicly display, publicly perform, sublicense, and
-   distribute Your Contributions and such derivative works.
+     "Contribution" means any work of authorship that is Submitted by You to Us in which You own or
+assert ownership of the Copyright. If You do not own the Copyright in the entire work of authorship,
+please follow the instructions in CONTRIBUTING.md (or contact Us at mailme.pallabsarkar@gmail.com).
 
-   In addition, You hereby grant to the Copyright Holder a perpetual,
-   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-   license to relicense Your Contributions, including the right to
-   license them (alone or as part of the Work) under the GNU Affero
-   General Public License version 3.0 only (AGPL-3.0-only) and under
-   alternative commercial license terms offered by the Copyright
-   Holder. This additional grant is what makes the Project's dual
-   licensing possible.
+     "Copyright" means all rights protecting works of authorship owned or controlled by You,
+including copyright, moral and neighboring rights, as appropriate, for the full term of their existence
+including any extensions by You.
 
-3. Grant of Patent License. Subject to the terms and conditions of
-   this Agreement, You hereby grant to the Copyright Holder and to
-   recipients of software distributed by the Copyright Holder a
-   perpetual, worldwide, non-exclusive, no-charge, royalty-free,
-   irrevocable (except as stated in this section) patent license to
-   make, have made, use, offer to sell, sell, import, and otherwise
-   transfer the Work, where such license applies only to those patent
-   claims licensable by You that are necessarily infringed by Your
-   Contribution(s) alone or by combination of Your Contribution(s)
-   with the Work to which such Contribution(s) was submitted. If any
-   entity institutes patent litigation against You or any other
-   entity (including a cross-claim or counterclaim in a lawsuit)
-   alleging that your Contribution, or the Work to which you have
-   contributed, constitutes direct or contributory patent
-   infringement, then any patent licenses granted to that entity
-   under this Agreement for that Contribution or Work shall terminate
-   as of the date such litigation is filed.
+     "Material" means the work of authorship which is made available by Us to third parties. When this
+Agreement covers more than one software project, the Material means the work of authorship to which
+the Contribution was Submitted. After You Submit the Contribution, it may be included in the Material.
 
-4. You represent that you are legally entitled to grant the above
-   license. If your employer(s) has rights to intellectual property
-   that you create that includes your Contributions, you represent
-   that you have received permission to make Contributions on behalf
-   of that employer, that your employer has waived such rights for
-   your Contributions to the Copyright Holder, or that your employer
-   has executed a separate Corporate CLA with the Copyright Holder.
+     "Submit" means any form of electronic, verbal, or written communication sent to Us or our
+representatives, including but not limited to electronic mailing lists, source code control systems, and
+issue tracking systems that are managed by, or on behalf of, Us for the purpose of discussing and
+improving the Material, but excluding communication that is conspicuously marked or otherwise
+designated in writing by You as "Not a Contribution."
 
-5. You represent that each of Your Contributions is Your original
-   creation (see section 7 for submissions on behalf of others). You
-   represent that Your Contribution submissions include complete
-   details of any third-party license or other restriction (including,
-   but not limited to, related patents and trademarks) of which you
-   are personally aware and which are associated with any part of Your
-   Contributions.
+     "Submission Date" means the date on which You Submit a Contribution to Us.
 
-6. You are not expected to provide support for Your Contributions,
-   except to the extent You desire to provide support. You may provide
-   support for free, for a fee, or not at all. Unless required by
-   applicable law or agreed to in writing, You provide Your
-   Contributions on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
-   OF ANY KIND, either express or implied, including, without
-   limitation, any warranties or conditions of TITLE, NON-
-   INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE.
+    "Effective Date" means the date You execute this Agreement or the date You first Submit a
+Contribution to Us, whichever is earlier.
 
-7. Should You wish to submit work that is not Your original creation,
-   You may submit it to the Copyright Holder separately from any
-   Contribution, identifying the complete details of its source and of
-   any license or other restriction (including, but not limited to,
-   related patents, trademarks, and license agreements) of which you
-   are personally aware, and conspicuously marking the work as
-   "Submitted on behalf of a third-party: [named here]".
+     "Media" means any portion of a Contribution which is not software.
 
-8. You agree to notify the Copyright Holder of any facts or
-   circumstances of which you become aware that would make these
-   representations inaccurate in any respect.
+2. Grant of Rights
 
-Please sign: __________________________________ Date: ________________
+2.1 Copyright License
 
-Once this draft is finalized and approved, signatures will be
-collected electronically (for example via the CLA assistant on
-GitHub). Contact the Copyright Holder about this Agreement via
-<https://github.com/palcode>. No email address is published here.
+(a) You retain ownership of the Copyright in Your Contribution and have the same rights to use or
+license the Contribution which You would have had without entering into the Agreement.
+
+(b) To the maximum extent permitted by the relevant law, You grant to Us a perpetual, worldwide, non-
+exclusive, transferable, royalty-free, irrevocable license under the Copyright covering the Contribution,
+with the right to sublicense such rights through multiple tiers of sublicensees, to reproduce, modify,
+display, perform and distribute the Contribution as part of the Material; provided that this license is
+conditioned upon compliance with Section 2.3.
+
+2.2 Patent License
+
+For patent claims including, without limitation, method, process, and apparatus claims which You [or
+Your Affiliates] own, control or have the right to grant, now or in the future, You grant to Us a
+perpetual, worldwide, non-exclusive, transferable, royalty-free, irrevocable patent license, with the
+right to sublicense these rights to multiple tiers of sublicensees, to make, have made, use, sell, offer for
+sale, import and otherwise transfer the Contribution and the Contribution in combination with the
+Material (and portions of such combination). This license is granted only to the extent that the exercise
+of the licensed rights infringes such patent claims; and provided that this license is conditioned upon
+compliance with Section 2.3.
+
+2.3 Outbound License
+
+(Option Five) Based on the grant of rights in Sections 2.1 and 2.2, if We include Your Contribution in a
+Material, We may license the Contribution under any license, including copyleft, permissive,
+commercial, or proprietary licenses. As a condition on the exercise of this right, We agree to also
+license the Contribution under the terms of the license or licenses which We are using for the Material
+on the Submission Date.
+
+In addition, We may use the following licenses for Media in the Contribution:
+[LIST_OF_MEDIA_LICENSES] (including any right to adopt any future version of a license if
+permitted).
+
+2.4 Moral Rights. If moral rights apply to the Contribution, to the maximum extent permitted by law,
+You waive and agree not to assert such moral rights against Us or our successors in interest, or any of
+our licensees, either direct or indirect.
+
+2.5 Our Rights. You acknowledge that We are not obligated to use Your Contribution as part of the
+Material and may decide to include any Contribution We consider appropriate.
+
+2.6 Reservation of Rights. Any rights not expressly licensed under this section are expressly reserved
+by You.
+
+3. Agreement
+
+You confirm that:
+
+(a) You have the legal authority to enter into this Agreement.
+
+(b) You own the Copyright and patent claims covering the Contribution which are required to grant the
+rights under Section 2.
+
+(c) The grant of rights under Section 2 does not violate any grant of rights which You have made to
+third parties, including Your employer. If You are an employee, You have had Your employer approve
+this Agreement or sign the Entity version of this document. If You are less than eighteen years old,
+please have Your parents or guardian sign the Agreement.
+
+(d) You have followed the instructions in CONTRIBUTING.md (or contact Us at mailme.pallabsarkar@gmail.com), if You do not own the
+Copyright in the entire work of authorship Submitted.
+
+4. Disclaimer
+
+EXCEPT FOR THE EXPRESS WARRANTIES IN SECTION 3, THE CONTRIBUTION IS
+PROVIDED "AS IS". MORE PARTICULARLY, ALL EXPRESS OR IMPLIED WARRANTIES
+INCLUDING, WITHOUT LIMITATION, ANY IMPLIED WARRANTY OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE EXPRESSLY
+DISCLAIMED BY YOU TO US. TO THE EXTENT THAT ANY SUCH WARRANTIES CANNOT
+BE DISCLAIMED, SUCH WARRANTY IS LIMITED IN DURATION TO THE MINIMUM PERIOD
+PERMITTED BY LAW.
+
+5. Consequential Damage Waiver
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL YOU
+BE LIABLE FOR ANY LOSS OF PROFITS, LOSS OF ANTICIPATED SAVINGS, LOSS OF DATA,
+INDIRECT, SPECIAL, INCIDENTAL, CONSEQUENTIAL AND EXEMPLARY DAMAGES ARISING OUT OF THIS AGREEMENT REGARDLESS OF THE LEGAL OR EQUITABLE
+THEORY (CONTRACT, TORT OR OTHERWISE) UPON WHICH THE CLAIM IS BASED.
+
+6. Miscellaneous
+
+6.1 This Agreement will be governed by and construed in accordance with the laws of
+[JURISDICTION] excluding its conflicts of law provisions. Under certain circumstances, the
+governing law in this section might be superseded by the United Nations Convention on Contracts for
+the International Sale of Goods ("UN Convention") and the parties intend to avoid the application of
+the UN Convention to this Agreement and, thus, exclude the application of the UN Convention in its
+entirety to this Agreement.
+
+6.2 This Agreement sets out the entire agreement between You and Us for Your Contributions to Us and
+overrides all other agreements or understandings.
+
+6.3 If You or We assign the rights or obligations received through this Agreement to a third party, as a
+condition of the assignment, that third party must agree in writing to abide by all the rights and
+obligations in the Agreement.
+
+6.4 The failure of either party to require performance by the other party of any provision of this
+Agreement in one situation shall not affect the right of a party to require such performance at any time
+in the future. A waiver of performance under a provision in one situation shall not be considered a
+waiver of the performance of the provision in the future or a waiver of the provision in its entirety.
+
+6.5 If any provision of this Agreement is found void and unenforceable, such provision will be replaced
+to the extent possible with a provision that comes closest to the meaning of the original provision and
+which is enforceable. The terms and conditions set forth in this Agreement shall apply notwithstanding
+any failure of essential purpose of this Agreement or any limited remedy to the maximum extent
+possible under law.
+
+You
+________________________
+Name: ________________________
+Address: ________________________
+         ________________________
+
+Us
+________________________
+Name: Pallab Sarkar
+Title:   ________________________
+Address: ________________________
+         ________________________
+
+           This work is licensed under a Creative Commons Attribution 3.0 Unported License.

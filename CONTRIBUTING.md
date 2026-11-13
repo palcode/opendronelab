@@ -11,14 +11,21 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 ## Contributor License Agreement (required)
 
 A signed Contributor License Agreement (CLA) is required for your
-contribution to be accepted. The CLA grants the copyright holder,
-Pallab Sarkar, a license to your contribution, including the right to
-relicense it under AGPL-3.0-only and under alternative commercial
-terms. You keep your copyright.
+contribution to be accepted. The current text in [CLA.md](CLA.md) is
+the official Harmony Individual Contributor License Agreement
+(HA-CLA-I) Version 1.0 (4 July 2011), with inbound copyright license
+(not assignment) and outbound Option Five: the project may license a
+contribution under any license, including copyleft, permissive,
+commercial, or proprietary licenses, and must also license it under
+the project's license(s) as of the Submission Date. That is what
+makes dual AGPL-3.0-only and commercial licensing possible. You keep
+your copyright. The official source is
+<https://www.harmonyagreements.org/docs/ha-cla-i-v1.pdf>.
 
-The current CLA text is in [CLA.md](CLA.md). **That text is a draft.**
-It has not had a lawyer review and is **not in force**. Please do not
-sign it yet. Pallab will say when a final CLA is approved.
+**That agreement is not yet in force.** It has not had a lawyer
+review. Please do not sign it yet. Two official fill-in fields
+(`[JURISDICTION]` and `[LIST_OF_MEDIA_LICENSES]`) are still
+placeholders. Pallab will say when a final CLA is approved.
 
 A CLA-assistant GitHub Action is checked in under
 `.github/workflows-disabled/` so it can be enabled later. It is

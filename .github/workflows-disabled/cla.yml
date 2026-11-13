@@ -1,6 +1,6 @@
 # DISABLED. This file lives outside .github/workflows/ so GitHub will not
 # run it. Do not move or copy it there until Pallab Sarkar has approved
-# a final CLA text (CLA.md is currently a DRAFT and needs lawyer review).
+# a final CLA text (CLA.md is Harmony HA-CLA-I v1.0 Option Five; not yet in force).
 #
 # Pin: contributor-assistant/github-action v2.6.1
 #      ca4a40a7d1004f18d9960b404b97e5f30a505a08
