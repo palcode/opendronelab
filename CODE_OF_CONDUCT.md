@@ -37,7 +37,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement through GitHub private vulnerability reporting on this repository (https://github.com/palcode/opendronelab/security/advisories) or via Pallab Sarkar's GitHub profile (https://github.com/palcode). Please do not use a public issue for reports that include private information. No email address is published here. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at mailme.pallabsarkar@gmail.com, through GitHub private vulnerability reporting on this repository (https://github.com/palcode/opendronelab/security/advisories), or via Pallab Sarkar's GitHub profile (https://github.com/palcode). Please do not use a public issue for reports that include private information. All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 

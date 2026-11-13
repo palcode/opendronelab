@@ -4,7 +4,7 @@
   <name>drone_localization</name>
   <version>0.1.0</version>
   <description>Localization evaluation and baseline missions for OpenDroneLab</description>
-  <maintainer email="13868623+palcode@users.noreply.github.com">OpenDroneLab</maintainer>
+  <maintainer email="mailme.pallabsarkar@gmail.com">OpenDroneLab</maintainer>
   <license>AGPL-3.0-only</license>
 
   <depend>rclpy</depend>

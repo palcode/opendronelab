@@ -23,8 +23,9 @@ reporting on this repository:
 
 https://github.com/palcode/opendronelab/security/advisories/new
 
-If that form is not available, contact the maintainer via the GitHub
-profile https://github.com/palcode. No email address is published here.
+If that form is not available, contact the maintainer at
+mailme.pallabsarkar@gmail.com or via the GitHub profile
+https://github.com/palcode.
 
 Do **not** file a public issue, a public discussion, or a public pull
 request that describes an unfixed vulnerability.

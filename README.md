@@ -102,7 +102,7 @@ Automated agents working in this repository must follow [AGENTS.md](AGENTS.md).
 
 First-party code is licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only). See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Commercial licenses are available from Pallab Sarkar via [https://github.com/palcode](https://github.com/palcode). See [COMMERCIAL-LICENSING.md](COMMERCIAL-LICENSING.md).
+Commercial licenses are available from Pallab Sarkar at [mailme.pallabsarkar@gmail.com](mailto:mailme.pallabsarkar@gmail.com) or via [https://github.com/palcode](https://github.com/palcode). See [COMMERCIAL-LICENSING.md](COMMERCIAL-LICENSING.md).
 
 ## References
 
@@ -115,4 +115,4 @@ Commercial licenses are available from Pallab Sarkar via [https://github.com/pal
 
 ## Contact
 
-Pallab Sarkar — [https://github.com/palcode](https://github.com/palcode). No email address is published in this README.
+Pallab Sarkar — [mailme.pallabsarkar@gmail.com](mailto:mailme.pallabsarkar@gmail.com), [https://github.com/palcode](https://github.com/palcode).

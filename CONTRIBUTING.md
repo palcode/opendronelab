@@ -58,5 +58,5 @@ Development setup is in [README.md](README.md) and `docs/setup-host.md`.
 ## Questions
 
 Use GitHub issues on this repository when they are available, or
-contact the maintainer via <https://github.com/palcode>. No email
-address is published here.
+contact the maintainer at <mailme.pallabsarkar@gmail.com> or via
+<https://github.com/palcode>.

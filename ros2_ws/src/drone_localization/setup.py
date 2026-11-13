@@ -18,7 +18,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='OpenDroneLab',
-    maintainer_email='13868623+palcode@users.noreply.github.com',
+    maintainer_email='mailme.pallabsarkar@gmail.com',
     description='Localization evaluation and baseline missions for OpenDroneLab',
     license='AGPL-3.0-only',
     tests_require=['pytest'],

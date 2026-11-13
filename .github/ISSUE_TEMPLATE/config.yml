@@ -6,3 +6,6 @@ contact_links:
   - name: Maintainer
     url: https://github.com/palcode
     about: Contact the copyright holder via the palcode GitHub profile.
+  - name: Email the maintainer
+    url: mailto:mailme.pallabsarkar@gmail.com
+    about: Contact Pallab Sarkar at mailme.pallabsarkar@gmail.com.
