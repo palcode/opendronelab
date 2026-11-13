@@ -218,16 +218,24 @@ def export_tum_pair(output_dir, timestamps_ns, gt_positions, est_positions,
 
 
 
-def airborne_mask_from_gt_z(gt_z):
+DEFAULT_AIRBORNE_MIN_AGL = 0.5
+DEFAULT_AIRBORNE_MAX_AGL = 20.0
+
+
+def airborne_mask_from_gt_z(gt_z, min_agl=DEFAULT_AIRBORNE_MIN_AGL,
+                            max_agl=DEFAULT_AIRBORNE_MAX_AGL):
     """Boolean mask for airborne samples from unshifted NED GT z.
 
-    NED z is down: 0.5–20 m AGL is z in (-20, -0.5). Call this on *raw*
+    NED z is down: 0.5–20 m AGL (multicopter default) is z in (-20, -0.5).
+    Fixed-wing scenarios pass a wider band (e.g. 3–200 m, config/airframes.yaml
+    airborne_agl) so the 30–40 m mission is scored and ground roll is not.
+    Call this on *raw*
     (pre-origin-align) GT z. Origin-align pins the first overlapping estimate
     sample to GT; if OpenVINS initialises at cruise altitude, aligned GT z
     sits near 0 and this mask would otherwise drop every sample.
     """
     z = np.asarray(gt_z, dtype=np.float64)
-    return (z < -0.5) & (z > -20.0)
+    return (z < -float(min_agl)) & (z > -float(max_agl))
 
 def align_trajectories(
     gt_timestamps,
@@ -382,6 +390,14 @@ def main(args=None):
         help='Metrics JSON filename inside --output-dir '
              '(use metrics_vio.json when scoring OpenVINS on the same bag)',
     )
+    parser.add_argument(
+        '--airborne-min-agl', type=float, default=DEFAULT_AIRBORNE_MIN_AGL,
+        help='Lower bound of the airborne mask, m above ground (GT, unshifted). '
+             'Default 0.5 (multicopter).')
+    parser.add_argument(
+        '--airborne-max-agl', type=float, default=DEFAULT_AIRBORNE_MAX_AGL,
+        help='Upper bound of the airborne mask, m above ground. Default 20 '
+             '(multicopter); fixed-wing uses a wider band.')
     parsed = parser.parse_args(args)
 
     bag_path = Path(parsed.bag_path)
@@ -442,8 +458,11 @@ def main(args=None):
         est_positions,
         origin_align=False,
     )
-    airborne_mask = airborne_mask_from_gt_z(gt_raw[:, 2])
-    print(f'Airborne samples (GT z): {int(np.sum(airborne_mask))} / {len(airborne_mask)}')
+    airborne_mask = airborne_mask_from_gt_z(
+        gt_raw[:, 2], parsed.airborne_min_agl, parsed.airborne_max_agl)
+    print(f'Airborne samples (GT z in {parsed.airborne_min_agl:g}..'
+          f'{parsed.airborne_max_agl:g} m AGL): '
+          f'{int(np.sum(airborne_mask))} / {len(airborne_mask)}')
 
     gt_aligned, est_aligned, aligned_ts = align_trajectories(
         gt_timestamps,

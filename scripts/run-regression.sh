@@ -453,7 +453,8 @@ run_flight() {
         return 1
     fi
     local ODL_SCENARIO ODL_MODEL ODL_GZ_INSTANCE ODL_VEHICLE_CLASS ODL_CAMERA ODL_WORLD \
-        ODL_OPENVINS_OVERLAY ODL_OV_CONFIG ODL_SCORE_VIO ODL_CAMERA_IMAGE_TOPIC ODL_CAMERA_INFO_TOPIC
+        ODL_OPENVINS_OVERLAY ODL_OV_CONFIG ODL_SCORE_VIO ODL_CAMERA_IMAGE_TOPIC ODL_CAMERA_INFO_TOPIC \
+        ODL_FLIGHT ODL_BAG_DURATION ODL_FLIGHT_WALL ODL_AIRBORNE_MIN_AGL ODL_AIRBORNE_MAX_AGL
     eval "${reg}"
     world="${ODL_WORLD}"
     model="${ODL_MODEL}"
@@ -464,6 +465,10 @@ run_flight() {
         mc_gps)
             # Default square; no OpenVINS, so no wp0 hold for /ov_msckf/odomimu
             # and no VIO init window / land-and-retry.
+            extra_env=(HOLD_FOR_TOPIC=)
+            ;;
+        fw_mission)
+            # PX4 Auto Mission via scripts/fw_mission.py (run-vio-stress FLIGHT).
             extra_env=(HOLD_FOR_TOPIC=)
             ;;
         faster_motion)
@@ -512,8 +517,9 @@ run_flight() {
     local log="${REPORT_HOST}/flight_${scenario}.log"
     set +e
     (
-      export WORLD="${world}" GZ_WORLD="${world}" BAG_DURATION="${BAG_DURATION}" FLIGHT_WALL=150
+      export WORLD="${world}" GZ_WORLD="${world}" BAG_DURATION="${ODL_BAG_DURATION:-${BAG_DURATION}}" FLIGHT_WALL="${ODL_FLIGHT_WALL:-150}"
       export MODEL="${model}" GZ_MODEL="${ODL_GZ_INSTANCE}" OV_CONFIG="${ODL_OV_CONFIG}" SCORE_VIO="${ODL_SCORE_VIO}"
+      export FLIGHT="${ODL_FLIGHT}" AIRBORNE_MIN_AGL="${ODL_AIRBORNE_MIN_AGL}" AIRBORNE_MAX_AGL="${ODL_AIRBORNE_MAX_AGL}"
       for e in "${extra_env[@]+"${extra_env[@]}"}"; do
         export "$e"
       done

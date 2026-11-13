@@ -146,13 +146,28 @@ def test_run_vio_stress_resolves_same_overlays(registry):
         got = dict(line.split('=', 1) for line in r.stdout.strip().splitlines())
         if name == 'mc_gps':
             assert got == {'MODEL': 'gz_x500', 'GZ_MODEL': 'x500_0',
-                           'SCORE_VIO': '0', 'OV_CONFIG': ''}
+                           'SCORE_VIO': '0', 'OV_CONFIG': '',
+                           'FLIGHT': 'square', 'AGL_ARGS': ''}
         else:
             overlay = LEGACY[name][1]
             assert got['MODEL'] == 'gz_x500_mono_cam'
             assert got['GZ_MODEL'] == 'x500_mono_cam_0'
             assert got['SCORE_VIO'] == '1'
             assert got['OV_CONFIG'] == f'/workspace/{overlay}/estimator_config.yaml'
+            assert got['FLIGHT'] == 'square'
+            # Multicopter scoring keeps the localization_metrics 0.5-20 m mask.
+            assert got['AGL_ARGS'] == ''
+    env = os.environ.copy()
+    for k in ('MODEL', 'GZ_MODEL', 'OV_CONFIG', 'SCORE_VIO', 'FLIGHT',
+              'AIRBORNE_MIN_AGL', 'AIRBORNE_MAX_AGL'):
+        env.pop(k, None)
+    env['PRINT_RESOLVED_ONLY'] = '1'
+    r = subprocess.run([str(script), 'fw_mission'], cwd=str(REPO), env=env,
+                       text=True, capture_output=True, check=True)
+    got = dict(line.split('=', 1) for line in r.stdout.strip().splitlines())
+    assert got == {'MODEL': 'gz_rc_cessna', 'GZ_MODEL': 'rc_cessna_0',
+                   'SCORE_VIO': '0', 'OV_CONFIG': '', 'FLIGHT': 'fw_mission',
+                   'AGL_ARGS': '--airborne-min-agl 3.0 --airborne-max-agl 200.0'}
 
 
 def _ekf2_only_summary():
@@ -221,3 +236,89 @@ def test_mc_gps_in_default_regression_list():
     line = next(l for l in text.splitlines() if l.startswith('ALL_SCENARIOS=('))
     assert line == ('ALL_SCENARIOS=(baseline low_texture faster_motion '
                     'faster_motion_aggressive wind mc_gps)')
+
+
+# --- Phase B: fixed-wing (gz_rc_cessna, fw_mission) ---------------------
+
+def test_fw_mission_registry(reg_mod, registry):
+    sc = reg_mod.scenario('fw_mission', registry)
+    assert sc['model'] == 'gz_rc_cessna'
+    assert sc['gz_instance'] == 'rc_cessna_0'
+    assert sc['vehicle_class'] == 'fixed_wing'
+    assert sc['world'] == 'default'
+    assert sc['score_vio'] is False
+    assert sc['ov_config'] == ''
+    assert sc['flight'] == 'fw_mission'
+    assert (sc['airborne_min_agl'], sc['airborne_max_agl']) == (3.0, 200.0)
+    assert sc['bag_duration'] >= 180
+
+
+def test_multicopter_scenarios_keep_default_mask_and_square(reg_mod, registry):
+    for name in list(VIO_FIVE) + ['mc_gps']:
+        sc = reg_mod.scenario(name, registry)
+        assert sc['flight'] == 'square'
+        assert sc['airborne_min_agl'] is None and sc['airborne_max_agl'] is None
+        assert sc['bag_duration'] is None and sc['flight_wall'] is None
+
+
+def test_vendored_default_world_is_stock_and_named_default():
+    sdf = (REPO / 'worlds' / 'default.sdf').read_text(encoding='utf-8-sig')
+    assert '<world name="default">' in sdf
+    stock = Path('/data/PX4-Autopilot/Tools/simulation/gz/worlds/default.sdf')
+    if stock.is_file():
+        assert stock.read_bytes() == (REPO / 'worlds' / 'default.sdf').read_bytes()
+
+
+def test_fw_mission_thresholds_non_gating_ekf2_only(thresholds):
+    sc = thresholds['scenarios']['fw_mission']
+    assert sc['non_gating'] is True
+    assert sc['score_vio'] is False
+    assert sc['ov_published'] is False
+
+
+def test_fw_mission_not_in_default_list():
+    text = (REPO / 'scripts' / 'run-regression.sh').read_text()
+    line = next(l for l in text.splitlines() if l.startswith('ALL_SCENARIOS=('))
+    assert 'fw_mission' not in line
+
+
+@pytest.fixture(scope='module')
+def fw_mod():
+    return _load('fw_mission', 'scripts/fw_mission.py')
+
+
+def test_fw_mission_items(fw_mod):
+    items = fw_mod.build_mission()
+    cmds = [c for c, *_ in items]
+    assert cmds[0] == 22            # NAV_TAKEOFF first
+    assert cmds[-1] == 21           # NAV_LAND last
+    assert cmds[-3] == 189          # DO_LAND_START before approach + land
+    assert 19 in cmds               # LOITER_TIME
+    for c, n, e, alt, _p in items:
+        if n is None:
+            continue
+        assert abs(n) <= 300 and abs(e) <= 300   # inside the 500 m world-ish
+        if c not in (21,):
+            assert alt >= 25.0
+    # Takeoff and landing both run east (spawn heading).
+    take, land, appr = items[0], items[-1], items[-2]
+    assert take[2] > 0 and land[2] > appr[2]
+
+
+def test_offset_latlon_roundtrip(fw_mod):
+    import math
+    lat0, lon0 = 47.3979712, 8.5461635
+    lat, lon = fw_mod.offset_latlon(lat0, lon0, 200.0, -300.0)
+    dn = math.radians(lat - lat0) * fw_mod.EARTH_R
+    de = math.radians(lon - lon0) * fw_mod.EARTH_R * math.cos(math.radians(lat0))
+    assert abs(dn - 200.0) < 0.01 and abs(de + 300.0) < 0.01
+
+
+def test_airborne_mask_default_unchanged_and_fw_band():
+    import numpy as np
+    from drone_localization.localization_metrics import airborne_mask_from_gt_z
+    z = np.array([0.0, -0.4, -0.6, -5.0, -19.9, -20.1, -35.0, -250.0])
+    assert airborne_mask_from_gt_z(z).tolist() == [
+        False, False, True, True, True, False, False, False]
+    assert airborne_mask_from_gt_z(z, 3.0, 200.0).tolist() == [
+        False, False, False, True, True, True, True, False]

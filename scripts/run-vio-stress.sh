@@ -31,6 +31,11 @@
 #     is the EKF2-only path (mc_gps): no OpenVINS or camera bridge, only
 #     localization.launch.py ground truth; no wp0 VIO hold, no VIO scoring,
 #     ov_published=false. GPS default (EKF2_EV_CTRL=0) either way.
+#   FLIGHT (default: registry flight for SCENARIO, else square). fw_mission
+#     runs scripts/fw_mission.py (PX4 Auto Mission over MAVLink) instead of
+#     square_flight_cpp.
+#   AIRBORNE_MIN_AGL / AIRBORNE_MAX_AGL (default: registry airframe
+#     airborne_agl, else localization_metrics defaults 0.5 / 20 m)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -43,13 +48,25 @@ GZ_WORLD="${GZ_WORLD:-${WORLD:-vio_test}}"
 REG_SCORE_VIO=""
 REG_OV_CONFIG=""
 REG_MODEL=""
+REG_FLIGHT=""
+REG_AGL_MIN=""
+REG_AGL_MAX=""
 if REG_OUT="$(python3 "${REPO_DIR}/scripts/airframe_registry.py" --scenario "${SCENARIO}" --shell 2>/dev/null)"; then
     REG_MODEL="$(printf '%s\n' "${REG_OUT}" | sed -n 's/^ODL_MODEL=//p')"
+    REG_FLIGHT="$(printf '%s\n' "${REG_OUT}" | sed -n 's/^ODL_FLIGHT=//p')"
+    REG_AGL_MIN="$(printf '%s\n' "${REG_OUT}" | sed -n "s/^ODL_AIRBORNE_MIN_AGL=//p" | tr -d "'")"
+    REG_AGL_MAX="$(printf '%s\n' "${REG_OUT}" | sed -n "s/^ODL_AIRBORNE_MAX_AGL=//p" | tr -d "'")"
     REG_SCORE_VIO="$(printf '%s\n' "${REG_OUT}" | sed -n 's/^ODL_SCORE_VIO=//p')"
     REG_OV_CONFIG="$(printf '%s\n' "${REG_OUT}" | sed -n "s/^ODL_OV_CONFIG=//p" | tr -d "'")"
 fi
 SCORE_VIO="${SCORE_VIO:-${REG_SCORE_VIO:-1}}"
 MODEL="${MODEL:-${REG_MODEL:-gz_x500_mono_cam}}"
+FLIGHT="${FLIGHT:-${REG_FLIGHT:-square}}"
+AIRBORNE_MIN_AGL="${AIRBORNE_MIN_AGL:-${REG_AGL_MIN}}"
+AIRBORNE_MAX_AGL="${AIRBORNE_MAX_AGL:-${REG_AGL_MAX}}"
+AGL_ARGS=""
+[ -n "${AIRBORNE_MIN_AGL}" ] && AGL_ARGS+=" --airborne-min-agl ${AIRBORNE_MIN_AGL}"
+[ -n "${AIRBORNE_MAX_AGL}" ] && AGL_ARGS+=" --airborne-max-agl ${AIRBORNE_MAX_AGL}"
 if [ -z "${GZ_MODEL:-}" ]; then
     GZ_MODEL="$(python3 "${REPO_DIR}/scripts/airframe_registry.py" --gz-instance "${MODEL}")"
 fi
@@ -104,8 +121,8 @@ resolve_vio_init_attempts() {
 
 # Test hook: print the resolved airframe/overlay and exit (no docker).
 if [ "${PRINT_RESOLVED_ONLY:-0}" = "1" ]; then
-    printf 'MODEL=%s\nGZ_MODEL=%s\nSCORE_VIO=%s\nOV_CONFIG=%s\n' \
-        "${MODEL}" "${GZ_MODEL}" "${SCORE_VIO}" "${OV_CONFIG}"
+    printf 'MODEL=%s\nGZ_MODEL=%s\nSCORE_VIO=%s\nOV_CONFIG=%s\nFLIGHT=%s\nAGL_ARGS=%s\n' \
+        "${MODEL}" "${GZ_MODEL}" "${SCORE_VIO}" "${OV_CONFIG}" "${FLIGHT}" "${AGL_ARGS# }"
     exit 0
 fi
 
@@ -121,7 +138,10 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 # Build flight command from env (defaults = baseline square)
-if [ -z "${FLIGHT_CMD:-}" ]; then
+if [ -z "${FLIGHT_CMD:-}" ] && [ "${FLIGHT}" = "fw_mission" ]; then
+    # Fixed-wing PX4 Auto Mission (no offboard, no VIO hold/retry).
+    FLIGHT_CMD="python3 /workspace/scripts/fw_mission.py --status-file ${SUMMARY_DIR}/flight_status.json --timeout $(( ${FLIGHT_WALL:-400} - 60 ))"
+elif [ -z "${FLIGHT_CMD:-}" ]; then
     ROS_ARGS=()
     # rclcpp declare_parameter<double> rejects integer YAML; force decimals.
     [ -n "${SQUARE_SPEED:-}" ] && ROS_ARGS+=(-p "cruise_speed:=${SQUARE_SPEED}")
@@ -323,7 +343,7 @@ docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -c "
 ${SOURCE_CMD}
 mkdir -p ${SUMMARY_DIR}/tum_ekf2 ${SUMMARY_DIR}/tum_vio
 ros2 run drone_localization localization_metrics ${BAG} \
-  --output-dir ${SUMMARY_DIR} --metrics-name metrics_ekf2.json --tum-dir ${SUMMARY_DIR}/tum_ekf2
+  --output-dir ${SUMMARY_DIR} --metrics-name metrics_ekf2.json --tum-dir ${SUMMARY_DIR}/tum_ekf2${AGL_ARGS}
 # Never score a VIO estimate when init missed liftoff on every attempt.
 if [ ${VIO_INIT_FAILED} != 1 ] && [ ${SCORE_VIO} != 0 ]; then
 ros2 run drone_localization localization_metrics ${BAG} \
@@ -364,6 +384,8 @@ summary = {
   'model': '${MODEL}',
   'gz_model': '${GZ_MODEL}',
   'score_vio': bool(${SCORE_VIO}),
+  'flight': '${FLIGHT}',
+  'airborne_agl': '${AGL_ARGS# }' or None,
   'bag': '${BAG}',
   'mission': '${MISSION}',
   'vio_init_timeout': bool(status.get('vio_init_timeout', False)),

@@ -259,6 +259,7 @@ of hardcoded `x500_mono_cam` strings. Gates stay in
 | `faster_motion_aggressive` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_test` | `gz_x500_mono_cam_fast_motion` | EKF2 + VIO | no |
 | `wind` | `gz_x500_mono_cam` | `x500_mono_cam_0` | `vio_wind` | `gz_x500_mono_cam` | EKF2 + VIO | yes |
 | `mc_gps` | `gz_x500` | `x500_0` | `vio_test` | none | EKF2 only | yes (since 2026-11-13) |
+| `fw_mission` | `gz_rc_cessna` | `rc_cessna_0` | `default` (vendored stock) | none | EKF2 only (3–200 m AGL band) | no (opt-in) |
 
 - The default `run-regression.sh` list is the five VIO-shadow scenarios plus
   `mc_gps` (added 2026-11-13 ~20:34 Asia/Calcutta, Pallab). Run it alone with
@@ -275,7 +276,8 @@ of hardcoded `x500_mono_cam` strings. Gates stay in
   `MODEL` is **not** hashed yet (ODL-92 pending), so `mc_gps` fingerprints as
   `vio_test` with no overlay. Compare `mc_gps` results using the scenario name
   and the `model` field in `summary.json`, not the hash alone.
-- Phases B (fixed-wing), C (VTOL) and D (rover) are planned in ODL-93.
+- Phase B (fixed-wing, `fw_mission`) is below; C (VTOL) and D (rover) are
+  planned in ODL-93.
 
 ### mc_gps calibration (2026-11-13 Asia/Calcutta, provisional)
 
@@ -461,3 +463,37 @@ honoured. Images are never removed. Skip with `SKIP_BUILD_CACHE_PRUNE=1`.
 `/data/bags` (host `dronelab-data/bags`) and free disk, and each regression
 `report.md` / `report.json` records the same (`bags`). Nothing is deleted;
 removing bags needs Pallab's explicit OK.
+
+## Fixed-wing scenario `fw_mission` (multi-airframe Phase B)
+
+Approved by Pallab 2026-11-13 ~20:34 Asia/Calcutta: stock `gz_rc_cessna`
+(SYS_AUTOSTART 4003), programmatic PX4 Auto Mission, EKF2-only, `non_gating`,
+opt-in (`SKIP_PYTEST=1 SCENARIOS=fw_mission ./scripts/run-regression.sh`).
+No image rebuild, no PX4 source edits.
+
+- **World:** `worlds/default.sdf` is the stock PX4 v1.17 `default` world,
+  vendored byte-identical (sha256 `457a363a…`) so `WORLD=default` works with
+  `launch-sitl.sh` and the scenario is fingerprinted. 500×500 m visual plane,
+  infinite collision plane. `vio_test` (100 m) is too small for a plane.
+- **Flight:** `scripts/fw_mission.py` (pymavlink in the image, MAVLink UDP
+  14540 inside `odl-sim`; QGC stays on 14550). It sets `FW_LND_USETER=0`,
+  uploads 8 items, switches to AUTO.MISSION and arms: runway takeoff east to
+  30 m, racetrack at 40 m (≈ 500 × 200 m), 20 s loiter (r 60 m),
+  `DO_LAND_START`, approach at 25 m, glide-slope landing, auto-disarm.
+  Success = takeoff + racetrack items reached, land item current/reached,
+  then disarm. About 140 s from arm to disarm; bag 200 s, wall 400 s.
+- **Why `FW_LND_USETER=0`:** the stock cessna has no rangefinder. With the
+  v1.17 defaults (`FW_LND_USETER=1`, `FW_LND_ABORT=3`) the landing aborts on
+  "terrain not found" and PX4 holds 30 m above the land point forever. 0 lands
+  on the waypoint altitude, which is exact on the flat ground plane. Runtime
+  param only (persists in that airframe's `parameters.bson`; switching
+  `SYS_AUTOSTART` resets params).
+- **Scoring:** `localization_metrics --airborne-min-agl 3 --airborne-max-agl 200`
+  from the registry (`airborne_agl`), so the 30–40 m mission is scored and
+  the runway roll and flare are not. Multicopter scenarios pass no flag and
+  keep the 0.5–20 m mask. `score_vio: false` as for `mc_gps`.
+- **Latency note:** scoring pairs GT and EKF2 by bag receive time. Both MC
+  and FW show the EKF2 estimate about 0.11–0.14 s ahead of GT along track.
+  At 1 m/s (square) that is ~0.15 m; at ~14 m/s (cessna) it is ~1.5 m and
+  dominates the FW xy RMSE. Scoring is left unchanged (no time-offset
+  compensation) so numbers stay comparable; see calibration below.

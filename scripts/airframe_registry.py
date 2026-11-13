@@ -76,6 +76,9 @@ def scenario(name: str, registry: dict | None = None) -> dict:
         raise ValueError(f'scenario {name!r}: score_vio needs an openvins_overlay')
     world = sc.get('world')
     img, info = camera_topics(model, world, reg) if world else (None, None)
+    agl = af.get('airborne_agl') or [None, None]
+    if len(agl) != 2:
+        raise ValueError(f'airframe {model!r}: airborne_agl must be [min, max]')
     return {
         'scenario': name,
         'model': model,
@@ -89,6 +92,13 @@ def scenario(name: str, registry: dict | None = None) -> dict:
         'score_vio': score_vio,
         'camera_image_topic': img,
         'camera_info_topic': info,
+        # square (square_flight_cpp offboard) or fw_mission (PX4 Auto Mission)
+        'flight': sc.get('flight', 'square'),
+        # None = runner defaults (BAG_DURATION 100, FLIGHT_WALL 150, 0.5-20 m)
+        'bag_duration': sc.get('bag_duration'),
+        'flight_wall': sc.get('flight_wall'),
+        'airborne_min_agl': agl[0],
+        'airborne_max_agl': agl[1],
     }
 
 

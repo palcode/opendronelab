@@ -102,3 +102,12 @@ scenarios:
     ekf2_umeyama_3d_rmse_max: 0.41
     ekf2_origin_h_rmse_max: 0.43
     ekf2_origin_v_rmse_max: 0.12
+  fw_mission:
+    # Multi-airframe Phase B (ODL-93): stock gz_rc_cessna, GPS only
+    # (EKF2_EV_CTRL=0), PX4 Auto Mission (scripts/fw_mission.py) on the
+    # vendored stock worlds/default.sdf. EKF2 vs GT only, airborne band
+    # 3-200 m AGL. non_gating; opt-in. Until N>=5 calibration the EKF2
+    # limits are the inherited defaults (report-only).
+    non_gating: true
+    score_vio: false
+    ov_published: false

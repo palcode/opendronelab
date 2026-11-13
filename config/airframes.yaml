@@ -34,6 +34,18 @@ airframes:
     camera_image_topic: null
     camera_info_topic: null
     openvins_overlay: null
+  gz_rc_cessna:
+    # Phase B fixed-wing (ODL-93). Stock PX4 v1.17 model, no camera.
+    sys_autostart: 4003
+    vehicle_class: fixed_wing
+    gz_instance: rc_cessna_0
+    camera: false
+    camera_image_topic: null
+    camera_info_topic: null
+    openvins_overlay: null
+    # Airborne scoring band, m AGL (GT): skips the runway roll and flare,
+    # covers the 30-40 m mission. Multicopters use the 0.5-20 m default.
+    airborne_agl: [3.0, 200.0]
 
 scenarios:
   baseline:
@@ -69,3 +81,16 @@ scenarios:
     world: vio_test
     openvins_overlay: null
     score_vio: false
+  fw_mission:
+    # Phase B: stock gz_rc_cessna, GPS only, programmatic PX4 Auto Mission
+    # (scripts/fw_mission.py: runway takeoff, racetrack, 20 s loiter,
+    # DO_LAND_START + glide-slope landing, auto-disarm). Vendored stock
+    # world worlds/default.sdf (500x500 m, byte-identical to PX4 v1.17).
+    # EKF2 vs GT only; non_gating until calibrated.
+    airframe: gz_rc_cessna
+    world: default
+    openvins_overlay: null
+    score_vio: false
+    flight: fw_mission
+    bag_duration: 200
+    flight_wall: 400
