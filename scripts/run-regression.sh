@@ -349,6 +349,10 @@ set +u
 source /opt/ros/jazzy/setup.bash
 [ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
 [ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
+# Prefer first-party Python sources over a stale overlay copy.
+if [ -d /workspace/ros2_ws/src/drone_localization ]; then
+    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
+fi
 set -u
 pytest -q \
   ros2_ws/src/drone_perception/test/test_processing.py \

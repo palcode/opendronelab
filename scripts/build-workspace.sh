@@ -105,9 +105,15 @@ fi
 mkdir -p /data/ros2_build/ws
 
 cd /workspace/ros2_ws
+# --symlink-install is requested so install-space Python packages can track
+# the source tree without an image rebuild. This setuptools/ament_python
+# combo may still copy files; run-vio-stress.sh / run-vio-baseline.sh and
+# the pytest path also prepend the source tree to PYTHONPATH so
+# localization_metrics edits are used even if the overlay copy is stale.
 colcon --log-base /data/ros2_build/ws/log build \
     --build-base /data/ros2_build/ws/build \
     --install-base /data/ros2_build/ws/install \
+    --symlink-install \
     --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 echo "[SUCCESS] ROS 2 workspace built successfully."

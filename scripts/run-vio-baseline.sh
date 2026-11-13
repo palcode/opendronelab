@@ -20,6 +20,14 @@ source /opt/ros/jazzy/setup.bash
 [ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
 [ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
 [ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
+
+# Prefer first-party Python sources over a stale overlay copy. colcon
+# --symlink-install does not actually symlink this ament_python/setuptools
+# combo, so without this, `ros2 run drone_localization localization_metrics`
+# can silently use an outdated install after a source edit (no image rebuild).
+if [ -d /workspace/ros2_ws/src/drone_localization ]; then
+    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
+fi
 set -u
 export ROS_DOMAIN_ID=42
 export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST'

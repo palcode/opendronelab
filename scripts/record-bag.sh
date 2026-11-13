@@ -7,6 +7,8 @@
 # Flags and duration may appear in any order.
 # Default: do NOT record /camera/image_raw (keeps bags small for scoring).
 # Opt in to raw frames with RECORD_CAMERA=1 or --raw-camera (~125 MB/s).
+# Opt in to OpenVINS track/feature/poseimu topics with RECORD_OV_FEATURES=1
+# (no OpenVINS config change; publishers already exist).
 # Review bags with the mcap CLI / Foxglove layout: see docs/bag-review.md
 set -euo pipefail
 
@@ -107,6 +109,21 @@ if [ "${VIO_MODE}" = true ]; then
     )
     if [ "${EXCLUDE_RAW_CAMERA}" = false ]; then
         TOPICS+=("/camera/image_raw")
+    fi
+    # Opt-in OpenVINS diagnostic topics. These are already advertised by
+    # ov_msckf (no OpenVINS config change). Publishing is subscriber-gated,
+    # so recording them is enough to receive tracks, MSCKF/SLAM points, and
+    # pose-with-covariance. Default regression bags stay small.
+    if [ "${RECORD_OV_FEATURES:-0}" = "1" ]; then
+        TOPICS+=(
+            "/ov_msckf/poseimu"
+            "/ov_msckf/trackhist"
+            "/ov_msckf/points_msckf"
+            "/ov_msckf/points_slam"
+            "/ov_msckf/points_aruco"
+            "/ov_msckf/loop_feats"
+        )
+        echo "[INFO] Including OpenVINS track/feature/poseimu topics (RECORD_OV_FEATURES=1)"
     fi
 elif [ "${LOCALIZATION_MODE}" = true ]; then
     # Localization topic set: EKF inputs/outputs and ground truth
