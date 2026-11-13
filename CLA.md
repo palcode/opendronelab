@@ -24,10 +24,9 @@
 >
 > **Fill-in fields:** the project is OpenDroneLab; the party ("Us") is
 > Pallab Sarkar. Submission instructions point to `CONTRIBUTING.md`. The
-> non-owner contact is mailme.pallabsarkar@gmail.com. **Jurisdiction is
-> not filled in** (`[JURISDICTION]` below), and no additional Media licenses
-> are listed (`[LIST_OF_MEDIA_LICENSES]`). Those two official placeholders
-> should be completed before the CLA is activated.
+> non-owner contact is mailme.pallabsarkar@gmail.com. Jurisdiction is
+> India. No additional Media licenses are listed
+> (`[LIST_OF_MEDIA_LICENSES]` remains an official placeholder).
 >
 > ---
 
@@ -154,7 +153,7 @@ THEORY (CONTRACT, TORT OR OTHERWISE) UPON WHICH THE CLAIM IS BASED.
 6. Miscellaneous
 
 6.1 This Agreement will be governed by and construed in accordance with the laws of
-[JURISDICTION] excluding its conflicts of law provisions. Under certain circumstances, the
+India excluding its conflicts of law provisions. Under certain circumstances, the
 governing law in this section might be superseded by the United Nations Convention on Contracts for
 the International Sale of Goods ("UN Convention") and the parties intend to avoid the application of
 the UN Convention to this Agreement and, thus, exclude the application of the UN Convention in its
