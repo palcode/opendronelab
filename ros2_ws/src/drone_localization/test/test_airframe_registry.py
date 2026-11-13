@@ -288,21 +288,35 @@ def fw_mod():
 
 
 def test_fw_mission_items(fw_mod):
+    import math
     items = fw_mod.build_mission()
     cmds = [c for c, *_ in items]
     assert cmds[0] == 22            # NAV_TAKEOFF first
     assert cmds[-1] == 21           # NAV_LAND last
-    assert cmds[-3] == 189          # DO_LAND_START before approach + land
-    assert 19 in cmds               # LOITER_TIME
+    assert 189 in cmds and 19 in cmds   # DO_LAND_START, LOITER_TIME
+    ls = cmds.index(189)
+    # Downwind / base / final pattern after DO_LAND_START.
+    pattern = [it for it in items[ls + 1:]]
+    assert [c for c, *_ in pattern] == [16, 16, 16, 21]
     for c, n, e, alt, _p in items:
         if n is None:
             continue
-        assert abs(n) <= 300 and abs(e) <= 300   # inside the 500 m world-ish
-        if c not in (21,):
-            assert alt >= 25.0
-    # Takeoff and landing both run east (spawn heading).
-    take, land, appr = items[0], items[-1], items[-2]
-    assert take[2] > 0 and land[2] > appr[2]
+        assert abs(n) <= 400 and abs(e) <= 400
+        if c != 21:
+            assert alt >= 30.0      # nothing below 30 m before the final
+    # Heading changes between consecutive legs of the pattern are <= 90 deg
+    # (v1 had a ~180 deg turn onto the approach at 25 m).
+    pts = [(n, e) for _c, n, e, *_ in pattern]
+    hdg = [math.atan2(b[1] - a[1], b[0] - a[0]) for a, b in zip(pts, pts[1:])]
+    for h1, h2 in zip(hdg, hdg[1:]):
+        d = abs((math.degrees(h2 - h1) + 180) % 360 - 180)
+        assert d <= 90.0 + 1e-6, d
+    # Final is long, straight and eastbound (spawn heading), glide <= 6 deg.
+    (_, n7, e7, a7, _), (_, n8, e8, _a8, _) = items[-2], items[-1]
+    assert n7 == n8 and e8 - e7 >= 300
+    assert math.degrees(math.atan2(a7, e8 - e7)) <= 6.0
+    take = items[0]
+    assert take[2] > 0
 
 
 def test_offset_latlon_roundtrip(fw_mod):

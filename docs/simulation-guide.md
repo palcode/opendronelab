@@ -477,17 +477,22 @@ No image rebuild, no PX4 source edits.
   infinite collision plane. `vio_test` (100 m) is too small for a plane.
 - **Flight:** `scripts/fw_mission.py` (pymavlink in the image, MAVLink UDP
   14540 inside `odl-sim`; QGC stays on 14550). It sets `FW_LND_USETER=0`,
-  uploads 8 items, switches to AUTO.MISSION and arms: runway takeoff east to
-  30 m, racetrack at 40 m (≈ 500 × 200 m), 20 s loiter (r 60 m),
-  `DO_LAND_START`, approach at 25 m, glide-slope landing, auto-disarm.
-  Success = takeoff + racetrack items reached, land item current/reached,
-  then disarm. About 140 s from arm to disarm; bag 200 s, wall 400 s.
+  uploads 9 items, switches to AUTO.MISSION and arms: runway takeoff east to
+  30 m, racetrack at 40 m, 20 s loiter (r 60 m), `DO_LAND_START`, then a
+  standard pattern: downwind westbound at 40 m, 90° onto base at 35 m, 90°
+  onto a 400 m straight eastbound final at 30 m (~4.3° glide), landing,
+  auto-disarm. Success = takeoff and every waypoint reached, land item
+  current/reached, then disarm. Bag 240 s, wall 400 s. (v2, 2026-11-13
+  ~21:31 Asia/Calcutta, Pallab option (a); v1 turned ~180° onto a 200 m
+  final at 25 m, see the v1 results below.)
 - **Why `FW_LND_USETER=0`:** the stock cessna has no rangefinder. With the
   v1.17 defaults (`FW_LND_USETER=1`, `FW_LND_ABORT=3`) the landing aborts on
   "terrain not found" and PX4 holds 30 m above the land point forever. 0 lands
   on the waypoint altitude, which is exact on the flat ground plane. Runtime
   param only (persists in that airframe's `parameters.bson`; switching
-  `SYS_AUTOSTART` resets params).
+  `SYS_AUTOSTART` resets params). Kept as part of the scenario (Pallab, 2026-11-13
+  ~21:31 Asia/Calcutta); `fw_mission.py` records it in `flight_status.json`
+  (`params`).
 - **Scoring:** `localization_metrics --airborne-min-agl 3 --airborne-max-agl 200`
   from the registry (`airborne_agl`), so the 30–40 m mission is scored and
   the runway roll and flare are not. Multicopter scenarios pass no flag and
@@ -498,7 +503,7 @@ No image rebuild, no PX4 source edits.
   dominates the FW xy RMSE. Scoring is left unchanged (no time-offset
   compensation) so numbers stay comparable; see calibration below.
 
-### fw_mission N=5 (2026-11-13 Asia/Calcutta, at `60c930f`) — gates NOT set
+### fw_mission v1 N=5 (2026-11-13 Asia/Calcutta, at `60c930f`) — gates NOT set
 
 `GZ_SEED=1234`, GstCamera off, `EKF2_EV_CTRL=0`. Results
 `/data/results/regression_20261113_{205624,210045,210506,210938,211359}`;

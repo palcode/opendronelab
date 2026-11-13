@@ -15,14 +15,21 @@ sends to udp 14540; QGC keeps 14550.
 
 Mission (local N/E metres from home, altitudes relative to home). Spawn
 heading is east, so the runway takeoff and the landing both run east:
-  0 NAV_TAKEOFF      (0, 150)   30 m
-  1 WAYPOINT         (0, 300)   alt
-  2 WAYPOINT         (200, 300) alt
-  3 WAYPOINT         (200, -200) alt
-  4 LOITER_TIME      (100, -250) alt, radius 60 m, 20 s
-  5 DO_LAND_START
-  6 WAYPOINT         (0, -300)  25 m  (approach; ~7 deg glide to the land point)
-  7 NAV_LAND         (0, -100)  0 m
+  0 NAV_TAKEOFF      (0, 150)    30 m
+  1 WAYPOINT         (0, 300)    alt   racetrack
+  2 WAYPOINT         (200, 300)  alt   racetrack
+  3 LOITER_TIME      (200, 50)   alt, radius 60 m, 20 s
+  4 DO_LAND_START
+  5 WAYPOINT         (150, -150) alt   downwind (westbound, north of runway)
+  6 WAYPOINT         (150, -350) 35 m  end of downwind, 90 deg left onto base
+  7 WAYPOINT         (0, -350)   30 m  end of base, 90 deg left onto final
+  8 NAV_LAND         (0, 50)     0 m   400 m straight final, ~4.3 deg glide
+
+Landing pattern (2026-11-13 v2, Pallab option a): the v1 mission turned
+~180 deg onto a 200 m final at 25 m, and 2 of 5 runs showed an EKF2 GNSS
+fusion dropout + reset right after that turn. v2 flies a standard
+downwind / base / final pattern: only 90 deg turns, the last one at 30 m,
+and a long straight final.
 
 PX4 parameter set before upload (default --param list):
   FW_LND_USETER=0  stock rc_cessna has no rangefinder. With the v1.17
@@ -51,7 +58,7 @@ def offset_latlon(lat_deg, lon_deg, d_north, d_east):
 
 
 def build_mission(alt=40.0, takeoff_alt=30.0, loiter_s=20.0, loiter_r=60.0,
-                  approach_alt=25.0):
+                  approach_alt=30.0, base_alt=35.0):
     """Mission items as (command, n, e, alt, params) with params p1..p4."""
     from_cmd = {
         'TAKEOFF': 22, 'WAYPOINT': 16, 'LOITER_TIME': 19,
@@ -62,11 +69,12 @@ def build_mission(alt=40.0, takeoff_alt=30.0, loiter_s=20.0, loiter_r=60.0,
         (from_cmd['TAKEOFF'], 0.0, 150.0, takeoff_alt, (15.0, 0.0, 0.0, nan)),
         (from_cmd['WAYPOINT'], 0.0, 300.0, alt, (0.0, 0.0, 0.0, nan)),
         (from_cmd['WAYPOINT'], 200.0, 300.0, alt, (0.0, 0.0, 0.0, nan)),
-        (from_cmd['WAYPOINT'], 200.0, -200.0, alt, (0.0, 0.0, 0.0, nan)),
-        (from_cmd['LOITER_TIME'], 100.0, -250.0, alt, (loiter_s, 0.0, loiter_r, 0.0)),
+        (from_cmd['LOITER_TIME'], 200.0, 50.0, alt, (loiter_s, 0.0, loiter_r, 0.0)),
         (from_cmd['DO_LAND_START'], None, None, 0.0, (0.0, 0.0, 0.0, 0.0)),
-        (from_cmd['WAYPOINT'], 0.0, -300.0, approach_alt, (0.0, 0.0, 0.0, nan)),
-        (from_cmd['LAND'], 0.0, -100.0, 0.0, (0.0, 0.0, 0.0, nan)),
+        (from_cmd['WAYPOINT'], 150.0, -150.0, alt, (0.0, 0.0, 0.0, nan)),
+        (from_cmd['WAYPOINT'], 150.0, -350.0, base_alt, (0.0, 0.0, 0.0, nan)),
+        (from_cmd['WAYPOINT'], 0.0, -350.0, approach_alt, (0.0, 0.0, 0.0, nan)),
+        (from_cmd['LAND'], 0.0, 50.0, 0.0, (0.0, 0.0, 0.0, nan)),
     ]
 
 
@@ -153,7 +161,7 @@ def run(args) -> int:
     # Upload mission.
     status['phase'] = 'upload'
     items = build_mission(args.alt, args.takeoff_alt, args.loiter_s, args.loiter_r,
-                          args.approach_alt)
+                          args.approach_alt, args.base_alt)
     msgs = []
     for seq, (command, n, e, alt, (p1, p2, p3, p4)) in enumerate(items):
         if n is None:
@@ -241,10 +249,13 @@ def run(args) -> int:
     status['flight_time_s'] = round((disarmed_at or time.time()) - t_arm, 1)
     # Landed and disarmed after the land item became current (PX4 may not
     # send MISSION_ITEM_REACHED for the final land item before disarm).
-    # The LOITER_TIME item is not always reported as reached; require
-    # takeoff + racetrack, the land item current or reached, then disarm.
+    # The LOITER_TIME item is not always reported as reached; require the
+    # takeoff and every WAYPOINT item, the land item current or reached,
+    # then disarm.
+    required = {i for i, it in enumerate(items) if it[0] in (16, 22)}
+    status['required_items'] = sorted(required)
     complete = disarmed_at is not None and (last_seq in reached or last_cur >= last_seq) \
-        and {0, 1, 2, 3} <= reached
+        and required <= reached
     status['mission_complete'] = bool(complete)
     status['phase'] = 'done' if complete else 'failed'
     status['wall_s'] = round(time.time() - t0, 1)
@@ -258,7 +269,8 @@ def main(argv=None) -> int:
     ap.add_argument('--url', default='udpin:0.0.0.0:14540')
     ap.add_argument('--alt', type=float, default=40.0)
     ap.add_argument('--takeoff-alt', type=float, default=30.0)
-    ap.add_argument('--approach-alt', type=float, default=25.0)
+    ap.add_argument('--approach-alt', type=float, default=30.0)
+    ap.add_argument('--base-alt', type=float, default=35.0)
     ap.add_argument('--loiter-s', type=float, default=20.0)
     ap.add_argument('--loiter-r', type=float, default=60.0)
     ap.add_argument('--timeout', type=float, default=330.0, help='s after arming')

@@ -92,5 +92,5 @@ scenarios:
     openvins_overlay: null
     score_vio: false
     flight: fw_mission
-    bag_duration: 200
+    bag_duration: 240
     flight_wall: 400
