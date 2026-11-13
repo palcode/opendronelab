@@ -25,8 +25,8 @@
 > **Fill-in fields:** the project is OpenDroneLab; the party ("Us") is
 > Pallab Sarkar. Submission instructions point to `CONTRIBUTING.md`. The
 > non-owner contact is mailme.pallabsarkar@gmail.com. Jurisdiction is
-> India. No additional Media licenses are listed
-> (`[LIST_OF_MEDIA_LICENSES]` remains an official placeholder).
+> India. Media licenses listed: Creative Commons Attribution 4.0
+> International (CC BY 4.0).
 >
 > ---
 
@@ -103,7 +103,7 @@ license the Contribution under the terms of the license or licenses which We are
 on the Submission Date.
 
 In addition, We may use the following licenses for Media in the Contribution:
-[LIST_OF_MEDIA_LICENSES] (including any right to adopt any future version of a license if
+Creative Commons Attribution 4.0 International (CC BY 4.0) (including any right to adopt any future version of a license if
 permitted).
 
 2.4 Moral Rights. If moral rights apply to the Contribution, to the maximum extent permitted by law,
