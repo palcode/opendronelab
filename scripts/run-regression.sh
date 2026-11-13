@@ -44,12 +44,10 @@ if [ "${SKIP_PYTEST:-0}" = "1" ]; then
     RUN_PYTEST=0
 fi
 
-mkdir -p "${REPORT_HOST}" "${REPO_DIR}/logs"
-START_EPOCH="$(date +%s)"
-REG_STARTED_QGC=0
-QGC_PID=""
-QGC_PGID=""
-QGC_MOUNTS=""
+# QGC FUSE helpers. QGC_PROC_ROOT is overridable in tests (never used in
+# production). Targets come from /proc/<pid>/exe only, never from mountinfo
+# (which lists every mount in the namespace, including a QGC opened by hand).
+QGC_PROC_ROOT="${QGC_PROC_ROOT:-/proc}"
 
 # Extracted QGC binaries in the process group/session we started.
 qgc_ours() {
@@ -62,33 +60,162 @@ qgc_ours() {
     done
 }
 
-# /tmp/.mount_QGroun* FUSE targets belonging to our QGC pids (live processes).
-qgc_mounts_from_pids() {
-    local pid exe target
-    local pids=()
-    [ -n "${QGC_PID:-}" ] && pids+=("${QGC_PID}")
+# pgrp from /proc/<pid>/stat (works with a fake QGC_PROC_ROOT in tests).
+qgc_pid_pgid() {
+    local pid="$1" stat rest
+    stat="$(cat "${QGC_PROC_ROOT}/${pid}/stat" 2>/dev/null || true)"
+    [ -n "${stat}" ] || return 1
+    rest="${stat##*)}"
+    # After comm: state ppid pgrp session ...
+    set -- ${rest}
+    [ -n "${3:-}" ] || return 1
+    printf '%s\n' "$3"
+}
+
+qgc_path_under_mount() {
+    local path="$1" target="$2"
+    [ -n "${path}" ] && [ -n "${target}" ] || return 1
+    [[ "${path}" == "${target}" || "${path}" == "${target}/"* ]]
+}
+
+qgc_list_mounted() {
+    if command -v findmnt >/dev/null 2>&1; then
+        findmnt -n -o TARGET 2>/dev/null | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/'
+    fi
+}
+
+qgc_exe_mount() {
+    local pid="$1" exe target
+    exe="$(readlink -f "${QGC_PROC_ROOT}/${pid}/exe" 2>/dev/null || true)"
+    if [[ "${exe}" == /tmp/.mount_QGroun* ]]; then
+        target="${exe%%/usr/*}"
+        if [[ "${target}" == /tmp/.mount_QGroun* ]]; then
+            printf '%s\n' "${target}"
+        fi
+    fi
+}
+
+qgc_our_pids() {
+    local pid pgid seen=" "
+    _qgc_emit() {
+        local p="$1"
+        [ -n "${p}" ] || return 0
+        case "${seen}" in
+            *" ${p} "*) return 0 ;;
+        esac
+        seen="${seen}${p} "
+        printf '%s\n' "${p}"
+    }
+    _qgc_emit "${QGC_PID:-}"
     for pid in $(qgc_ours); do
-        pids+=("${pid}")
+        _qgc_emit "${pid}"
     done
     if [ -n "${QGC_PGID:-}" ]; then
-        for pid in $(pgrep -g "${QGC_PGID}" 2>/dev/null); do
-            pids+=("${pid}")
-        done
-    fi
-    for pid in "${pids[@]+"${pids[@]}"}"; do
-        [ -n "${pid}" ] || continue
-        exe="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
-        if [[ "${exe}" == /tmp/.mount_QGroun* ]]; then
-            target="${exe%%/usr/*}"
-            if [[ "${target}" == /tmp/.mount_QGroun* ]]; then
-                printf '%s\n' "${target}"
+        for pidpath in "${QGC_PROC_ROOT}"/[0-9]*; do
+            [ -e "${pidpath}" ] || continue
+            pid="${pidpath##*/}"
+            [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+            pgid="$(qgc_pid_pgid "${pid}" 2>/dev/null || true)"
+            if [ "${pgid}" = "${QGC_PGID}" ]; then
+                _qgc_emit "${pid}"
             fi
+        done
+        if [ "${QGC_PROC_ROOT}" = "/proc" ]; then
+            for pid in $(pgrep -g "${QGC_PGID}" 2>/dev/null); do
+                _qgc_emit "${pid}"
+            done
         fi
-        if [ -r "/proc/${pid}/mountinfo" ]; then
-            awk '$5 ~ /^\/tmp\/\.mount_QGroun/ {print $5}' "/proc/${pid}/mountinfo"
-        fi
+    fi
+}
+
+# /tmp/.mount_QGroun* FUSE targets from /proc/<pid>/exe of our QGC pids only.
+qgc_mounts_from_pids() {
+    local pid
+    for pid in $(qgc_our_pids); do
+        qgc_exe_mount "${pid}"
     done | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/' | sort -u
 }
+
+qgc_is_preexisting() {
+    local t="$1" line
+    while IFS= read -r line; do
+        [ "${line}" = "${t}" ] && return 0
+    done <<< "${QGC_PREEXISTING_MOUNTS:-}"
+    return 1
+}
+
+# True if a live process outside our process group has exe or cwd under target.
+# Does not consult mountinfo: every process in the namespace would match.
+# Drop mounts that were already present before we started QGC.
+qgc_filter_preexisting() {
+    local target
+    while IFS= read -r target; do
+        [ -n "${target}" ] || continue
+        qgc_is_preexisting "${target}" && continue
+        printf '%s
+' "${target}"
+    done
+}
+
+qgc_mount_used_outside_our_group() {
+    local target="$1" pidpath pid exe cwd pgid
+    local ours
+    [ -n "${target}" ] || return 1
+    ours=" $(qgc_our_pids | tr '\n' ' ') "
+    for pidpath in "${QGC_PROC_ROOT}"/[0-9]*; do
+        [ -e "${pidpath}" ] || continue
+        pid="${pidpath##*/}"
+        [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+        if [ -n "${QGC_PGID:-}" ]; then
+            pgid="$(qgc_pid_pgid "${pid}" 2>/dev/null || true)"
+            [ "${pgid}" = "${QGC_PGID}" ] && continue
+        else
+            case "${ours}" in
+                *" ${pid} "*) continue ;;
+            esac
+        fi
+        exe="$(readlink -f "${QGC_PROC_ROOT}/${pid}/exe" 2>/dev/null || true)"
+        cwd="$(readlink -f "${QGC_PROC_ROOT}/${pid}/cwd" 2>/dev/null || true)"
+        if qgc_path_under_mount "${exe}" "${target}" \
+            || qgc_path_under_mount "${cwd}" "${target}"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Unmount candidates: exe of our pids plus the post-start snapshot, only if
+# the mount is new since start and not still used outside our process group.
+qgc_ours_unmount_targets() {
+    local target
+    {
+        qgc_mounts_from_pids
+        printf '%s\n' "${QGC_MOUNTS:-}"
+    } | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/' | sort -u | while IFS= read -r target; do
+        [ -n "${target}" ] || continue
+        if qgc_is_preexisting "${target}"; then
+            continue
+        fi
+        if qgc_mount_used_outside_our_group "${target}"; then
+            echo "[REG] skipping QGC FUSE mount ${target}: still used outside our process group" >&2
+            continue
+        fi
+        printf '%s\n' "${target}"
+    done
+}
+
+# Allow tests to source the helpers above without creating a report dir or
+# installing the regression EXIT trap.
+if [ "${QGC_FUSE_HELPERS_ONLY:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
+mkdir -p "${REPORT_HOST}" "${REPO_DIR}/logs"
+START_EPOCH="$(date +%s)"
+REG_STARTED_QGC=0
+QGC_PID=""
+QGC_PGID=""
+QGC_MOUNTS=""
 
 # Report leftover AppImage FUSE mounts with findmnt; unmount only those we
 # recorded as ours. Never sudo. Never touch unrelated /tmp/.mount_* mounts.
@@ -138,10 +265,10 @@ stop_our_qgc() {
     # process group (pgid == QGC_PID) and we signal that whole group.
     [ "${REG_STARTED_QGC:-0}" = "1" ] && [ -n "${QGC_PID:-}" ] || return 0
     local i left pid
-    # Snapshot our mounts while the processes may still be alive, unioned
-    # with what we recorded at start. This is the only set we will unmount.
-    QGC_OURS_MOUNTS="$( { qgc_mounts_from_pids; printf '%s\n' "${QGC_MOUNTS:-}"; } \
-        | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/' | sort -u )"
+    # Snapshot unmount targets while the processes may still be alive:
+    # our exe-derived mounts unioned with the post-start snapshot, excluding
+    # pre-existing mounts and any still used outside our process group.
+    QGC_OURS_MOUNTS="$(qgc_ours_unmount_targets)"
     if [ -z "${QGC_PGID:-}" ] || [ "${QGC_PGID}" != "${QGC_PID}" ]; then
         # Not a group leader: old behaviour, our pid only.
         kill "${QGC_PID}" >/dev/null 2>&1 && echo "[REG] stopped QGC pid ${QGC_PID} (no own process group)"
@@ -211,6 +338,7 @@ pytest -q \
   ros2_ws/src/drone_perception/test/test_yolox.py \
   ros2_ws/src/drone_localization/test/test_metrics.py \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
+  ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
   ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py
 ' | tee "${REPORT_HOST}/pytest.txt"
     PY_EC=${PIPESTATUS[0]}
@@ -241,6 +369,11 @@ if [ "${#FLIGHTS[@]}" -gt 0 ] && ! pgrep -af QGroundControl >/dev/null 2>&1; the
         # the AppImage runtime and the extracted QGroundControl together.
         # (A background child of a non-interactive script is not a group
         # leader, so setsid execs in place and $! is the group leader.)
+        QGC_PREEXISTING_MOUNTS="$(qgc_list_mounted | awk 'NF && $0 ~ /^\/tmp\/\.mount_QGroun/' | sort -u)"
+        if [ -n "${QGC_PREEXISTING_MOUNTS}" ]; then
+            echo "[REG] pre-existing /tmp/.mount_QGroun* mounts (will not unmount):"
+            printf '%s\n' "${QGC_PREEXISTING_MOUNTS}" | sed 's/^/[REG]   /'
+        fi
         setsid nohup "${HOME}/Applications/QGroundControl-x86_64.AppImage" >/tmp/qgc-regression.log 2>&1 &
         QGC_PID=$!
         REG_STARTED_QGC=1
@@ -252,7 +385,7 @@ if [ "${#FLIGHTS[@]}" -gt 0 ] && ! pgrep -af QGroundControl >/dev/null 2>&1; the
             QGC_PGID=""
         fi
         echo "[REG] started QGC pid ${QGC_PID} (pgid ${QGC_PGID})"
-        QGC_MOUNTS="$(qgc_mounts_from_pids)"
+        QGC_MOUNTS="$(qgc_mounts_from_pids | qgc_filter_preexisting)"
         if [ -n "${QGC_MOUNTS}" ]; then
             echo "[REG] recorded our QGC FUSE mounts:"
             printf '%s\n' "${QGC_MOUNTS}" | sed 's/^/[REG]   /'
