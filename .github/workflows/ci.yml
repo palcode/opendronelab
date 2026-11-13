@@ -1,0 +1,68 @@
+# Headless CI for OpenDroneLab. No GPU, no SITL, no flight tests.
+# First-party ROS packages depend on px4_msgs from the local $ODL_DATA
+# overlay, and the development image is not published to GHCR yet, so a
+# colcon build is not feasible in this workflow. Revisit when a GHCR
+# image is approved (ODL-10).
+#
+# Pins (immutable commit SHAs, not floating tags):
+#   actions/checkout      v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
+#   actions/setup-python  v7.1.0  6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: lint and headless unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pyyaml numpy matplotlib
+
+      - name: Shell syntax
+        run: |
+          set -euo pipefail
+          for s in scripts/*.sh docker/smoke-check.sh; do
+            bash -n "$s"
+          done
+
+      - name: Python syntax
+        run: |
+          python -m compileall -q scripts ros2_ws/src
+
+      - name: Headless unit tests
+        env:
+          PYTHONPATH: ros2_ws/src/drone_localization:ros2_ws/src/drone_telemetry:ros2_ws/src/drone_mission_manager
+        run: |
+          pytest -q \
+            ros2_ws/src/drone_localization/test/test_metrics.py \
+            ros2_ws/src/drone_localization/test/test_judge_regression.py \
+            ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
+            ros2_ws/src/drone_localization/test/test_airframe_registry.py
+        # Perception and vision_px4_bridge tests need OpenCV / ROS 2
+        # (px4_msgs, rclpy) from the unpublished dev image. They run in
+        # SCENARIOS=pytest ./scripts/run-regression.sh on a machine that
+        # has that image, not in this workflow.

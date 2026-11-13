@@ -1,0 +1,39 @@
+name: Bug report
+description: Something is not working as documented
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. Do not include secrets, credentials,
+        private keys, or personal host paths (`/home/…` usernames, machine hostnames).
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands, scenario name, and relevant logs. Redact personal paths.
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or image
+      description: git SHA and/or `opendronelab-dev` image tag
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, NVIDIA driver (if any), Docker version. No hostnames or home paths.
