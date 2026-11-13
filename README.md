@@ -1,257 +1,118 @@
 # OpenDroneLab
 
-**Status:** Phase 4a/4b sim complete; image `opendronelab-dev:phase5-verify` (=`:latest`); GPS-only default; EV opt-in  
-**Last Updated:** 2026-11-12
+OpenDroneLab is a simulation-first research stack for PX4 SITL: Gazebo Harmonic, ROS 2 Jazzy, and optional OpenVINS visual-inertial odometry, with a scored regression suite.
 
-Open-source drone simulation and autonomy R&D environment. Built on PX4 SITL, Gazebo, and ROS 2.
+The verified path today is software-in-the-loop. This project is **not flight-certified** and must not be used to operate a real aircraft without separate safety, legal, and range review. See [docs/real-drone-readiness.md](docs/real-drone-readiness.md).
 
-## Mission
+First-party code is licensed under [AGPL-3.0-only](LICENSE). Commercial licenses are available; see [COMMERCIAL-LICENSING.md](COMMERCIAL-LICENSING.md).
 
-Build a modular, reproducible software environment for developing and evaluating drone autonomy in simulation before considering any physical hardware.
+## Demo
 
-## Current Status
+![OpenDroneLab SITL demo](docs/media/demo.gif)
 
-✅ **Phase 0 Complete:** Host audit, compatibility research, documentation baseline  
-✅ **Phase 1 Complete:** Docker image built, PX4 v1.17.0 SITL verified with Gazebo Harmonic  
-✅ **Phase 2 Complete:** ROS 2 Jazzy integration with PX4 via uXRCE-DDS, offboard control packages  
-✅ **Phase 3 Complete:** Camera integration, edge detection, YOLOX object detection  
-✅ **Phase 4a Complete:** Localization baseline (EKF2 vs Gazebo GT; Python square mean H/V RMSE 0.267/0.065 m)
-✅ **C++ square flight:** `drone_flight_cpp` on main (classic OFFBOARD, mean H/V 0.270/0.066 m vs Python gate)
-✅ **Camera-world memory:** PX4 `GstCameraSystem` disabled by default (`config/gz-server.config`); detection still works
-✅ **OpenVINS + opt-in EV:** VIO Umeyama xy 0.64/0.36/1.11 m; EV verify 0.21/0.24 m; default `EKF2_EV_CTRL=0`
-✅ **Hardware hooks:** `docs/real-drone-readiness.md` + `config/openvins/hardware_placeholder/` (no invented IDs)
+*Placeholder: a short looping SITL GIF (square flight or VIO overlay) will be added at `docs/media/demo.gif` before the public launch. See [docs/media/README.md](docs/media/README.md).*
 
-**Verified on HP OMEN Laptop (Nov 3-4, 2026):**
-- Container-based PX4 SITL with GUI forwarding (XWayland) ✅
-- Hover flight test: 5m altitude, <0.05m drift ✅
-- QGroundControl UDP connection ✅
-- ROS 2 telemetry subscriptions (vehicle_status_v1, vehicle_attitude, vehicle_local_position_v1) ✅
-- Offboard mission manager with safety limits (altitude, drift, timeout) ✅
-- Camera-equipped model (x500_mono_cam): 1280×960 at 30 Hz ✅
-- Edge detection pipeline: 14 Hz, 5ms processing, 15ms latency ✅
-- YOLOX-nano object detection: COCO 80 classes, GPU (CUDA) with CPU fallback ✅
+## Quickstart
 
-## Quick Links
+The repository root is `ODL_ROOT`. Runtime data (bags, PX4 overlays, results) lives in a sibling `dronelab-data` directory (`ODL_DATA`), not in git. Scripts default both from the checkout location, so on a clone at `.../opendronelab` the data dir is `.../dronelab-data`.
 
-- **[Architecture](docs/architecture.md)** - System design and rules
-- **[Compatibility Matrix](docs/compatibility-matrix.md)** - Exact versions and test status
-- **[Host Setup](docs/setup-host.md)** - Installation guide and risk assessment
-- **[Phase 2 Hover Test](docs/phase2-hover.md)** - Verified SITL + Gazebo hover flight
-- **[ROS 2 Integration](docs/ros2-integration.md)** - Topics, QoS, offboard control guide
-- **[Camera & Perception](docs/perception.md)** - Camera integration, edge detection, metrics
-- **[Localization](docs/localization.md)** - EKF2 baseline, coordinate frames, evaluation
-- **[Status / roadmap](docs/evaluation-roadmap.md)** - Current stack, real hardware next, future exploration
-- **[Simulation guide](docs/simulation-guide.md)** - SITL bring-up; includes one-command `./scripts/run-regression.sh`
-- **[Real-drone readiness](docs/real-drone-readiness.md)** - Hardware checklist, remaps, placeholder calib
-- **[Agent Working Agreement](AGENTS.md)** - Guidelines for AI agents working on this project
+```bash
+git clone https://github.com/palcode/opendronelab.git
+cd opendronelab
+export ODL_ROOT="$PWD"
+export ODL_DATA="$(cd "$ODL_ROOT/.." && pwd)/dronelab-data"
+mkdir -p "$ODL_DATA"
 
-## System Overview
+# One-time: build the development image (NVIDIA Container Toolkit recommended).
+docker build -t opendronelab-dev:latest \
+  --build-arg USER_UID="$(id -u)" --build-arg USER_GID="$(id -g)" \
+  -f docker/Dockerfile.dev docker/
 
-```
-┌─────────────────────────────────────────────────────┐
-│  Host: Ubuntu 26.04 LTS (HP OMEN 15)                │
-│  GPU: NVIDIA RTX 5060 Laptop, CUDA 13.2             │
-│  ┌───────────────────────────────────────────────┐  │
-│  │  Container: Ubuntu 24.04                      │  │
-│  │  ┌──────────┐  ┌─────────┐  ┌─────────────┐  │  │
-│  │  │ PX4 SITL │◄─┤ Gazebo  │  │   ROS 2     │  │  │
-│  │  │  Flight  │  │ Physics │  │  Jazzy      │  │  │
-│  │  │ Control  │  │ Sensors │  │  Autonomy   │  │  │
-│  │  └────┬─────┘  └─────────┘  └──────▲──────┘  │  │
-│  │       │                             │         │  │
-│  │       └─────uXRCE-DDS Bridge────────┘         │  │
-│  └───────────────────────────────────────────────┘  │
-│                      │                               │
-│  ┌──────────────────▼──────────────────┐            │
-│  │  QGroundControl (Native AppImage)   │            │
-│  └─────────────────────────────────────┘            │
-└─────────────────────────────────────────────────────┘
+# One command: headless unit tests (no GPU flights).
+SCENARIOS=pytest ./scripts/run-regression.sh
 ```
 
-**Architecture Principles:**
-1. PX4 owns flight control and stabilization
-2. ROS 2 provides perception, mission logic, and monitoring
-3. Simulation-only fault injection
-4. PX4 failsafes remain active
-5. No cloud dependency for safety-critical functions
+`scripts/odl-env.sh` is sourced by the launch and regression scripts, so you can omit the `export` lines if you are happy with those defaults. To fly the scored SITL suite (GPU, takes a while):
+
+```bash
+HEADLESS=1 ./scripts/run-regression.sh
+```
+
+Host setup and hardware notes: [docs/setup-host.md](docs/setup-host.md), [docs/compatibility-matrix.md](docs/compatibility-matrix.md). Day-to-day SITL: [docs/simulation-guide.md](docs/simulation-guide.md).
+
+## Benchmarks
+
+Official scored metric: a global [evo](https://github.com/MichaelGrupp/evo) Umeyama fit of the estimator against Gazebo ground truth (xy / 3D RMSE, metres). GPS remains the default (`EKF2_EV_CTRL=0`); OpenVINS is scored in shadow unless vision fusion is opted in. Gates live in `config/regression_thresholds.yaml` and must not be loosened silently. Figures below are from the documented calibration and check flights; full tables are in [docs/simulation-guide.md](docs/simulation-guide.md) and [docs/localization.md](docs/localization.md).
+
+| Scenario | Vehicle | Official metric | Gate (m) | Documented result | Gating |
+|----------|---------|-----------------|----------|-------------------|--------|
+| `baseline` | `gz_x500_mono_cam` | VIO / EKF2 Umeyama xy | VIO 0.70, EKF2 0.40 | 2026-11-13 check: EKF2 xy 0.258 m, VIO xy 0.445 m | yes |
+| `low_texture` | `gz_x500_mono_cam` | VIO Umeyama xy / 3D | 0.55 / 0.56 | Known limitation; scored but does not fail the suite | no |
+| `faster_motion` | `gz_x500_mono_cam` | VIO Umeyama xy | 0.42 | Gate from the 2026-11-09 calibration | yes |
+| `faster_motion_aggressive` | `gz_x500_mono_cam` | same numeric checks as `faster_motion` | 0.42 | Reported only | no |
+| `wind` | `gz_x500_mono_cam` | VIO Umeyama xy | 1.85 | Gate from the 2026-11-09 calibration (includes gusts) | yes |
+| `mc_gps` | `gz_x500` (GPS only) | EKF2 Umeyama xy | 0.39 | N=5 on 2026-11-13: mean 0.2572 ± 0.0022 m, pass@1 5/5 | yes |
+| `fw_mission` | `gz_rc_cessna` | EKF2 Umeyama (airborne band) | none yet | Opt-in; landing uses `FW_LND_USETER=0` at runtime | no |
+
+A 2026-11-04 GPS-only square on the default world (historical Python flight node, origin-aligned RMSE, not the Umeyama official metric) measured a mean horizontal / vertical RMSE of 0.267 / 0.065 m. See [docs/localization.md](docs/localization.md).
+
+## Current status
+
+- PX4 v1.17.0 SITL, Gazebo Harmonic, ROS 2 Jazzy, all in Docker (`opendronelab-dev:latest`).
+- C++ square flight (`drone_flight_cpp`) is the production mission path.
+- OpenVINS is optional and isolated (GPL-3). Vision fusion into EKF2 is opt-in.
+- Default regression: pytest, then `baseline`, `low_texture`, `faster_motion`, `faster_motion_aggressive`, `wind`, and `mc_gps`.
+- Multi-airframe support is underway (`config/airframes.yaml`). Fixed-wing is opt-in and non-gating; VTOL and rover are not started.
+- Hardware bring-up is deferred. Placeholders only until an airframe is named.
+
+## Repository layout
+
+```
+config/          Airframes, regression gates, OpenVINS overlays, Gazebo server configs
+docker/          Development image
+docs/            Setup, simulation, localization, perception, safety
+ros2_ws/         First-party ROS 2 packages
+scripts/         Launch, regression, evaluation (source scripts/odl-env.sh)
+worlds/          Gazebo worlds (default.sdf is a vendored PX4 stock world)
+```
 
 ## Requirements
 
-### Host System
-- Ubuntu 26.04 LTS (other versions: use Ubuntu 24.04 container anyway)
-- NVIDIA GPU with working driver (optional but recommended)
-- 16 GB+ RAM (22 GB usable on development host)
-- 50 GB free disk space (for containers, builds, logs)
-
-### Software (Phase 1)
-- Docker Engine + NVIDIA Container Toolkit
-- QGroundControl AppImage
-- Git, cmake, build-essential (for repo management)
-
-### Inside Container (Ubuntu 24.04)
-- PX4 Autopilot toolchain
-- ROS 2 Jazzy
-- Gazebo Harmonic
-- Micro XRCE-DDS Agent
-
-## Repository Structure
-
-```
-dronelab/
-├── README.md
-├── AGENTS.md
-├── docs/                        # architecture, localization, real-drone-readiness, …
-├── scripts/                     # launch-sitl, run-baseline, run-vio-*, record-bag (no raw camera by default; `RECORD_CAMERA=1` to include), …
-├── config/                      # gz-server overlays; openvins/ (sim + hardware_placeholder)
-├── worlds/                      # Gazebo SDFs (vio_test, detection_test, …)
-├── docker/                      # Dockerfile.dev, constraints.txt (exact pins), smoke-check.sh
-├── ros2_ws/src/
-│   ├── drone_flight_cpp/        # Production C++ square (OFFBOARD)
-│   ├── drone_localization/      # GT, metrics, vision_px4_bridge
-│   ├── drone_perception/        # Edge + YOLOX
-│   ├── drone_bringup/           # Launch files (vio, vio_ev, detection, …)
-│   ├── drone_telemetry/         # Phase 2 telemetry
-│   └── drone_mission_manager/   # Phase 2 hover mission
-└── tools/foxglove/              # Layout JSON only (app optional)
-```
-
-Runtime data lives under `$ODL_DATA` (bags, PX4 build, overlays) — not in git.
-
-## Getting Started
-
-### Phase 0: Host Audit (Complete)
-
-```bash
-# Clone repository to designated location
-mkdir -p $ODL_ROOT/..
-cd $ODL_ROOT/..
-git clone <repository-url> dronelab
-cd dronelab
-
-# Run host diagnostic
-./scripts/check-host.sh
-
-# Optional: save report to file
-./scripts/check-host.sh --output host-audit.txt
-
-# Review documentation
-cat docs/compatibility-matrix.md
-cat docs/setup-host.md
-cat docs/architecture.md
-```
-
-**Repository Path:** `$ODL_ROOT` (used in all container volume mounts)
-
-### Phase 1: Host Setup (Complete on the reference host)
-
-⚠️ **IMPORTANT:** Review `docs/setup-host.md` before proceeding.
-
-Key considerations:
-- Docker and NVIDIA Container Toolkit installation
-- User group changes (docker, dialout) require logout
-- QGroundControl manual download
-- Ubuntu 24.04 development container creation
-
-See `docs/setup-host.md` for detailed commands and risk assessment.
-
-### Phase 2+: Development Workflow (Future)
-
-1. Start development container
-2. Build PX4 Autopilot
-3. Launch PX4 SITL + Gazebo
-4. Connect QGroundControl
-5. Verify telemetry
-6. Build ROS 2 workspace
-7. Run integration tests
-8. Develop autonomy nodes
-9. Run evaluation scenarios
-
-Detailed guides will be added in future phases.
-
-## In Scope
-
-✅ PX4 Software-in-the-Loop (SITL)  
-✅ Gazebo physics simulation  
-✅ QGroundControl ground station  
-✅ ROS 2 integration via uXRCE-DDS bridge  
-✅ Simulated sensors (camera, IMU, GPS, barometer, LiDAR)  
-✅ OpenCV-based perception  
-✅ Simulation-only fault injection  
-✅ Repeatable test scenarios  
-✅ Automated metrics and reports  
-
-## Regression
-
-```bash
-./scripts/run-regression.sh
-# subset: SCENARIOS=baseline,wind ./scripts/run-regression.sh
-# second airframe alone (gz_x500, GPS only, EKF2 scored; also in the default list):
-# SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh
-```
-
-Runs pytest (31+) then scored flights (baseline, low_texture, faster_motion, faster_motion_aggressive, wind+gusts, mc_gps) with fresh SITL each. Gates in `config/regression_thresholds.yaml`. `low_texture` is scored against its 0.55 m VIO xy limit but is a known limitation (`non_gating`), so a fail there does not fail overall. Scenario airframes come from `config/airframes.yaml`: the five default scenarios (`baseline`, `low_texture`, `faster_motion`, `faster_motion_aggressive`, `wind`) fly `gz_x500_mono_cam` with OpenVINS shadow scoring. The `mc_gps` scenario flies plain `gz_x500` (no camera) on the same square and is scored EKF2 vs ground truth only (gating since 2026-11-13, N=5 gates). The opt-in `fw_mission` scenario flies the stock `gz_rc_cessna` through a PX4 Auto Mission (racetrack, loiter, landing) on the vendored stock `default` world, EKF2-only and `non_gating`. Report: `/data/results/regression_<stamp>/report.md`. Exit nonzero on any FAIL of a gating check. See `docs/simulation-guide.md`.
-
-## Scope
-
-**Supported now:** simulation stack through Phase 4b (see status above).
-
-**Next (first-class):** real hardware bring-up using `docs/real-drone-readiness.md` — still requires separate safety/legal/range review; no invented ports or calib in-repo.
-
-**Not scheduled (future exploration):** CI/BuildKit image rebuilds, Lyrical+Jetty, Isaac/Pegasus, multi-vehicle frameworks, fault-injection automation — see `docs/evaluation-roadmap.md`.
-
-**Never without approval:** custom FC firmware that disables failsafes; host boot/partition/Secure Boot changes.
-
-## Hardware Configuration
-
-**Development Host:** HP OMEN 15  
-- **CPU:** Intel Core i7-14650HX (16 cores / 24 threads)
-- **RAM:** 22 GiB usable (24 GB installed)
-- **GPU:** NVIDIA GeForce RTX 5060 Laptop (8 GB VRAM, Blackwell GB206M)
-- **Driver:** NVIDIA 595.99.02 (open kernel module), CUDA 13.2
-- **OS:** Ubuntu 26.04.1 LTS (Resolute Raccoon), Kernel 7.0.0-42
-- **Disk:** 953.9 GB NVMe, 354 GB free on Ubuntu partition
-
-⚠️ **Dual-boot system:** Windows partitions p3/p4 and shared EFI partition p1 are off-limits.
-
-See `docs/compatibility-matrix.md` for full hardware details.
+- Linux host with Docker. An NVIDIA GPU and the NVIDIA Container Toolkit are required for the scored SITL flights; the headless pytest command above does not need a GPU.
+- The development image is Ubuntu 24.04 with PX4, Gazebo Harmonic, ROS 2 Jazzy, and Micro XRCE-DDS Agent.
+- QGroundControl runs as a native host AppImage when you need a GCS.
 
 ## Contributing
 
-Contributions will be accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). A signed Contributor License Agreement (CLA) will be required; the CLA text is currently a draft and is not in force. See also the [Code of Conduct](CODE_OF_CONDUCT.md).
+Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). A signed [Contributor License Agreement](CLA.md) will be required; the CLA text is currently a **draft** and is not in force until it has a lawyer review and the copyright holder approves it.
 
-## AI Agent Guidelines
+Please use the issue and pull request templates. Do not loosen regression gates. Do not add secrets or personal host paths.
 
-AI agents working on this project must follow the guidelines in `AGENTS.md`. Key principles:
-- Work incrementally, one phase at a time
-- Do not invent package names, topics, or versions
-- Consult official documentation before adding dependencies
-- Never modify host bootloader, partitions, or Secure Boot without approval
-- Run tests and report actual results, not assumptions
+## AI agents
 
-## Safety and Limitations
+Automated agents working in this repository must follow [AGENTS.md](AGENTS.md).
 
-⚠️ **Sim-first:** The verified path today is SITL. Code is **not** flight-certified.
+## Safety and limitations
 
-⚠️ **Hardware bring-up:** Use `docs/real-drone-readiness.md` when ready. Requires safety/legal/range review, manual override, and validated failsafes — placeholders only in this repo until an airframe is named.
+- **Sim-first:** the verified path is SITL. Code is not flight-certified.
+- **Hardware:** [docs/real-drone-readiness.md](docs/real-drone-readiness.md) — safety, legal, and range review, a manual override, and validated failsafes are required; placeholders only until an airframe is named.
+- **Security reports:** [SECURITY.md](SECURITY.md) (GitHub private vulnerability reporting).
 
 ## License
 
-This project's first-party code is licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only). See [LICENSE](LICENSE).
+First-party code is licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only). See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Commercial licenses are available from the copyright holder; see [COMMERCIAL-LICENSING.md](COMMERCIAL-LICENSING.md).
+Commercial licenses are available from Pallab Sarkar via [https://github.com/palcode](https://github.com/palcode). See [COMMERCIAL-LICENSING.md](COMMERCIAL-LICENSING.md).
 
 ## References
 
-- **PX4 Autopilot:** https://docs.px4.io/
-- **Gazebo:** https://gazebosim.org/docs/
-- **ROS 2 Jazzy:** https://docs.ros.org/en/jazzy/
-- **QGroundControl:** https://qgroundcontrol.com/
-- **uXRCE-DDS:** https://micro-xrce-dds.docs.eprosima.com/
+- [PX4 Autopilot](https://docs.px4.io/)
+- [Gazebo](https://gazebosim.org/docs/)
+- [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/)
+- [QGroundControl](https://qgroundcontrol.com/)
+- [uXRCE-DDS](https://micro-xrce-dds.docs.eprosima.com/)
+- [OpenVINS](https://docs.openvins.com/)
 
 ## Contact
 
-Project owner: See repository metadata
-
----
-
-**OpenDroneLab** - Open-source drone simulation for autonomy R&D
+Pallab Sarkar — [https://github.com/palcode](https://github.com/palcode). No email address is published in this README.
