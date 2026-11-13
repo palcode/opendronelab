@@ -354,3 +354,34 @@ def test_run_vio_stress_validates_vio_init_attempts(tmp_path):
         assert r.returncode != 0, (bad, r.stdout, r.stderr)
         assert 'Refusing to fall back to 3' in r.stderr
         assert '^[1-9][0-9]*$' in r.stderr or 'positive integer' in r.stderr
+
+
+def test_fingerprinted_summary_missing_retries_fails(judge_mod, thresholds):
+    """New summaries (scenario_fingerprint set) must not treat missing retries as 0."""
+    s = _healthy_summary()
+    s['scenario_fingerprint'] = {'sha256': 'abc'}
+    assert 'vio_init_retries' not in s
+    assert 'vio_init_attempts' not in s
+    res = judge_mod.judge(s, thresholds, 'baseline')
+    assert not res['pass']
+    assert res['pass_at_1'] is False
+    failed = {c['name'] for c in res['checks'] if not c['pass']}
+    assert failed == {'vio_init_retries'}
+    detail = next(c['detail'] for c in res['checks'] if c['name'] == 'vio_init_retries')
+    assert 'missing' in detail
+
+    # Same summary with retry fields present still passes and is pass@1.
+    s['vio_init_retries'] = 0
+    s['vio_init_attempts'] = 1
+    res = judge_mod.judge(s, thresholds, 'baseline')
+    assert res['pass']
+    assert res['pass_at_1'] is True
+
+
+def test_legacy_summary_with_fingerprint_none_still_tolerates_missing(judge_mod, thresholds):
+    """Explicit null fingerprint is not treated as a post-7a12881 summary."""
+    s = _healthy_summary()
+    s['scenario_fingerprint'] = None
+    res = judge_mod.judge(s, thresholds, 'baseline')
+    assert res['pass']
+    assert res['pass_at_1'] is True

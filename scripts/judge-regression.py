@@ -116,18 +116,29 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
 
     retries = retries_used(summary)
     retries_max = sc.get('vio_init_retries_max')
+    # Post-7a12881 summaries include scenario_fingerprint. Missing retry
+    # fields on those are a failed check, not a silent 0. Older summaries
+    # without the fingerprint keep the pre-49ef570 tolerant behaviour.
+    fingerprinted = summary.get('scenario_fingerprint') is not None
+    missing_retries = retries is None
     if retries_max is not None:
-        # Missing retry fields (pre-49ef570 summaries) count as 0 used.
-        used = 0 if retries is None else retries
-        ok = _finite(used) and int(used) <= int(retries_max)
-        add('vio_init_retries', ok,
-            f"{used} <= {retries_max}" if _finite(used) else f"{used} (not finite)")
+        if missing_retries and fingerprinted:
+            add('vio_init_retries', False,
+                'missing vio_init_retries/vio_init_attempts on a fingerprinted summary')
+        else:
+            used = 0 if retries is None else retries
+            ok = _finite(used) and int(used) <= int(retries_max)
+            add('vio_init_retries', ok,
+                f"{used} <= {retries_max}" if _finite(used) else f"{used} (not finite)")
 
     passed = all(c['pass'] for c in checks)
     non_gating = bool(sc.get('non_gating', False))
     # pass@1: all checks passed and VIO started on the first attempt.
-    used_for_p1 = 0 if retries is None else retries
-    pass_at_1 = bool(passed) and _finite(used_for_p1) and int(used_for_p1) == 0
+    if missing_retries and fingerprinted:
+        pass_at_1 = False
+    else:
+        used_for_p1 = 0 if retries is None else retries
+        pass_at_1 = bool(passed) and _finite(used_for_p1) and int(used_for_p1) == 0
     return {
         'scenario': scenario,
         'pass': passed,
