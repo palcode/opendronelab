@@ -722,8 +722,8 @@ Bring-up checklist and launch hooks: `docs/real-drone-readiness.md`. Do not inve
 ```
 open-drone-lab/
 ├── README.md                  # Project overview
-├── AGENTS.md                  # AI agent working agreement
 ├── docs/                      # Documentation
+│   ├── AGENTS.md              # AI agent working agreement
 │   ├── architecture.md        # This file
 │   ├── compatibility-matrix.md
 │   ├── setup-host.md

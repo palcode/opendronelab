@@ -102,7 +102,7 @@ Please use the issue and pull request templates. Do not loosen regression gates.
 
 ## AI agents
 
-Automated agents working in this repository must follow [AGENTS.md](AGENTS.md).
+Automated agents working in this repository must follow [docs/AGENTS.md](docs/AGENTS.md).
 
 ## Safety and limitations
 
