@@ -373,18 +373,36 @@ joint `(0.12, 0.03, 0.242)` m.
 
 **Camera mask:** a propeller-blade mask is enabled on all current SITL VIO
 overlays (`config/openvins/gz_x500_mono_cam/`, `_low_texture`, `_fast_motion`)
-via `use_mask` and `mask_x500_mono_cam_props.png` (1280×960; OpenVINS polarity,
-255 = ignore). The x500 forward camera keeps the spinning blades in view on
-the pad and in hover. A 2026-11-12 diagnostic (`RECORD_CAMERA=1`, bag
-`20261112_201814`, analysis `/data/results/lt_prop_diag_20261112_201740/`)
-showed that after arm, still on the pad, the only moving pixels were those
-blades (Farneback up to 120 px on the blades; background KLT max 0.002 px).
-The mask covers the mid-left and mid-right swept regions plus the upper-left
-mid-hover blade location, dilated by 28 px. The pad and lower-frame ground
-texture are not masked (`y >= 420` is left usable). The same mask is used for
-baseline, low_texture, faster_motion and wind, because they share this
-airframe and camera; `hardware_placeholder` is unchanged. No other OpenVINS
-settings (chi², `init_dyn_use`, tracker parameters) were changed for this.
+via `use_mask` and a single shared `config/openvins/mask_x500_mono_cam_props.png`
+(1280×960; OpenVINS polarity, 255 = ignore). Each overlay sets
+`mask0: "../mask_x500_mono_cam_props.png"`; OpenVINS resolves that path
+relative to the config file. The mask covers **12.6%** of the frame
+(154,478 of 1,228,800 pixels). The x500 forward camera keeps the spinning
+blades in view on the pad and in hover. A 2026-11-12 diagnostic
+(`RECORD_CAMERA=1`, bag `20261112_201814`, analysis
+`/data/results/lt_prop_diag_20261112_201740/`) showed that after arm, still
+on the pad, the only moving pixels were those blades (Farneback up to 120 px
+on the blades; background KLT max 0.002 px). The mask covers the mid-left
+and mid-right swept regions plus the upper-left mid-hover blade location,
+dilated by 28 px. The pad and lower-frame ground texture are not masked
+(`y >= 420` is left usable). The same mask is used for baseline,
+low_texture, faster_motion and wind, because they share this airframe and
+camera; `hardware_placeholder` is unchanged (`use_mask` stays false). No
+other OpenVINS settings (chi², `init_dyn_use`, tracker parameters) were
+changed for this.
+
+On 2026-11-13 the three per-overlay PNG copies were replaced by that shared
+file (ODL-91). Mask bytes and polarity did not change, so flight results
+remain comparable. Scenario fingerprints changed because the `mask0` path
+string and hash inputs changed (`scripts/scenario_fingerprint.py` now also
+hashes a mask referenced outside the overlay directory):
+
+| Scenario | old sha256 | new sha256 |
+|---|---|---|
+| baseline (`vio_test` + `gz_x500_mono_cam`) | `d60721c79593bd59e538c315655dd11db3d9e1fe548fcc53cde4d7ca3efab754` | `6dc9a8cde7e883c471ca8e30bd090d8c03b92ecf054dae4b083c750a3e450b8f` |
+| wind (`vio_wind` + `gz_x500_mono_cam`) | `2267aeeb171d599b35200cc130f95c559c614e79fcb8016518cbd501eb294fba` | `e5f54ec8b41131410a59e55b97d1c85ac90a4e9e9fa6dd6f81ab1f257aab133b` |
+| low_texture (`vio_low_texture` + `gz_x500_mono_cam_low_texture`) | `8b2c7db584912b6872374923189af86f60c6a070d76965605fc6769c15aba239` | `64a796d675a241b7cfa9b81b4241ba1c066866b9434ebbf34d969839728a3571` |
+| faster_motion / faster_motion_aggressive (`vio_test` + `gz_x500_mono_cam_fast_motion`) | `c4f5442b74c60fbf2e31020ede36e7a92d27c4de3fd3e8831c8ebc420b790466` | `bea7da818bb0d56e324aabeac00321c68f84b8f004601dc6b750cb8dfa2a50b1` |
 
 ### Bring-up
 

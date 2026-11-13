@@ -34,11 +34,14 @@ textureless for VIO.
 
 ## Camera mask
 
-`use_mask: true` and `mask_x500_mono_cam_props.png` (copied identically into
-the low_texture and fast_motion overlay directories so each scenario
-fingerprint includes the mask bytes). OpenVINS polarity is 255 = ignore, 0 =
-use. The mask hides the x500 forward-camera propeller blades (mid-left and
-mid-right swept regions plus the mid-hover upper-left blade, dilated 28 px)
-and leaves the pad / lower-frame ground texture unmasked. See
-`docs/localization.md`.
+`use_mask: true` and `mask0: "../mask_x500_mono_cam_props.png"`, a single
+shared file at `config/openvins/mask_x500_mono_cam_props.png` also used by
+the low_texture and fast_motion overlays. OpenVINS resolves `mask0` relative
+to this config file. Polarity is 255 = ignore, 0 = use. The mask covers
+12.6% of the 1280×960 frame (154,478 of 1,228,800 pixels) and hides the
+x500 forward-camera propeller blades (mid-left and mid-right swept regions
+plus the mid-hover upper-left blade, dilated 28 px), leaving the pad /
+lower-frame ground texture unmasked. `scripts/scenario_fingerprint.py`
+hashes the referenced shared PNG even though it sits outside this overlay
+directory. See `docs/localization.md`.
 

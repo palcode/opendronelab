@@ -16,4 +16,4 @@ Leaves `gz_x500_mono_cam/` defaults unchanged.
 
 Pair with flight knobs: `yaw_spin_after_wp:=1`, `SQUARE_YAW_SPIN=0.35`.
 
-The propeller-blade camera mask is the same file as in `gz_x500_mono_cam/` (`mask_x500_mono_cam_props.png`, `use_mask: true`). It is not a fast-motion-only setting.
+The propeller-blade camera mask is the shared file `config/openvins/mask_x500_mono_cam_props.png`, referenced as `mask0: "../mask_x500_mono_cam_props.png"` (`use_mask: true`). It covers 12.6% of the 1280×960 frame. It is not a fast-motion-only setting.

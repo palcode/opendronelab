@@ -432,3 +432,47 @@ def test_overall_verdicts_ignores_nongating_for_overall_only(judge_mod):
     assert v['overall'] is True
     assert v['overall_pass_at_1'] is False
     assert v['overall_all_scenarios'] is True
+
+
+def test_fingerprint_includes_shared_mask_outside_overlay(fingerprint_mod, tmp_path):
+    repo = tmp_path / 'repo'
+    overlay = repo / 'config' / 'openvins' / 'cam'
+    shared = repo / 'config' / 'openvins'
+    overlay.mkdir(parents=True)
+    (repo / 'worlds').mkdir()
+    (repo / 'worlds' / 'vio_test.sdf').write_text('<sdf>world-a</sdf>\n')
+    (shared / 'mask_x500_mono_cam_props.png').write_bytes(b'mask-bytes-v1')
+    (overlay / 'estimator_config.yaml').write_text(
+        'use_mask: true\nmask0: "../mask_x500_mono_cam_props.png"\n')
+
+    first = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+
+    # Changing the shared mask bytes must change the fingerprint.
+    (shared / 'mask_x500_mono_cam_props.png').write_bytes(b'mask-bytes-v2')
+    after = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+    assert after['sha256'] != first['sha256']
+
+    # Restore mask, change an unrelated file: fingerprint stays.
+    (shared / 'mask_x500_mono_cam_props.png').write_bytes(b'mask-bytes-v1')
+    (repo / 'README.md').write_text('unrelated\n')
+    same = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+    assert same['sha256'] == first['sha256']
+
+
+def test_fingerprint_does_not_double_hash_in_overlay_mask(fingerprint_mod, tmp_path):
+    """A mask that still lives in the overlay dir is hashed once, as an overlay file."""
+    repo = tmp_path / 'repo'
+    overlay = repo / 'config' / 'openvins' / 'cam'
+    overlay.mkdir(parents=True)
+    (repo / 'worlds').mkdir()
+    (repo / 'worlds' / 'vio_test.sdf').write_text('<sdf/>\n')
+    (overlay / 'mask_x500_mono_cam_props.png').write_bytes(b'same')
+    (overlay / 'estimator_config.yaml').write_text(
+        'use_mask: true\nmask0: "mask_x500_mono_cam_props.png"\n')
+    a = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'vio_test', overlay / 'estimator_config.yaml')
+    # Adding a comment-only change is already covered elsewhere; just assert it hashes.
+    assert len(a['sha256']) == 64

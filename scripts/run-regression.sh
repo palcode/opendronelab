@@ -689,7 +689,8 @@ if fps:
     lines.extend([
         "## Scenario fingerprints",
         "",
-        "sha256 of the world SDF + OpenVINS overlay directory; changes when",
+        "sha256 of the world SDF + OpenVINS overlay directory + any mask",
+        "file the overlay references outside that directory; changes when",
         "those inputs change, not when unrelated files change. git SHA is extra.",
         "",
         "| Scenario | sha256 | world | overlay | git |",

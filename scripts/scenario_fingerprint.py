@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Scenario fingerprint: sha256 of the world SDF + OpenVINS overlay directory.
+"""Scenario fingerprint: sha256 of the world SDF + OpenVINS overlay directory
+plus any maskN files the overlay config references outside that directory.
 
 Used so a low_texture (or other) result can be compared only with runs that
 used the same world and overlay. The git SHA is recorded too, but is not the
@@ -8,6 +9,7 @@ primary hash: unrelated commits would change it.
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 from pathlib import Path
 
@@ -81,6 +83,36 @@ def _git_sha(repo: Path) -> str | None:
     return sha or None
 
 
+def _mask_references(overlay_dir: Path):
+    """maskN paths from estimator_config.yaml, resolved like OpenVINS.
+
+    OpenVINS does get_config_folder() + mask_path, i.e. the config
+    directory plus the configured relative (or absolute) path.
+    """
+    cfg = overlay_dir / 'estimator_config.yaml'
+    if not cfg.is_file():
+        return []
+    refs = []
+    for raw in cfg.read_text().splitlines():
+        line = raw.split('#', 1)[0].strip()
+        if not line:
+            continue
+        m = re.match(r'^mask(\d+):\s*["\']?([^"\']+?)["\']?\s*$', line)
+        if not m:
+            continue
+        mask_name, mask_path = m.group(1), m.group(2).strip()
+        if not mask_path:
+            continue
+        raw_path = Path(mask_path)
+        if raw_path.is_absolute():
+            resolved = raw_path
+        else:
+            # Same string-concat as OpenVINS, then resolve for reading.
+            resolved = Path(str(cfg.parent) + '/' + mask_path)
+        refs.append((f'mask{mask_name}', resolved, mask_path))
+    return refs
+
+
 def compute_scenario_fingerprint(
     repo: str | Path,
     world: str | None,
@@ -88,9 +120,11 @@ def compute_scenario_fingerprint(
 ) -> dict:
     """Return {sha256, git_sha, world, openvins_overlay}.
 
-    sha256 covers only the world SDF bytes and the overlay directory files, so
-    it changes when the scenario itself changes and not when unrelated files
-    change. git_sha is informational.
+    sha256 covers the world SDF bytes, the overlay directory files, and any
+    maskN file referenced by estimator_config.yaml that lives outside the
+    overlay directory (OpenVINS resolves mask paths relative to the config
+    file). It changes when the scenario itself changes and not when unrelated
+    files change. git_sha is informational.
     """
     repo = Path(repo)
     world_path, world_rel = _resolve_world(repo, world)
@@ -104,6 +138,7 @@ def compute_scenario_fingerprint(
         hasher.update(world_path.read_bytes())
         hasher.update(b'\0')
     if overlay_dir is not None:
+        hashed_resolved = set()
         for f in _iter_overlay_files(overlay_dir):
             rel = f.relative_to(overlay_dir).as_posix()
             hasher.update(b'overlay:')
@@ -111,6 +146,25 @@ def compute_scenario_fingerprint(
             hasher.update(b'\0')
             hasher.update(f.read_bytes())
             hasher.update(b'\0')
+            try:
+                hashed_resolved.add(f.resolve())
+            except OSError:
+                pass
+        for _name, resolved, mask_path in _mask_references(overlay_dir):
+            try:
+                resolved_real = resolved.resolve()
+            except OSError:
+                continue
+            if not resolved_real.is_file() or resolved_real in hashed_resolved:
+                continue
+            # Configured path (usually ../mask_....png) plus the file bytes,
+            # so a shared-mask change still changes the fingerprint.
+            hasher.update(b'mask:')
+            hasher.update(mask_path.encode())
+            hasher.update(b'\0')
+            hasher.update(resolved_real.read_bytes())
+            hasher.update(b'\0')
+            hashed_resolved.add(resolved_real)
 
     return {
         'sha256': hasher.hexdigest(),
