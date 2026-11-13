@@ -3,7 +3,8 @@
 Wordmark, mark, and a prepared social preview follow [docs/brand.md](../brand.md).
 Letterforms in the SVGs are paths (Outfit, OFL), so a font does not have to
 be installed to render them. The README selects `logo-light.svg` /
-`logo-dark.svg` with a `<picture>` element and `prefers-color-scheme`.
+`logo-dark.svg` with GitHub `#gh-light-mode-only` / `#gh-dark-mode-only`
+fragments, which follow the GitHub appearance setting.
 
 `social-preview.png` is 1280×640, under 1 MB, and **prepared only** — it
 is not uploaded as the GitHub repository social preview.

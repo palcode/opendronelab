@@ -20,7 +20,11 @@ plots. It does not change scored metrics or scenario fingerprints.
 - The wordmark is "OpenDroneLab" in a geometric sans, with **Lab** in signal orange. Letterforms are converted to paths so the files do not depend on a font being installed.
 - The mark is a top-down quadrotor X whose four arms point to the corners of a square (the square flight path), with a small crosshair at the start corner. It is drawn to stay legible at 32 px.
 
-The README selects light/dark with a `<picture>` element and `prefers-color-scheme`.
+The README selects light/dark with GitHub's `#gh-light-mode-only` /
+`#gh-dark-mode-only` image fragments, which follow the GitHub appearance
+setting (not the OS `prefers-color-scheme`). Using a CSS media query here
+would show the off-white wordmark on a light GitHub page whenever the OS
+is in dark mode. Fills are hard hex colours, not `currentColor`.
 
 ## Social preview
 

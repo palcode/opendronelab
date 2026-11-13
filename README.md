@@ -1,11 +1,11 @@
 # OpenDroneLab
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-dark.svg">
-  <img src="docs/media/logo-light.svg" alt="OpenDroneLab" height="48">
-</picture>
+<!-- GitHub's appearance setting, not the OS prefers-color-scheme, so a
+     light GitHub session still gets the navy wordmark when the OS is dark. -->
+<img src="docs/media/logo-light.svg#gh-light-mode-only" alt="OpenDroneLab" height="48">
+<img src="docs/media/logo-dark.svg#gh-dark-mode-only" alt="OpenDroneLab" height="48">
 
-[![CI](https://img.shields.io/github/actions/workflow/status/palcode/opendronelab/ci.yml?branch=main&style=flat&label=CI)](https://github.com/palcode/opendronelab/actions/workflows/ci.yml)
+[![CI](https://github.com/palcode/opendronelab/actions/workflows/ci.yml/badge.svg)](https://github.com/palcode/opendronelab/actions/workflows/ci.yml)
 [![License AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue?style=flat)](LICENSE)
 ![PX4 v1.17](https://img.shields.io/badge/PX4-v1.17-blue?style=flat)
 ![ROS 2 Jazzy](https://img.shields.io/badge/ROS%202-Jazzy-blue?style=flat)
