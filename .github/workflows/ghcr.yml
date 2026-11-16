@@ -1,0 +1,152 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+#
+# Manual-only GHCR publish. Do not add push or pull_request triggers.
+# Do not run this workflow until the maintainer has decided on NVIDIA
+# redistribution (docs/NVIDIA_REDISTRIBUTION.md) and explicitly starts
+# a dispatch with confirm=publish-to-ghcr.
+#
+# Default token permissions stay read-only. packages, id-token, and
+# attestations are granted on this job only.
+
+name: GHCR
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type publish-to-ghcr to allow a push to GHCR"
+        required: true
+        type: string
+      variant:
+        description: "cpu (no NVIDIA pip wheels) or dev (CUDA/cuDNN wheels)"
+        required: true
+        type: choice
+        options:
+          - cpu
+          - dev
+        default: cpu
+      nvidia_ack:
+        description: "For variant=dev, type nvidia-redistribution-reviewed after reading docs/NVIDIA_REDISTRIBUTION.md"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghcr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish image
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/opendronelab-dev
+      SYFT_VERSION: "1.57.1"
+      SYFT_SHA256: "bf52519eb57f675d47c07d43213cb6dff6449f3d6d1147ff6701ed91f44eef0c"
+    steps:
+      - name: Confirm dispatch
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          VARIANT: ${{ inputs.variant }}
+          NVIDIA_ACK: ${{ inputs.nvidia_ack }}
+        run: |
+          set -euo pipefail
+          if [ "${CONFIRM}" != "publish-to-ghcr" ]; then
+            echo "Refusing to push: confirm must be exactly publish-to-ghcr."
+            exit 1
+          fi
+          if [ "${VARIANT}" != "cpu" ] && [ "${VARIANT}" != "dev" ]; then
+            echo "Refusing to push: variant must be cpu or dev."
+            exit 1
+          fi
+          if [ "${VARIANT}" = "dev" ] && [ "${NVIDIA_ACK}" != "nvidia-redistribution-reviewed" ]; then
+            echo "Refusing the dev image: read docs/NVIDIA_REDISTRIBUTION.md and set nvidia_ack=nvidia-redistribution-reviewed."
+            exit 1
+          fi
+          echo "Dispatch confirmed for variant=${VARIANT}."
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ inputs.variant }}
+            type=sha,prefix=${{ inputs.variant }}-
+          labels: |
+            org.opencontainers.image.title=OpenDroneLab ${{ inputs.variant }}
+            org.opencontainers.image.description=PX4 v1.17 / ROS 2 Jazzy / Gazebo Harmonic development image. Not flight-certified.
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.vendor=OpenDroneLab
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opendronelab.variant=${{ inputs.variant }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: docker
+          file: docker/Dockerfile.dev
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ODL_WITH_NVIDIA=${{ inputs.variant == 'dev' && '1' || '0' }}
+
+      - name: Install syft
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/syft.tar.gz \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          echo "${SYFT_SHA256}  /tmp/syft.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/syft.tar.gz -C /tmp syft
+          sudo mv /tmp/syft /usr/local/bin/syft
+
+      - name: Generate SBOM
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          syft "${IMAGE_NAME}@${DIGEST}" -o spdx-json=sbom.spdx.json
+
+      - name: Attest provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true

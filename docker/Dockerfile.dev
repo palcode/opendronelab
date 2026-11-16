@@ -198,15 +198,25 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3-matplotlib
 
 # Enforce numpy 1.x (apt python3-opencv) via constraints, then install
-# onnxruntime-gpu[cuda,cudnn]. CUDA/cuDNN come from the nvidia-* pip wheels
-# (no CUDA toolkit in the image). Host driver 595 reports CUDA 13.2, matching
+# either onnxruntime-gpu[cuda,cudnn] or the CPU onnxruntime. CUDA/cuDNN
+# in the default (dev) image come from the nvidia-* pip wheels (no CUDA
+# toolkit in the image). Host driver 595 reports CUDA 13.2, matching
 # the CUDA 13 default of onnxruntime-gpu >= 1.27. Do NOT also install
-# onnxruntime (CPU-only); the two packages conflict.
+# onnxruntime (CPU-only) next to onnxruntime-gpu; the two packages
+# conflict. See docs/NVIDIA_REDISTRIBUTION.md. Set ODL_WITH_NVIDIA=0
+# to build a CPU/base image without NVIDIA pip wheels. Default is 1,
+# so existing `docker build` commands are unchanged.
+ARG ODL_WITH_NVIDIA=1
 RUN --mount=type=cache,target=/root/.cache/pip \
     sudo pip3 install --break-system-packages --ignore-installed \
         -c /tmp/constraints.txt "numpy==1.26.4" \
-    && sudo pip3 install --break-system-packages \
-        -c /tmp/constraints.txt "onnxruntime-gpu[cuda,cudnn]==1.28.0" \
+    && if [ "${ODL_WITH_NVIDIA}" = "0" ]; then \
+         sudo pip3 install --break-system-packages \
+           -c /tmp/constraints.txt "onnxruntime==1.28.0"; \
+       else \
+         sudo pip3 install --break-system-packages \
+           -c /tmp/constraints.txt "onnxruntime-gpu[cuda,cudnn]==1.28.0"; \
+       fi \
     && sudo pip3 install --break-system-packages --ignore-installed \
         -c /tmp/constraints.txt "numpy==1.26.4"
 
