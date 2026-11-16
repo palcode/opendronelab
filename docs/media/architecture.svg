@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 430" width="1160" height="430" role="img" aria-labelledby="odl-arch-title odl-arch-desc">
+  <title id="odl-arch-title">OpenDroneLab architecture</title>
+  <desc id="odl-arch-desc">A C++ OFFBOARD mission commands PX4 v1.17 SITL over uXRCE-DDS. PX4 exchanges with Gazebo Harmonic. Camera and IMU feed isolated OpenVINS (GPL). Optional EV fusion is dashed back into EKF2. Ground truth and the estimator are scored with evo Umeyama RMSE against regression gates. rosbag2 mcap recordings open in a Foxglove layout.</desc>
+  <rect width="1160" height="430" fill="#F4F6F8"/>
+  <defs>
+    <marker id="arrow-navy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0B1F33"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#FF6B1A"/>
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#19C3B1"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8A99AD"/>
+    </marker>
+  </defs>
+  <text x="40" y="28" font-size="13" font-weight="700" fill="#0B1F33" font-family="ui-sans-serif, system-ui, sans-serif">OpenDroneLab  ·  sim-first, not flight-certified</text>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <g id="mission">
+      <rect x="40" y="48" width="210" height="86" rx="10" fill="#FFFFFF" stroke="#FF6B1A" stroke-width="2.5"/>
+      <rect x="40" y="48" width="8" height="86" rx="2" fill="#FF6B1A"/>
+      <text x="147" y="86" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">C++ OFFBOARD</text>
+      <text x="147" y="108" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">mission</text>
+    </g>
+    <g id="px4">
+      <rect x="330" y="48" width="220" height="86" rx="10" fill="#FFFFFF" stroke="#0B1F33" stroke-width="2.5"/>
+      <rect x="330" y="48" width="8" height="86" rx="2" fill="#0B1F33"/>
+      <text x="442" y="86" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">PX4 v1.17 SITL</text>
+      <text x="442" y="108" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">/ EKF2</text>
+    </g>
+    <g id="gz">
+      <rect x="630" y="48" width="240" height="86" rx="10" fill="#FFFFFF" stroke="#0B1F33" stroke-width="2.5"/>
+      <rect x="630" y="48" width="8" height="86" rx="2" fill="#0B1F33"/>
+      <text x="752" y="82" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">Gazebo Harmonic</text>
+      <text x="752" y="104" text-anchor="middle" font-size="13" font-weight="600" fill="#0B1F33">X500, Cessna, stress worlds</text>
+    </g>
+    <g id="ov">
+      <rect x="930" y="48" width="200" height="86" rx="10" fill="#FFFFFF" stroke="#8A99AD" stroke-width="2.5"/>
+      <rect x="930" y="48" width="8" height="86" rx="2" fill="#8A99AD"/>
+      <text x="1032" y="86" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">OpenVINS VIO</text>
+      <text x="1032" y="108" text-anchor="middle" font-size="13" font-weight="600" fill="#0B1F33">GPL, isolated</text>
+    </g>
+    <g id="evo">
+      <rect x="330" y="210" width="220" height="80" rx="10" fill="#FFFFFF" stroke="#19C3B1" stroke-width="2.5"/>
+      <rect x="330" y="210" width="8" height="80" rx="2" fill="#19C3B1"/>
+      <text x="442" y="256" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">evo Umeyama RMSE</text>
+    </g>
+    <g id="gates">
+      <rect x="630" y="210" width="240" height="80" rx="10" fill="#FFFFFF" stroke="#FF6B1A" stroke-width="2.5"/>
+      <rect x="630" y="210" width="8" height="80" rx="2" fill="#FF6B1A"/>
+      <text x="752" y="244" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">Regression gates</text>
+      <text x="752" y="266" text-anchor="middle" font-size="13" font-weight="600" fill="#0B1F33">summary.json + report</text>
+    </g>
+    <g id="bag">
+      <rect x="330" y="320" width="220" height="80" rx="10" fill="#FFFFFF" stroke="#8A99AD" stroke-width="2.5"/>
+      <rect x="330" y="320" width="8" height="80" rx="2" fill="#8A99AD"/>
+      <text x="442" y="366" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">rosbag2 mcap</text>
+    </g>
+    <g id="fox">
+      <rect x="630" y="320" width="240" height="80" rx="10" fill="#FFFFFF" stroke="#8A99AD" stroke-width="2.5"/>
+      <rect x="630" y="320" width="8" height="80" rx="2" fill="#8A99AD"/>
+      <text x="752" y="366" text-anchor="middle" font-size="15" font-weight="600" fill="#0B1F33">Foxglove layout</text>
+    </g>
+  </g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <line x1="250" y1="91" x2="330" y2="91" stroke="#0B1F33" stroke-width="2" marker-end="url(#arrow-navy)"/>
+    <text x="290" y="80" text-anchor="middle" font-size="11" fill="#0B1F33">uXRCE-DDS</text>
+    <line x1="550" y1="84" x2="630" y2="84" stroke="#0B1F33" stroke-width="2" marker-end="url(#arrow-navy)"/>
+    <line x1="630" y1="98" x2="550" y2="98" stroke="#0B1F33" stroke-width="2" marker-end="url(#arrow-navy)"/>
+    <line x1="870" y1="91" x2="930" y2="91" stroke="#0B1F33" stroke-width="2" marker-end="url(#arrow-navy)"/>
+    <text x="900" y="80" text-anchor="middle" font-size="11" fill="#0B1F33">camera + IMU</text>
+    <path d="M930 134 C 930 175, 550 175, 550 134" fill="none" stroke="#FF6B1A" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-orange)"/>
+    <text x="740" y="168" text-anchor="middle" font-size="11" fill="#FF6B1A">EV fusion, opt-in</text>
+    <path d="M750 134 L 750 180 L 550 180 L 550 210" fill="none" stroke="#19C3B1" stroke-width="2" marker-end="url(#arrow-teal)"/>
+    <text x="640" y="198" text-anchor="middle" font-size="11" fill="#19C3B1">ground truth</text>
+    <line x1="440" y1="134" x2="440" y2="210" stroke="#0B1F33" stroke-width="2" marker-end="url(#arrow-navy)"/>
+    <text x="456" y="178" font-size="11" fill="#0B1F33">estimate</text>
+    <line x1="550" y1="250" x2="630" y2="250" stroke="#0B1F33" stroke-width="2" marker-end="url(#arrow-navy)"/>
+    <path d="M400 134 L 280 134 L 280 360 L 330 360" fill="none" stroke="#8A99AD" stroke-width="2" marker-end="url(#arrow-slate)"/>
+    <text x="268" y="250" text-anchor="end" font-size="11" fill="#8A99AD">bags</text>
+    <line x1="550" y1="360" x2="630" y2="360" stroke="#8A99AD" stroke-width="2" marker-end="url(#arrow-slate)"/>
+  </g>
+</svg>

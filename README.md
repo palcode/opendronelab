@@ -112,6 +112,15 @@ Four gating scenarios (documented calibration and check flights):
 
 ## Architecture
 
+<p align="center">
+  <img src="docs/media/architecture.svg" alt="OpenDroneLab architecture: C++ OFFBOARD mission, PX4 v1.17 SITL, Gazebo Harmonic, isolated OpenVINS, evo Umeyama gates, and Foxglove bags" width="1100">
+</p>
+
+The editable source is [docs/architecture.excalidraw](docs/architecture.excalidraw). Teal marks ground truth; orange marks the opt-in EV fusion path and regression gates.
+
+<details>
+<summary>Mermaid source (same topology)</summary>
+
 ```mermaid
 flowchart LR
   M[C++ OFFBOARD mission] -->|uXRCE-DDS| P[PX4 v1.17 SITL / EKF2]
@@ -123,6 +132,8 @@ flowchart LR
   E --> R[Regression gates: summary.json + report]
   P --> B[(rosbag2 mcap)] --> F[Foxglove layout]
 ```
+
+</details>
 
 Details: [docs/architecture.md](docs/architecture.md).
 
