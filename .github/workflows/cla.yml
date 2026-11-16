@@ -19,14 +19,17 @@ on:
     types: [opened, closed, synchronize]
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
-  statuses: write
+# Permissions stay on the job, not the workflow. This workflow must
+# never check out a pull-request head. Signatures remain on `main`
+# until the maintainer decides otherwise (see docs/LAUNCH_CHECKLIST.md).
 
 jobs:
   CLAAssistant:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
     steps:
       - name: CLA Assistant
         if: >-

@@ -2,6 +2,7 @@
 
 **Status:** ✅ VERIFIED ON HP OMEN LAPTOP (Nov 3, 2026)  
 **Prerequisites:** Phase 1 complete (Docker, NVIDIA CTK, QGC installed)  
+**Environment:** from the repository root, run `source scripts/odl-env.sh` before commands that use `$ODL_ROOT` or `$ODL_DATA`.  
 **Goal:** Build PX4 development container and execute first SITL hover flight
 
 ## Verification Results
@@ -17,8 +18,8 @@ docker run -dit --name odl-sim \
   --gpus all --device /dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
   -e DISPLAY=$DISPLAY -e NVIDIA_DRIVER_CAPABILITIES=all \
   -e __NV_PRIME_RENDER_OFFLOAD=1 -e __GLX_VENDOR_LIBRARY_NAME=nvidia \
-  -v $ODL_ROOT:/workspace \
-  -v $ODL_DATA:/data -w /data/PX4-Autopilot \
+  -v "$ODL_ROOT":/workspace \
+  -v "$ODL_DATA":/data -w /data/PX4-Autopilot \
   opendronelab-dev:latest bash -lc 'make px4_sitl gz_x500'
 ```
 
@@ -50,7 +51,7 @@ Phase 2 builds the containerized development environment and validates the compl
 ### Build Image
 
 ```bash
-cd $ODL_ROOT/docker
+cd "$ODL_ROOT/docker"
 
 # Build image with matching host UID/GID
 docker build \
@@ -83,7 +84,7 @@ docker images | grep opendronelab-dev
 ### Launch Development Shell
 
 ```bash
-cd $ODL_ROOT
+cd "$ODL_ROOT"
 ./scripts/dev-shell.sh
 ```
 
@@ -374,7 +375,7 @@ exit
 ### Restart Container
 
 ```bash
-cd $ODL_ROOT
+cd "$ODL_ROOT"
 ./scripts/dev-shell.sh
 # Reattaches to existing container
 cd /data/PX4-Autopilot
@@ -400,7 +401,7 @@ docker rm opendronelab-dev
 docker rmi opendronelab-dev:latest
 
 # Remove data (CAUTION: deletes PX4 builds and logs)
-rm -rf $ODL_DATA
+rm -rf -- "${ODL_DATA:?set ODL_DATA first}"
 
 # Revoke X11 access (optional)
 xhost -SI:localuser:$(whoami)
@@ -428,7 +429,7 @@ After successful Phase 2:
 **Error: "No space left on device"**
 ```bash
 # Check disk usage
-df -h $ODL_DATA
+df -h "$ODL_DATA"
 # Clean ccache if needed
 ccache -C
 ```
@@ -450,7 +451,7 @@ docker exec opendronelab-dev id
 # Should show: uid=1000 gid=1000
 
 # Check /data mount
-ls -ld $ODL_DATA
+ls -ld "$ODL_DATA"
 # Should show: drwxr-xr-x pallab pallab
 ```
 

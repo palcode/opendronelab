@@ -273,6 +273,8 @@
 
 All commands are sourced from official documentation and marked with their source.
 
+**Environment:** from the repository root, run `source scripts/odl-env.sh` before any command that uses `$ODL_ROOT` or `$ODL_DATA`. That sets `ODL_ROOT` to the checkout and `ODL_DATA` to the sibling `dronelab-data` directory unless you already exported them.
+
 ### Step 0: Basic Host Tools
 
 ```bash
@@ -286,8 +288,9 @@ git --version
 cmake --version
 gcc --version
 
-# Repository is already at $ODL_ROOT
-cd $ODL_ROOT
+# Repository is already at $ODL_ROOT (set by scripts/odl-env.sh)
+source scripts/odl-env.sh
+cd "$ODL_ROOT"
 pwd
 # Should show: $ODL_ROOT
 ```
@@ -482,7 +485,7 @@ docker run -it --name px4-dev-test \
     -e DISPLAY=$DISPLAY \
     -e __NV_PRIME_RENDER_OFFLOAD=1 \
     -e __GLX_VENDOR_LIBRARY_NAME=nvidia \
-    -v $ODL_ROOT:/workspace \
+    -v "$ODL_ROOT":/workspace \
     -w /workspace \
     ubuntu:24.04 bash
 
@@ -502,7 +505,7 @@ docker run -it --name px4-dev-test \
 - `-e DISPLAY=$DISPLAY` - Display identifier
 - `-e __NV_PRIME_RENDER_OFFLOAD=1` - Force NVIDIA rendering on hybrid GPU
 - `-e __GLX_VENDOR_LIBRARY_NAME=nvidia` - Use NVIDIA OpenGL
-- `-v $ODL_ROOT:/workspace` - Mount repository
+- `-v "$ODL_ROOT":/workspace` - Mount repository
 - `-w /workspace` - Set working directory in container
 
 **Status:** PROPOSED, NOT RUN  

@@ -1,0 +1,7 @@
+# Headless CI pins, matching opendronelab-dev:latest (Python 3.12).
+# Direct dependencies only. Hashes omitted: the matplotlib wheel tree
+# is large and platform-specific.
+pytest==7.4.4
+PyYAML==6.0.3
+numpy==1.26.4
+matplotlib==3.11.2

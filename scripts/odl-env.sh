@@ -13,10 +13,10 @@
 #
 # Overrides: export ODL_ROOT and/or ODL_DATA, or the older REPO_DIR,
 # DATA_DIR, and WORKSPACE_DIR names, before sourcing.
-
-if [ -n "${ODL_ENV_LOADED:-}" ]; then
-    return 0 2>/dev/null || exit 0
-fi
+#
+# Safe to source more than once. Aliases are always re-synced from the
+# current ODL_* values; this file does not export a loaded-guard that
+# would skip a later source.
 
 _odl_scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -46,6 +46,4 @@ REPO_DIR="${ODL_ROOT}"
 DATA_DIR="${ODL_DATA}"
 WORKSPACE_DIR="${ODL_ROOT}"
 export REPO_DIR DATA_DIR WORKSPACE_DIR
-ODL_ENV_LOADED=1
-export ODL_ENV_LOADED
 unset _odl_scripts_dir
