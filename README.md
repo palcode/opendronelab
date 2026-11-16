@@ -16,6 +16,8 @@
 <img src="https://img.shields.io/badge/Gazebo-Harmonic-blue?style=flat" alt="Gazebo Harmonic">
 <img src="https://img.shields.io/badge/GHCR-pending-lightgrey?style=flat" alt="GHCR image pending">
 <a href="docs/"><img src="https://img.shields.io/badge/docs-docs%2F-blue?style=flat" alt="Docs"></a>
+<a href="ROADMAP.md"><img src="https://img.shields.io/badge/roadmap-public-FF6B1A?style=flat" alt="Roadmap"></a>
+<a href="https://github.com/palcode/opendronelab/labels/good%20first%20issue"><img src="https://img.shields.io/badge/good%20first%20issues-help%20wanted-19C3B1?style=flat" alt="Good first issues"></a>
 <img src="https://img.shields.io/badge/discussions-pending-lightgrey?style=flat" alt="Discussions pending">
 </p>
 
@@ -154,8 +156,9 @@ Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-mat
 - [Real-drone readiness](docs/real-drone-readiness.md) — checklist only, no flight claims
 - [Setup](docs/setup-host.md), [official image](docs/official-image.md), [rollback](docs/rollback.md)
 - [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes (draft)](docs/release-notes/v0.1.0.md)
+- [NVIDIA redistribution](docs/NVIDIA_REDISTRIBUTION.md) — CUDA/cuDNN wheels and the CPU/base image option
 
-A searchable docs site is planned; these Markdown guides are the source of truth today.
+A searchable docs site is drafted on the `docs-site` branch; these Markdown guides remain the source of truth until Pages is enabled.
 
 ## Roadmap
 
@@ -170,7 +173,7 @@ Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code
 
 Start with [good first issues](https://github.com/palcode/opendronelab/labels/good%20first%20issue). Please use the issue and pull request templates. Do not loosen regression gates. Do not add secrets or personal host paths.
 
-[Discussions](https://github.com/palcode/opendronelab/discussions) will be enabled on the public-launch flip (Announcements, Q&A, Show and tell, Ideas).
+A [welcome post draft](docs/community/welcome-discussion.md) is ready for when [Discussions](https://github.com/palcode/opendronelab/discussions) are enabled (Announcements, Q&A, Show and tell, Ideas). Suggested About text and topics are in [docs/community/github-about.md](docs/community/github-about.md).
 
 Automated agents working in this repository must follow [docs/AGENTS.md](docs/AGENTS.md).
 

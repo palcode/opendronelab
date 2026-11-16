@@ -12,10 +12,12 @@
 #      is only a note, not a failure.
 #   2. If `origin` is configured, a throwaway fetch of the full SHAs
 #      (empty bare repo, so local objects cannot satisfy the request).
-#   3. GitHub API, if `gh` is authenticated or GH_TOKEN / GITHUB_TOKEN
-#      is set. Unauthenticated calls are inconclusive while the
-#      repository is private. GitHub may return 404 or 422 with
-#      "No commit found" for a missing SHA.
+#   3. GitHub API. Authenticated calls (`gh` or GH_TOKEN / GITHUB_TOKEN)
+#      are required while the repository is private. Once it is public,
+#      an unauthenticated GET is conclusive: HTTP 200 for the known-good
+#      SHA, and HTTP 404 or 422 ("No commit found") for the missing SHA.
+#      An unauthenticated 404 for the known-good SHA is still
+#      inconclusive (the repository may be private).
 #
 # This script never prints a token. It does not change repository
 # settings or delete workflow runs.
@@ -107,24 +109,23 @@ elif [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]; then
     authenticated=1
 fi
 
-if [ "${authenticated}" -eq 1 ]; then
-    present_code="$(api_status "${PRESENT_SHA}")"
-    absent_code="$(api_status "${ABSENT_SHA}")"
-    echo "GET commits/${PRESENT_SHA} -> HTTP ${present_code}"
-    echo "GET commits/${ABSENT_SHA} -> HTTP ${absent_code}"
-    if [ "${present_code}" != "200" ]; then
-        echo "FAIL: expected HTTP 200 for ${PRESENT_SHA}, got ${present_code}."
-        fail=1
-    fi
-    # GitHub returns 422 "No commit found" or 404 for a SHA it does not serve.
+present_code="$(api_status "${PRESENT_SHA}")"
+absent_code="$(api_status "${ABSENT_SHA}")"
+echo "GET commits/${PRESENT_SHA} -> HTTP ${present_code}"
+echo "GET commits/${ABSENT_SHA} -> HTTP ${absent_code}"
+# GitHub returns 422 "No commit found" or 404 for a SHA it does not serve.
+if [ "${present_code}" = "200" ]; then
     if [ "${absent_code}" != "404" ] && [ "${absent_code}" != "422" ]; then
         echo "FAIL: expected HTTP 404 or 422 for ${ABSENT_SHA}, got ${absent_code}."
         fail=1
     else
         echo "OK: ${ABSENT_SHA} is not served on ${REPO} (HTTP ${absent_code})."
     fi
+elif [ "${authenticated}" -eq 1 ]; then
+    echo "FAIL: expected HTTP 200 for ${PRESENT_SHA}, got ${present_code}."
+    fail=1
 else
-    echo "NOTE: no gh auth or GH_TOKEN; skipping the GitHub REST check. Unauthenticated 404s are inconclusive while the repository is private. Re-run after the flip or with gh / GH_TOKEN."
+    echo "NOTE: unauthenticated GET for ${PRESENT_SHA} returned HTTP ${present_code}. That is inconclusive if the repository is still private. Re-run after the flip or with gh / GH_TOKEN."
 fi
 
 if [ "${fail}" -ne 0 ]; then

@@ -10,6 +10,43 @@ flight-certified**.
 
 ## [Unreleased]
 
+### Added
+
+- Brand-palette architecture diagram: `docs/media/architecture.svg`
+  and editable `docs/architecture.excalidraw`. The README embeds the
+  SVG and keeps the Mermaid topology in a details block.
+- Draft v0.1.0 release notes (`docs/release-notes/v0.1.0.md`) and a
+  Foxglove quickstart for the prepared sample bag
+  (`docs/QUICKSTART-sample.md`). The trimmed mcap, example report, and
+  checksums live outside git under `$ODL_DATA/release_assets/v0.1.0/`.
+  No tag or GitHub Release has been created.
+- Dispatch-only GHCR workflow (`.github/workflows/ghcr.yml`): SHA-pinned
+  actions, job-level `packages` / `id-token` / `attestations` write,
+  OCI labels, SBOM, and provenance. It has not been run.
+- `docs/NVIDIA_REDISTRIBUTION.md`, plus `ODL_WITH_NVIDIA=0` on
+  `docker/Dockerfile.dev` (default remains `1`) for a CPU/base image
+  without NVIDIA pip wheels.
+- Community drafts: a Discussions welcome post
+  (`docs/community/welcome-discussion.md`) and suggested About / topics
+  / Website text (`docs/community/github-about.md`). Neither has been
+  applied as a repository setting.
+- Weekly Dependabot updates for `github-actions` and `pip`
+  (`.github/dependabot.yml`).
+- A Zensical docs-site draft on the `docs-site` branch (not `main`),
+  opened as a draft pull request. GitHub Pages has not been enabled.
+
+### Changed
+
+- README: roadmap badge and a good-first-issues badge and link.
+- `scripts/check-preflip.sh` now probes the GitHub REST API without
+  authentication when the repository is public. Results of the
+  post-public re-run are recorded in `docs/LAUNCH_CHECKLIST.md`.
+
+### Security
+
+- CI stays on `pull_request` (not `pull_request_target`). The default
+  `GITHUB_TOKEN` permissions in `ci.yml` remain `contents: read`.
+
 ## [0.1.0] - 2026-11-14
 
 Draft of the first cut on `main`. No `v0.1.0` git tag or GitHub release

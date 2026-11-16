@@ -71,17 +71,52 @@ Tracked in issue #17.
 
 ## 8. After the flip (optional, same day)
 
-- [ ] Re-run `scripts/check-preflip.sh` unauthenticated and confirm
-  `04d2c43` is still 404 now that the repository is public.
+- [x] Re-run `scripts/check-preflip.sh` unauthenticated now that the
+  repository is public. Recorded in [Post-public verification](#post-public-verification-2026-11-17).
+  (The pre-rewrite SHA returned HTTP 422, which the script treats as
+  “not served”, same as 404.)
 - [ ] Pin a short “we are public / build in public” announcement in
-  Discussions if you want one.
+  Discussions if you want one. A draft is in
+  [docs/community/welcome-discussion.md](community/welcome-discussion.md).
 
 ## Deferred (not part of the flip)
 
-- **GHCR images.** Publishing `opendronelab-dev` is a post-launch item
-  (issue #13). Review NVIDIA CUDA/cuDNN wheel redistribution before the
-  first publish.
-- **v0.1.0 sample bag / release assets**, and a GitHub Release or tag.
-- **Excalidraw / SVG architecture diagram** (the README uses Mermaid
-  until then).
-- **Docs site / GitHub Pages.**
+- **GHCR images.** The dispatch-only workflow (`.github/workflows/ghcr.yml`)
+  is in the tree and has not been run. Publishing `opendronelab-dev` is
+  still a maintainer decision (issue #13). Review
+  [NVIDIA_REDISTRIBUTION.md](NVIDIA_REDISTRIBUTION.md) before a `dev`
+  publish; a CPU/base image (`ODL_WITH_NVIDIA=0`) is available.
+- **v0.1.0 GitHub Release or tag.** Release notes and a trimmed sample
+  bag are prepared; do not tag or publish until the maintainer agrees.
+- **Docs site / GitHub Pages.** A Zensical draft lives on the
+  `docs-site` branch. Do not enable Pages until the maintainer agrees.
+- **Discussions, About text, topics, and Website.** Drafts and
+  suggested settings are in [docs/community/](community/).
+
+## Post-public verification (2026-11-17)
+
+Recorded after [palcode/opendronelab](https://github.com/palcode/opendronelab)
+was already public. Times are Asia/Calcutta (IST, UTC+5:30). This section
+is a results note, not a settings change.
+
+### `scripts/check-preflip.sh`
+
+Re-run at **2026-11-17 00:21 IST (Asia/Calcutta)** (and again after the
+script was taught to probe the public API). Exit code 0.
+
+- `origin` served known-good `bccb5a1d651a7783ce6a8c624754b38e43c1a22c`.
+- `origin` refused pre-rewrite `04d2c4351d2a8d74930c4e751924542926ca0789`.
+- Local note only: `04d2c43` exists as an unreachable object in this
+  clone (for example a reflog entry) and is not an ancestor of
+  `origin/main`.
+- GitHub REST, unauthenticated, public repository:
+  - `GET /repos/palcode/opendronelab/commits/bccb5a1d651a7783ce6a8c624754b38e43c1a22c` → HTTP 200
+  - `GET /repos/palcode/opendronelab/commits/04d2c43` → HTTP 422 (`No commit found for SHA: 04d2c43`)
+
+### gitleaks
+
+`gitleaks` v8.28.0 (`detect --source=... --log-opts=--all`) is run on
+the full history before each push to `origin`. The scans recorded
+around this verification reported **no leaks found**. The commit count
+in the scanner output grows with each new commit; a clean result is
+what matters.
