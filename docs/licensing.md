@@ -6,4 +6,4 @@ A commercial license is available for users who cannot take on AGPL obligations.
 
 OpenVINS is an optional, isolated GPL-3 component. It is built into runtime data, not linked into first-party packages. That does not change the AGPL license of this repository.
 
-NVIDIA CUDA/cuDNN pip wheels may be present in the default development image. Redistributing that image (for example on GHCR) is a separate question; see [NVIDIA_REDISTRIBUTION.md](NVIDIA_REDISTRIBUTION.md). A CPU/base image can be built with `ODL_WITH_NVIDIA=0`.
+NVIDIA CUDA/cuDNN pip wheels may be pulled by a local default `docker build` of the development image; see [NVIDIA_REDISTRIBUTION.md](NVIDIA_REDISTRIBUTION.md). A CPU/base image can be built with `ODL_WITH_NVIDIA=0`. Hosted GHCR images are not planned.

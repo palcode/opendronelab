@@ -20,12 +20,10 @@ flight-certified**.
   (`docs/QUICKSTART-sample.md`). The trimmed mcap, example report, and
   checksums live outside git under `$ODL_DATA/release_assets/v0.1.0/`.
   No tag or GitHub Release has been created.
-- Dispatch-only GHCR workflow (`.github/workflows/ghcr.yml`): SHA-pinned
-  actions, job-level `packages` / `id-token` / `attestations` write,
-  OCI labels, SBOM, and provenance. It has not been run.
 - `docs/NVIDIA_REDISTRIBUTION.md`, plus `ODL_WITH_NVIDIA=0` on
   `docker/Dockerfile.dev` (default remains `1`) for a CPU/base image
-  without NVIDIA pip wheels.
+  without NVIDIA pip wheels. Local builds of the default image pull
+  NVIDIA pip wheels on the contributor's machine.
 - Community drafts: a Discussions welcome post
   (`docs/community/welcome-discussion.md`) and suggested About / topics
   / Website text (`docs/community/github-about.md`). Neither has been
@@ -37,10 +35,18 @@ flight-certified**.
 
 ### Changed
 
+- README, ROADMAP, and the docs-site pages: the supported image path
+  is a local `docker build` of `docker/Dockerfile.dev`. A hosted GHCR
+  image is not planned.
 - README: roadmap badge and a good-first-issues badge and link.
 - `scripts/check-preflip.sh` now probes the GitHub REST API without
   authentication when the repository is public. Results of the
   post-public re-run are recorded in `docs/LAUNCH_CHECKLIST.md`.
+
+### Removed
+
+- The dispatch-only GHCR publish workflow (`.github/workflows/ghcr.yml`).
+  It was never run. Issue #13 is closed as not planned.
 
 ### Security
 

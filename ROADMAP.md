@@ -43,24 +43,26 @@ flight-certified**.
   checklist. Bring-up stays placeholder until an airframe is named;
   GPS / `EKF2_EV_CTRL=0` remains the default until VIO-only bags on
   that airframe look healthy. No flight claims from SITL numbers.
-- **GHCR images.** Publish a pinned development image so a clone does
-  not have to build locally. NVIDIA CUDA/cuDNN wheel redistribution
-  must be reviewed before that publish (see
-  [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
-- **Docs site.** A searchable site built from the existing Markdown
-  guides (lessons and reference). The in-tree `docs/` remain the
-  source of truth until that ships.
+- **Docs site on GitHub Pages.** The Zensical site is in the tree.
+  Enabling Pages is a remaining maintainer setting (intended URL:
+  <https://palcode.github.io/opendronelab>).
 
 ## Later
 
 - VTOL and rover airframes in the registry.
-- A one-command wrapper once a GHCR image exists (there is no
+- A one-command wrapper around the local Docker build (there is no
   `./odl quickstart` today).
 - Walkthrough video, richer demo clips, and optional OpenSSF Scorecard.
 - Tutorials beyond the current setup, simulation, localization, and
   bag-review guides.
 - Real X500 / Pixhawk 6C footage, only after a named airframe is flown
   safely under a range review.
+
+## Not planned
+
+- **Hosted GHCR images.** Contributors build `opendronelab-dev` locally
+  from `docker/Dockerfile.dev` (see the README quickstart). Issue #13
+  was closed as not planned.
 
 Internal strategy notes stay out of this file. GitHub issues labelled
 `roadmap` track the public items.

@@ -1,5 +1,7 @@
 # Quickstart
 
+Build the development image locally from `docker/Dockerfile.dev`. There is no hosted image; a published GHCR image is not planned.
+
 The repository root is `ODL_ROOT`. Runtime data (bags, PX4 overlays, results) lives in a sibling `dronelab-data` directory (`ODL_DATA`), not in git. Scripts default both from the checkout: a clone at `…/opendronelab` uses `…/dronelab-data`. There is no `./odl` wrapper yet; use the commands below.
 
 ```bash

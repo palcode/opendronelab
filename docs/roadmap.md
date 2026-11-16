@@ -12,13 +12,12 @@ We are building in public. The living document is [ROADMAP.md](https://github.co
 
 - Multi-airframe work, including fixed-wing gates
 - A real-hardware testing path (checklist first; not flight certification)
-- GHCR images, after the NVIDIA redistribution review
-- This docs site, once GitHub Pages is enabled
+- This docs site on GitHub Pages (in the tree; Pages is a maintainer setting)
 
 ## Later
 
 - More airframes (VTOL / rover)
-- A one-command wrapper once a published image exists
+- A one-command wrapper around the local Docker build
 - Walkthrough video, tutorials, and real hardware footage only after a named airframe is flown safely
 
 Contributions that help any of these, especially [good first issues](https://github.com/palcode/opendronelab/labels/good%20first%20issue), are welcome.

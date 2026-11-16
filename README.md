@@ -14,11 +14,10 @@
 <img src="https://img.shields.io/badge/PX4-v1.17-blue?style=flat" alt="PX4 v1.17">
 <img src="https://img.shields.io/badge/ROS%202-Jazzy-blue?style=flat" alt="ROS 2 Jazzy">
 <img src="https://img.shields.io/badge/Gazebo-Harmonic-blue?style=flat" alt="Gazebo Harmonic">
-<img src="https://img.shields.io/badge/GHCR-pending-lightgrey?style=flat" alt="GHCR image pending">
 <a href="docs/"><img src="https://img.shields.io/badge/docs-docs%2F-blue?style=flat" alt="Docs"></a>
 <a href="ROADMAP.md"><img src="https://img.shields.io/badge/roadmap-public-FF6B1A?style=flat" alt="Roadmap"></a>
 <a href="https://github.com/palcode/opendronelab/labels/good%20first%20issue"><img src="https://img.shields.io/badge/good%20first%20issues-help%20wanted-19C3B1?style=flat" alt="Good first issues"></a>
-<img src="https://img.shields.io/badge/discussions-pending-lightgrey?style=flat" alt="Discussions pending">
+<a href="https://github.com/palcode/opendronelab/discussions"><img src="https://img.shields.io/badge/discussions-open-19C3B1?style=flat" alt="Discussions"></a>
 </p>
 
 <p align="center">
@@ -30,6 +29,8 @@
 - **Sim-first, not flight-certified.** The same launch files are meant to grow toward a real airframe, with a [readiness checklist](docs/real-drone-readiness.md). The verified path today is software-in-the-loop and must not be used to operate a real aircraft without separate safety, legal, and range review.
 
 ## Quickstart
+
+Build the development image locally from `docker/Dockerfile.dev`. There is no hosted image; a published GHCR image is not planned.
 
 The repository root is `ODL_ROOT`. Runtime data (bags, PX4 overlays, results) lives in a sibling `dronelab-data` directory (`ODL_DATA`), not in git. Scripts default both from the checkout: a clone at `…/opendronelab` uses `…/dronelab-data`. There is no `./odl` wrapper yet; use the commands below.
 
@@ -142,7 +143,7 @@ Details: [docs/architecture.md](docs/architecture.md).
 ## Requirements
 
 - Linux host with Docker. An NVIDIA GPU and the NVIDIA Container Toolkit are required for scored SITL flights; the headless pytest path does not need a GPU.
-- The development image is Ubuntu 24.04 with PX4 v1.17, Gazebo Harmonic, ROS 2 Jazzy, and Micro XRCE-DDS Agent. A GHCR-published image is not available yet.
+- The development image is Ubuntu 24.04 with PX4 v1.17, Gazebo Harmonic, ROS 2 Jazzy, and Micro XRCE-DDS Agent. Build it locally from `docker/Dockerfile.dev` (see Quickstart). A hosted GHCR image is not planned.
 - QGroundControl runs as a native host AppImage when you need a GCS.
 
 Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-matrix.md).
@@ -158,11 +159,11 @@ Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-mat
 - [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes (draft)](docs/release-notes/v0.1.0.md)
 - [NVIDIA redistribution](docs/NVIDIA_REDISTRIBUTION.md) — CUDA/cuDNN wheels and the CPU/base image option
 
-A searchable docs site is drafted on the `docs-site` branch; these Markdown guides remain the source of truth until Pages is enabled.
+A Zensical docs site is in the tree (intended URL: <https://palcode.github.io/opendronelab>) once GitHub Pages is enabled. These Markdown guides remain the source of truth until then.
 
 ## Roadmap
 
-We are building in public. **Now:** VIO robustness (ODL-86) and a clean public launch, without loosening gates. **Next:** fixed-wing gates, a real-hardware testing path, GHCR images, and a docs site. **Later:** more airframes, a one-command wrapper once GHCR exists, and hardware footage only after a named airframe is flown safely.
+We are building in public. **Now:** VIO robustness (ODL-86) and a clean public launch, without loosening gates. **Next:** fixed-wing gates, a real-hardware testing path, and enabling the in-tree docs site. **Later:** more airframes, a one-command wrapper around the local Docker build, and hardware footage only after a named airframe is flown safely.
 
 See [ROADMAP.md](ROADMAP.md) and issues labelled
 [roadmap](https://github.com/palcode/opendronelab/labels/roadmap).

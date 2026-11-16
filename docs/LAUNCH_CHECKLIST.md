@@ -81,11 +81,10 @@ Tracked in issue #17.
 
 ## Deferred (not part of the flip)
 
-- **GHCR images.** The dispatch-only workflow (`.github/workflows/ghcr.yml`)
-  is in the tree and has not been run. Publishing `opendronelab-dev` is
-  still a maintainer decision (issue #13). Review
-  [NVIDIA_REDISTRIBUTION.md](NVIDIA_REDISTRIBUTION.md) before a `dev`
-  publish; a CPU/base image (`ODL_WITH_NVIDIA=0`) is available.
+- **GHCR images.** Not planned. Contributors build the image locally
+  from `docker/Dockerfile.dev`. Issue #13 is closed as not planned.
+  [NVIDIA_REDISTRIBUTION.md](NVIDIA_REDISTRIBUTION.md) remains as
+  background for local builds that pull NVIDIA pip wheels.
 - **v0.1.0 GitHub Release or tag.** Release notes and a trimmed sample
   bag are prepared; do not tag or publish until the maintainer agrees.
 - **Docs site / GitHub Pages.** A Zensical draft lives on the
