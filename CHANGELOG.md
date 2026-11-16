@@ -10,53 +10,12 @@ flight-certified**.
 
 ## [Unreleased]
 
-### Added
+## [0.1.0] - 2026-11-17
 
-- Brand-palette architecture diagram: `docs/media/architecture.svg`
-  and editable `docs/architecture.excalidraw`. The README embeds the
-  SVG and keeps the Mermaid topology in a details block.
-- Draft v0.1.0 release notes (`docs/release-notes/v0.1.0.md`) and a
-  Foxglove quickstart for the prepared sample bag
-  (`docs/QUICKSTART-sample.md`). The trimmed mcap, example report, and
-  checksums live outside git under `$ODL_DATA/release_assets/v0.1.0/`.
-  No tag or GitHub Release has been created.
-- `docs/NVIDIA_REDISTRIBUTION.md`, plus `ODL_WITH_NVIDIA=0` on
-  `docker/Dockerfile.dev` (default remains `1`) for a CPU/base image
-  without NVIDIA pip wheels. Local builds of the default image pull
-  NVIDIA pip wheels on the contributor's machine.
-- Community drafts: a Discussions welcome post
-  (`docs/community/welcome-discussion.md`) and suggested About / topics
-  / Website text (`docs/community/github-about.md`). Neither has been
-  applied as a repository setting.
-- Weekly Dependabot updates for `github-actions` and `pip`
-  (`.github/dependabot.yml`).
-- A Zensical docs-site draft on the `docs-site` branch (not `main`),
-  opened as a draft pull request. GitHub Pages has not been enabled.
-
-### Changed
-
-- README, ROADMAP, and the docs-site pages: the supported image path
-  is a local `docker build` of `docker/Dockerfile.dev`. A hosted GHCR
-  image is not planned.
-- README: roadmap badge and a good-first-issues badge and link.
-- `scripts/check-preflip.sh` now probes the GitHub REST API without
-  authentication when the repository is public. Results of the
-  post-public re-run are recorded in `docs/LAUNCH_CHECKLIST.md`.
-
-### Removed
-
-- The dispatch-only GHCR publish workflow (`.github/workflows/ghcr.yml`).
-  It was never run. Issue #13 is closed as not planned.
-
-### Security
-
-- CI stays on `pull_request` (not `pull_request_target`). The default
-  `GITHUB_TOKEN` permissions in `ci.yml` remain `contents: read`.
-
-## [0.1.0] - 2026-11-14
-
-Draft of the first cut on `main`. No `v0.1.0` git tag or GitHub release
-has been created yet.
+First public release. The verified path is software-in-the-loop.
+OpenDroneLab is **not flight-certified**. The `v0.1.0` tag is created
+on this cut. Prepared sample-bag assets live under
+`$ODL_DATA/release_assets/v0.1.0/` for the GitHub Release.
 
 ### Added
 
@@ -74,6 +33,45 @@ has been created yet.
 - Report-only VIO pose-jump diagnostic in the evaluation path, plus
   opt-in recording of raw camera and OpenVINS track/feature topics.
 - AGPL-3.0-only license, commercial licensing note, Harmony CLA (in
-  force), contributor and security docs, and a launch-kit visual
-  identity.
+  force, signatures on the `cla-signatures` branch), contributor and
+  security docs, and a launch-kit visual identity.
+- Brand-palette architecture diagram: `docs/media/architecture.svg`
+  and editable `docs/architecture.excalidraw`. The README embeds the
+  SVG and keeps the Mermaid topology in a details block.
+- v0.1.0 release notes (`docs/release-notes/v0.1.0.md`) and a
+  Foxglove quickstart for the prepared sample bag
+  (`docs/QUICKSTART-sample.md`). The trimmed mcap, example report, and
+  checksums live outside git under `$ODL_DATA/release_assets/v0.1.0/`.
+- `docs/NVIDIA_REDISTRIBUTION.md`, plus `ODL_WITH_NVIDIA=0` on
+  `docker/Dockerfile.dev` (default remains `1`) for a CPU/base image
+  without NVIDIA pip wheels. Local builds of the default image pull
+  NVIDIA pip wheels on the contributor's machine.
+- Weekly Dependabot updates for `github-actions` and `pip`
+  (`.github/dependabot.yml`).
+- A Zensical docs site (merged from #31) aimed at
+  <https://palcode.github.io/opendronelab>. Enabling GitHub Pages is a
+  remaining maintainer setting.
+- Community drafts: a Discussions welcome post
+  (`docs/community/welcome-discussion.md`) and suggested About / topics
+  / Website text (`docs/community/github-about.md`).
 
+### Changed
+
+- README, ROADMAP, and the docs-site pages: the supported image path
+  is a local `docker build` of `docker/Dockerfile.dev`. A hosted GHCR
+  image is not planned.
+- README: roadmap badge and a good-first-issues badge and link.
+- `scripts/check-preflip.sh` now probes the GitHub REST API without
+  authentication when the repository is public. Results of the
+  post-public re-run are recorded in `docs/LAUNCH_CHECKLIST.md`.
+- The CLA action allowlist includes the repository owner (`palcode`).
+
+### Removed
+
+- The dispatch-only GHCR publish workflow (`.github/workflows/ghcr.yml`).
+  It was never run. Issue #13 is closed as not planned.
+
+### Security
+
+- CI stays on `pull_request` (not `pull_request_target`). The default
+  `GITHUB_TOKEN` permissions in `ci.yml` remain `contents: read`.
