@@ -49,17 +49,17 @@ Tracked in issue #17.
 
 ## 6. CLA signatures branch
 
-Signatures today are committed to `signatures/version1/cla.json` on
-`main` with `GITHUB_TOKEN`. The CLA workflow must not check out a pull
-request head.
-
-- [ ] Decide whether to keep signatures on `main`, or to move them to a
-  dedicated signatures branch and store a `repo`-scoped PAT as the
-  Actions secret `PERSONAL_ACCESS_TOKEN`.
-- [ ] Do not change `.github/workflows/cla.yml` `branch:` until that
-  decision is made.
-
-Tracked in issue #15.
+- [x] **Done 2026-11-17 (IST).** Pallab approved moving signatures to a
+  dedicated `cla-signatures` branch (#15). `.github/workflows/cla.yml`
+  now sets `branch: cla-signatures`. Permissions stay on the job. The
+  workflow does not check out a pull-request head.
+- [x] Orphan branch `cla-signatures` starts at
+  `b2c16c4d23d49bcbdc44065f25c0be081a0e03cf` with
+  `signatures/version1/cla.json` (`signedContributors` is empty). That
+  file was never present on `main`, so there was nothing to `git rm`.
+- [ ] Leave `cla-signatures` **unprotected** so `GITHUB_TOKEN` can
+  append signatures. Add a `repo`-scoped PAT as
+  `PERSONAL_ACCESS_TOKEN` only if that branch is later protected.
 
 ## 7. Discussions
 

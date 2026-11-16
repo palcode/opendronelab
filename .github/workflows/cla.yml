@@ -2,13 +2,12 @@
 #      ca4a40a7d1004f18d9960b404b97e5f30a505a08
 # The upstream repository is archived; the pin is the v2.6.1 tag SHA.
 #
-# Private-repo notes (no secrets or repo settings were changed here):
-# signatures are committed to signatures/version1/cla.json on branch
-# `main` using GITHUB_TOKEN. If main is protected, or if signatures
-# should live on a separate branch, add a PAT with `repo` scope as the
-# Actions secret PERSONAL_ACCESS_TOKEN and point `branch` at that
-# branch. Until then, workflow_dispatch / same-repo PRs depend on
-# GITHUB_TOKEN being allowed to write that path on `main`.
+# Signatures are committed to signatures/version1/cla.json on the
+# `cla-signatures` branch (Pallab, #15) using GITHUB_TOKEN. Leave
+# `cla-signatures` unprotected so GITHUB_TOKEN can write it. If that
+# branch is later protected, add a `repo`-scoped PAT as the Actions
+# secret PERSONAL_ACCESS_TOKEN. This workflow must never check out a
+# pull-request head.
 
 name: CLA Assistant
 
@@ -20,8 +19,7 @@ on:
   workflow_dispatch:
 
 # Permissions stay on the job, not the workflow. This workflow must
-# never check out a pull-request head. Signatures remain on `main`
-# until the maintainer decides otherwise (see docs/LAUNCH_CHECKLIST.md).
+# never check out a pull-request head.
 
 jobs:
   CLAAssistant:
@@ -43,6 +41,6 @@ jobs:
         with:
           path-to-signatures: signatures/version1/cla.json
           path-to-document: https://github.com/palcode/opendronelab/blob/main/CLA.md
-          branch: main
+          branch: cla-signatures
           allowlist: dependabot[bot],github-actions[bot]
           lock-pullrequest-aftermerge: false
