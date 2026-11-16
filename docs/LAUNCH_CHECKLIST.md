@@ -7,10 +7,12 @@ Run these in order on flip day.
 ## 1. Pre-flight
 
 - [ ] From a clone of the new repository, run `scripts/check-preflip.sh`.
-  It must report HTTP 200 for a known-good commit (`bccb5a1…`) and HTTP
-  404 / “No commit found” for the pre-rewrite SHA `04d2c43`. Authenticate
-  with `gh` (or `GH_TOKEN`) if the repository is still private; an
-  unauthenticated 404 is inconclusive until visibility is public.
+  It must report that a known-good commit (`bccb5a1…`) is present and
+  that the pre-rewrite SHA `04d2c43` is not. The GitHub API may return
+  HTTP 404 or 422 (“No commit found”) for the missing SHA. Authenticate
+  with `gh` (or `GH_TOKEN`) for the API check while the repository is
+  still private; the script also probes `origin` over git. An
+  unauthenticated API 404 is inconclusive until visibility is public.
 - [ ] Confirm the latest gitleaks scan of this repository’s history was
   clean (or that any finding was reviewed). The scan is read-only. Do
   not delete GitHub Actions workflow runs.
