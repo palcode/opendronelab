@@ -142,6 +142,7 @@ Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-mat
 - [Architecture](docs/architecture.md) and [compatibility matrix](docs/compatibility-matrix.md)
 - [Real-drone readiness](docs/real-drone-readiness.md) — checklist only, no flight claims
 - [Setup](docs/setup-host.md), [official image](docs/official-image.md), [rollback](docs/rollback.md)
+- [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes (draft)](docs/release-notes/v0.1.0.md)
 
 A searchable docs site is planned; these Markdown guides are the source of truth today.
 
