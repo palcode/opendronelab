@@ -31,7 +31,7 @@ Run these in order on flip day.
 
 - [ ] GitHub → Settings → Code security → Private vulnerability
   reporting → **Enable**.
-- [ ] Confirm [SECURITY.md](../SECURITY.md) still points reporters at
+- [ ] Confirm [SECURITY.md](https://github.com/palcode/opendronelab/blob/main/SECURITY.md) still points reporters at
   GitHub private advisories.
 
 Tracked in issue #17.

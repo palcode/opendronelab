@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Pallab Sarkar
+#
+# Zensical (MkDocs-format) config for https://palcode.github.io/opendronelab
+# Draft only: do not enable GitHub Pages until the maintainer agrees.
+
+site_name: OpenDroneLab
+site_url: https://palcode.github.io/opendronelab
+site_description: A scored, sim-first PX4 / ROS 2 / Gazebo lab. From git clone to a gated autonomous SITL flight. Not flight-certified.
+site_author: Pallab Sarkar
+copyright: Copyright (C) 2026 Pallab Sarkar. Not flight-certified.
+repo_url: https://github.com/palcode/opendronelab
+repo_name: palcode/opendronelab
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  variant: modern
+  logo: media/logo-light.svg
+  favicon: media/logo-light.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.instant
+    - content.code.copy
+    - toc.follow
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Architecture: architecture-overview.md
+  - Scenarios and benchmarks: benchmarks.md
+  - RMSE gates: rmse-gates.md
+  - Roadmap: roadmap.md
+  - Contributing: contributing.md
+  - Licensing: licensing.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/palcode/opendronelab

@@ -146,3 +146,6 @@ Thumbs.db
 
 # Custom Exclusions
 # Add project-specific exclusions below this line
+
+# Zensical / MkDocs build output
+/site/
