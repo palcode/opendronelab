@@ -467,6 +467,9 @@ run_flight() {
         echo "[ERROR] unknown scenario: ${scenario}" >&2
         return 1
     fi
+    # Assigned via eval from airframe_registry.py --shell. Some names are
+    # reserved for child scripts and are not read in this function.
+    # shellcheck disable=SC2034
     local ODL_SCENARIO ODL_MODEL ODL_GZ_INSTANCE ODL_VEHICLE_CLASS ODL_CAMERA ODL_WORLD \
         ODL_OPENVINS_OVERLAY ODL_OV_CONFIG ODL_SCORE_VIO ODL_CAMERA_IMAGE_TOPIC ODL_CAMERA_INFO_TOPIC \
         ODL_FLIGHT ODL_BAG_DURATION ODL_FLIGHT_WALL ODL_AIRBORNE_MIN_AGL ODL_AIRBORNE_MAX_AGL
@@ -536,7 +539,7 @@ run_flight() {
       export MODEL="${model}" GZ_MODEL="${ODL_GZ_INSTANCE}" OV_CONFIG="${ODL_OV_CONFIG}" SCORE_VIO="${ODL_SCORE_VIO}"
       export FLIGHT="${ODL_FLIGHT}" AIRBORNE_MIN_AGL="${ODL_AIRBORNE_MIN_AGL}" AIRBORNE_MAX_AGL="${ODL_AIRBORNE_MAX_AGL}"
       for e in "${extra_env[@]+"${extra_env[@]}"}"; do
-        export "$e"
+        export "${e?}"
       done
       "${REPO_DIR}/scripts/run-vio-stress.sh" "${scenario}"
     ) | tee "${log}"
@@ -596,7 +599,8 @@ ELAPSED=$((END_EPOCH - START_EPOCH))
 export REPORT_HOST STAMP ELAPSED GZ_SEED BAG_DURATION THRESHOLDS DATA_DIR
 export N_FLIGHTS="${#FLIGHTS[@]}"
 # Preserve scenario order for the report (comma-separated).
-export FLIGHT_ORDER="$(IFS=,; echo "${FLIGHTS[*]}")"
+FLIGHT_ORDER="$(IFS=,; echo "${FLIGHTS[*]}")"
+export FLIGHT_ORDER
 
 set +e
 python3 << 'PY'
