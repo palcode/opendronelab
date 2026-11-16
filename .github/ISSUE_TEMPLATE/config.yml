@@ -1,5 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
+  - name: Questions and discussion
+    url: https://github.com/palcode/opendronelab/discussions
+    about: Ask questions, share ideas, and show work in Discussions (enabled on the public-launch flip). Please do not use issues for support questions.
   - name: Security report
     url: https://github.com/palcode/opendronelab/security/advisories/new
     about: Report a vulnerability privately. Do not file a public issue.

@@ -1,0 +1,78 @@
+name: New scenario / benchmark result
+description: Propose a new scored scenario, or report a documented SITL result
+title: "[scenario] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to propose a **new scenario** or to record a **documented
+        benchmark result**. Official gates live in
+        `config/regression_thresholds.yaml` and must not be loosened silently.
+        Figures must be from real SITL runs (seed, fingerprint, N, and SHA).
+        Do not include secrets or personal host paths.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What are you filing?
+      options:
+        - New scenario proposal
+        - Documented benchmark result on an existing scenario
+    validations:
+      required: true
+  - type: input
+    id: scenario
+    attributes:
+      label: Scenario name
+      description: For example baseline, mc_gps, or a proposed name.
+      placeholder: mc_gps
+    validations:
+      required: true
+  - type: input
+    id: vehicle
+    attributes:
+      label: Vehicle / airframe
+      description: Name from config/airframes.yaml or the Gazebo model (for example gz_x500_mono_cam).
+    validations:
+      required: true
+  - type: input
+    id: world
+    attributes:
+      label: World
+      description: Gazebo world / SDF used (for example vio_test, default).
+  - type: input
+    id: metric
+    attributes:
+      label: Official metric
+      description: Usually evo Umeyama xy or 3D RMSE against Gazebo ground truth.
+      placeholder: EKF2 Umeyama xy
+    validations:
+      required: true
+  - type: input
+    id: gate
+    attributes:
+      label: Gate (metres), if any
+      description: Leave blank if this is a proposal with no gate yet. Do not suggest loosening an existing official gate without evidence from a clean (no-jump) distribution.
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: N, mean ± spread, pass@1, date, git SHA, and scenario fingerprint. For a proposal, describe the intended flight and how it would be scored.
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands and artifacts
+      description: Exact commands, and where bags or reports live (no personal home paths).
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Checks
+      options:
+        - label: These figures are from real SITL (or I am proposing a scenario, not inventing a result).
+          required: true
+        - label: I am not asking to loosen an official gate without a documented, no-jump calibration.
+          required: true

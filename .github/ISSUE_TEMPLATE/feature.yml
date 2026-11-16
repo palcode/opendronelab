@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Feature work is accepted under the Contributor License Agreement once
-        that draft is approved. See CONTRIBUTING.md.
+        Feature work is accepted under the Contributor License Agreement.
+        See CONTRIBUTING.md and CLA.md.
   - type: textarea
     id: problem
     attributes:
