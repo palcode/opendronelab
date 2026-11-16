@@ -9,7 +9,7 @@ numpy==1.26.4
 # GPU inference. onnxruntime-gpu replaces onnxruntime; do not install both.
 # 1.28.0 is the first release whose CUDA wheels cover sm_120 (Blackwell);
 # CUDA 13 wheels match host driver 595 (CUDA 13.2).
-onnxruntime-gpu==1.28.0
+onnxruntime-gpu==1.32.0
 #
 # Trajectory evaluation (GPL-3) — only installed into /opt/evo venv.
 evo==1.38.1
