@@ -1,0 +1,48 @@
+/* OpenDroneLab brand: navy, orange, teal, slate, off-white. */
+:root, [data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0B1F33;
+  --md-primary-fg-color--light: #16324d;
+  --md-primary-fg-color--dark: #071421;
+  --md-accent-fg-color: #FF6B1A;
+  --md-accent-fg-color--transparent: rgba(255, 107, 26, 0.12);
+  --md-default-bg-color: #F4F6F8;
+  --odl-teal: #19C3B1;
+  --odl-slate: #8A99AD;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #0B1F33;
+  --md-accent-fg-color: #FF6B1A;
+  --odl-teal: #19C3B1;
+  --odl-slate: #8A99AD;
+}
+
+.odl-hero {
+  text-align: center;
+  margin: 0 auto 2rem;
+}
+
+.odl-hero img.logo {
+  height: 72px;
+  width: auto;
+}
+
+.odl-hero .tagline {
+  font-size: 1.15rem;
+  color: var(--odl-slate);
+  margin: 0.75rem 0 1.25rem;
+}
+
+.odl-hero img.demo {
+  width: min(100%, 800px);
+  border-radius: 8px;
+}
+
+.odl-callout {
+  border-left: 4px solid #FF6B1A;
+  background: rgba(255, 107, 26, 0.08);
+  padding: 0.75rem 1rem;
+  margin: 1.25rem 0;
+}
+
+.odl-callout strong { color: #0B1F33; }

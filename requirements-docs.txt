@@ -1,0 +1,2 @@
+# Docs-site build pins (Zensical). Used by .github/workflows/docs-site.yml.
+zensical==0.1.1
