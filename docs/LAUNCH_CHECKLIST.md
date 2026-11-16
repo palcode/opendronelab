@@ -1,0 +1,85 @@
+# Public-launch flip checklist
+
+Maintainer steps for opening [palcode/opendronelab](https://github.com/palcode/opendronelab). Agents must not change repository visibility or settings. Do not create a GitHub Release or tag as part of this flip. Do not loosen regression gates.
+
+Run these in order on flip day.
+
+## 1. Pre-flight
+
+- [ ] From a clone of the new repository, run `scripts/check-preflip.sh`.
+  It must report HTTP 200 for a known-good commit (`bccb5a1…`) and HTTP
+  404 / “No commit found” for the pre-rewrite SHA `04d2c43`. Authenticate
+  with `gh` (or `GH_TOKEN`) if the repository is still private; an
+  unauthenticated 404 is inconclusive until visibility is public.
+- [ ] Confirm the latest gitleaks scan of this repository’s history was
+  clean (or that any finding was reviewed). The scan is read-only. Do
+  not delete GitHub Actions workflow runs.
+
+## 2. Visibility
+
+- [ ] GitHub → Settings → General → Danger Zone → Change repository
+  visibility → **Public**.
+
+## 3. Social preview
+
+- [ ] GitHub → Settings → General → Social preview → Upload
+  `docs/media/social-preview.png` from this repository.
+
+## 4. Private vulnerability reporting
+
+- [ ] GitHub → Settings → Code security → Private vulnerability
+  reporting → **Enable**.
+- [ ] Confirm [SECURITY.md](../SECURITY.md) still points reporters at
+  GitHub private advisories.
+
+Tracked in issue #17.
+
+## 5. Branch protection
+
+- [ ] GitHub → Settings → Branches → Add rule (or ruleset) for `main`.
+- [ ] At minimum: **do not allow force pushes**, do not allow
+  deletions.
+- [ ] Choose the rest of the policy yourself (required reviewers,
+  required CI status checks, signed commits). This document does not
+  invent those rules.
+
+Tracked in issue #17.
+
+## 6. CLA signatures branch
+
+Signatures today are committed to `signatures/version1/cla.json` on
+`main` with `GITHUB_TOKEN`. The CLA workflow must not check out a pull
+request head.
+
+- [ ] Decide whether to keep signatures on `main`, or to move them to a
+  dedicated signatures branch and store a `repo`-scoped PAT as the
+  Actions secret `PERSONAL_ACCESS_TOKEN`.
+- [ ] Do not change `.github/workflows/cla.yml` `branch:` until that
+  decision is made.
+
+Tracked in issue #15.
+
+## 7. Discussions
+
+- [ ] GitHub → Settings → General → Features → **Discussions**.
+- [ ] Keep or create the categories you want for public use
+  (recommended: Announcements, Q&A, Show and tell, Ideas).
+- [ ] Optional: replace the “Discussions pending” badge in the README
+  with a live badge once Discussions is on.
+
+## 8. After the flip (optional, same day)
+
+- [ ] Re-run `scripts/check-preflip.sh` unauthenticated and confirm
+  `04d2c43` is still 404 now that the repository is public.
+- [ ] Pin a short “we are public / build in public” announcement in
+  Discussions if you want one.
+
+## Deferred (not part of the flip)
+
+- **GHCR images.** Publishing `opendronelab-dev` is a post-launch item
+  (issue #13). Review NVIDIA CUDA/cuDNN wheel redistribution before the
+  first publish.
+- **v0.1.0 sample bag / release assets**, and a GitHub Release or tag.
+- **Excalidraw / SVG architecture diagram** (the README uses Mermaid
+  until then).
+- **Docs site / GitHub Pages.**
