@@ -23,7 +23,7 @@ protobuf==7.36.2
 flatbuffers==25.12.19
 sympy==1.14.0
 # System python (apt scipy may differ); pin when pip installs/upgrades SciPy.
-SciPy==1.11.4
+SciPy==1.18.1
 
 # NVIDIA CUDA/cuDNN pip wheels (onnxruntime-gpu CUDA 13 stack).
 # Frozen from `pip freeze` inside opendronelab-dev:phase5-clean (2026-11-09).
