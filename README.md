@@ -5,8 +5,9 @@
   <img src="docs/media/logo-dark.svg#gh-dark-mode-only" alt="OpenDroneLab" height="56">
 </p>
 
-<h3 align="center">From git clone to a scored autonomous flight in one command.</h3>
-<p align="center">PX4 v1.17 · ROS 2 Jazzy · Gazebo Harmonic · all in Docker</p>
+<p align="center">
+<strong>Scored, not just simulated.</strong> A current PX4 v1.17 + ROS 2 Jazzy + Gazebo Harmonic SITL stack with official Umeyama RMSE gates, VIO stress worlds, and repeatable regression from one Docker image. Software-in-the-loop only—not flight-certified.
+</p>
 
 <p align="center">
 <a href="https://github.com/palcode/opendronelab/actions/workflows/ci.yml"><img src="https://github.com/palcode/opendronelab/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -14,7 +15,7 @@
 <img src="https://img.shields.io/badge/PX4-v1.17-blue?style=flat" alt="PX4 v1.17">
 <img src="https://img.shields.io/badge/ROS%202-Jazzy-blue?style=flat" alt="ROS 2 Jazzy">
 <img src="https://img.shields.io/badge/Gazebo-Harmonic-blue?style=flat" alt="Gazebo Harmonic">
-<a href="docs/"><img src="https://img.shields.io/badge/docs-docs%2F-blue?style=flat" alt="Docs"></a>
+<a href="https://palcode.github.io/opendronelab"><img src="https://img.shields.io/badge/docs-live-blue?style=flat" alt="Docs"></a>
 <a href="ROADMAP.md"><img src="https://img.shields.io/badge/roadmap-public-FF6B1A?style=flat" alt="Roadmap"></a>
 <a href="https://github.com/palcode/opendronelab/labels/good%20first%20issue"><img src="https://img.shields.io/badge/good%20first%20issues-help%20wanted-19C3B1?style=flat" alt="Good first issues"></a>
 <a href="https://github.com/palcode/opendronelab/discussions"><img src="https://img.shields.io/badge/discussions-open-19C3B1?style=flat" alt="Discussions"></a>
@@ -29,6 +30,12 @@
 - **Sim-first, not flight-certified.** The same launch files are meant to grow toward a real airframe, with a [readiness checklist](docs/real-drone-readiness.md). The verified path today is software-in-the-loop and must not be used to operate a real aircraft without separate safety, legal, and range review.
 
 ## Quickstart
+
+### Try it without SITL: view the v0.1.0 sample bag in Foxglove
+
+No Docker build or SITL required. Download the `odl-v0.1.0-mc_gps-sample.mcap` bag (~10 seconds, 294 KB) and example report from the [v0.1.0 release](https://github.com/palcode/opendronelab/releases/tag/v0.1.0). Open it in [Foxglove](https://foxglove.dev/download) with the included layout to see a passing GPS-based flight with ground truth and EKF2 paths. Full walkthrough: [docs/QUICKSTART-sample.md](docs/QUICKSTART-sample.md).
+
+### Full SITL setup: build locally and run scored regression
 
 Build the development image locally from `docker/Dockerfile.dev`. There is no hosted image; a published GHCR image is not planned.
 
@@ -60,7 +67,7 @@ docker run --rm \
 SCENARIOS=pytest ./scripts/run-regression.sh
 ```
 
-The HTTPS clone URL works once the repository is public. While it is private, clone with SSH if you have access. `scripts/odl-env.sh` is sourced by the launch and regression scripts, so you can omit the `export` lines if you are happy with those defaults.
+`scripts/odl-env.sh` is sourced by the launch and regression scripts, so you can omit the `export` lines if you are happy with those defaults.
 
 Expected pytest output (example from a 2026-11-14 run on this tree):
 
@@ -156,14 +163,14 @@ Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-mat
 - [Architecture](docs/architecture.md) and [compatibility matrix](docs/compatibility-matrix.md)
 - [Real-drone readiness](docs/real-drone-readiness.md) — checklist only, no flight claims
 - [Setup](docs/setup-host.md), [official image](docs/official-image.md), [rollback](docs/rollback.md)
-- [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes (draft)](docs/release-notes/v0.1.0.md)
+- [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes](docs/release-notes/v0.1.0.md)
 - [NVIDIA redistribution](docs/NVIDIA_REDISTRIBUTION.md) — CUDA/cuDNN wheels and the CPU/base image option
 
-A Zensical docs site is in the tree (intended URL: <https://palcode.github.io/opendronelab>) once GitHub Pages is enabled. These Markdown guides remain the source of truth until then.
+The documentation site is live at <https://palcode.github.io/opendronelab>. These in-tree Markdown guides remain the source of truth.
 
 ## Roadmap
 
-We are building in public. **Now:** VIO robustness (ODL-86) and a clean public launch, without loosening gates. **Next:** fixed-wing gates, a real-hardware testing path, and enabling the in-tree docs site. **Later:** more airframes, a one-command wrapper around the local Docker build, and hardware footage only after a named airframe is flown safely.
+We are building in public. **Now:** VIO robustness (ODL-86), without loosening gates. **Next:** fixed-wing gates and a real-hardware testing path. **Later:** more airframes, a one-command wrapper around the local Docker build, and hardware footage only after a named airframe is flown safely.
 
 See [ROADMAP.md](ROADMAP.md) and issues labelled
 [roadmap](https://github.com/palcode/opendronelab/labels/roadmap).
@@ -174,7 +181,7 @@ Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code
 
 Start with [good first issues](https://github.com/palcode/opendronelab/labels/good%20first%20issue). Please use the issue and pull request templates. Do not loosen regression gates. Do not add secrets or personal host paths.
 
-A [welcome post draft](docs/community/welcome-discussion.md) is ready for when [Discussions](https://github.com/palcode/opendronelab/discussions) are enabled (Announcements, Q&A, Show and tell, Ideas). Suggested About text and topics are in [docs/community/github-about.md](docs/community/github-about.md).
+[Discussions](https://github.com/palcode/opendronelab/discussions) are open. See the [welcome post](https://github.com/palcode/opendronelab/discussions/32) for Q&A, show and tell, and ideas.
 
 Automated agents working in this repository must follow [docs/AGENTS.md](docs/AGENTS.md).
 
@@ -184,7 +191,7 @@ This project is **sim-first and not flight-certified**.
 
 - The verified path is SITL. SITL numbers are not a flight certification.
 - Hardware bring-up is deferred. See [docs/real-drone-readiness.md](docs/real-drone-readiness.md): safety, legal, and range review, a manual override, and validated failsafes are required; placeholders only until an airframe is named.
-- Security reports: [SECURITY.md](SECURITY.md) (GitHub private vulnerability reporting, to be turned on at the flip).
+- Security reports: [SECURITY.md](SECURITY.md) (GitHub private vulnerability reporting is enabled).
 
 ## License
 
