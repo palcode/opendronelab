@@ -46,7 +46,7 @@ the copyright holder publishes the project. When that happens:
 4. Keep changes focused. Do not loosen regression gates, and do not
    include secrets, credentials, or machine-specific paths.
 
-Development setup is in [README.md](README.md) and [setup-host.md](https://github.com/palcode/opendronelab/blob/main/docs/setup-host.md).
+Development setup is in [README.md](README.md) and [docs/setup-host.md](docs/setup-host.md).
 
 ## Questions
 

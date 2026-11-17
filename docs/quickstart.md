@@ -41,4 +41,4 @@ HEADLESS=1 ./scripts/run-regression.sh
 
 To inspect a prepared sample bag in Foxglove (no SITL required), see [QUICKSTART-sample.md](QUICKSTART-sample.md) in the repository. The trimmed bag itself is not in git; download it from the [v0.1.0 release](https://github.com/palcode/opendronelab/releases/tag/v0.1.0).
 
-Further reading: [setup-host.md](https://github.com/palcode/opendronelab/blob/main/docs/setup-host.md), [simulation-guide.md](simulation-guide.md), [official-image.md](official-image.md).
+Further reading: [setup-host.md](setup-host.md), [simulation-guide.md](simulation-guide.md), [official-image.md](official-image.md).

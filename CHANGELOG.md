@@ -12,6 +12,7 @@ flight-certified**.
 
 ### Changed
 
+- Replaced `docs/setup-host.md` with a generic, public-safe host setup guide. The new version covers supported OS (Ubuntu 24.04/26.04-class Linux), GPU requirements, Docker Engine and NVIDIA Container Toolkit installation with official documentation links, user group configuration, environment variables from `scripts/odl-env.sh`, and generic dual-boot cautions. All machine-specific details have been removed. Added to the docs site navigation.
 - Removed pre-launch wording from documentation now that the repository is public, the docs site is live at <https://palcode.github.io/opendronelab>, GitHub Discussions are open with welcome post #32, the v0.1.0 release is published, and the repository About website field is set.
 - CLA workflow now requires `github.event.issue.pull_request` on `issue_comment` trigger to only fire on PR comments.
 - ShellCheck in CI is now installed from the official GitHub release tarball at a pinned version (v0.10.0) with sha256 verification, replacing the unpinned apt installation.
@@ -20,7 +21,7 @@ flight-certified**.
 ### Removed
 
 - Deleted `docs/LAUNCH_CHECKLIST.md`, `docs/community/` directory, and `scripts/check-preflip.sh` from the repository. These were internal launch-preparation files no longer needed now that the repository is public.
-- Internal pages `AGENTS.md` and `setup-host.md` are excluded from the public docs site build but remain in the repository.
+- The internal page `AGENTS.md` is excluded from the public docs site build but remains in the repository; `docs/LAUNCH_CHECKLIST.md`, `docs/community/` and `scripts/check-preflip.sh` were removed.
 
 ## [0.1.0] - 2026-11-17
 

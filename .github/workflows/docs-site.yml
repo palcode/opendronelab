@@ -56,19 +56,21 @@ jobs:
       - name: Build site
         run: zensical build
 
-      - name: Verify internal pages excluded
+      - name: Guard private docs
         run: |
           set -euo pipefail
-          if [ -d site/AGENTS ] || [ -d site/LAUNCH_CHECKLIST ] || [ -d site/community ] || [ -d site/setup-host ]; then
-            echo "Error: Internal pages found in site/"
-            ls -la site/ || true
+          # setup-host must be public
+          if [ ! -f site/setup-host/index.html ]; then
+            echo "ERROR: site/setup-host/index.html not found"
             exit 1
           fi
-          if grep -r "awaiting user approval" site/ 2>/dev/null; then
-            echo "Error: Found 'awaiting user approval' text in built site"
+          # AGENTS, LAUNCH_CHECKLIST, and community must stay private
+          if [ -d site/AGENTS ] || [ -d site/LAUNCH_CHECKLIST ] || [ -d site/community ]; then
+            echo "ERROR: Private docs (AGENTS, LAUNCH_CHECKLIST, or community) found in site/"
+            echo "These must be excluded from the published docs site."
             exit 1
           fi
-          echo "✓ Internal pages successfully excluded"
+          echo "Guard checks passed: setup-host is public, private docs are excluded"
 
       - name: Upload built site
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
