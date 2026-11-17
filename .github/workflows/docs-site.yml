@@ -49,6 +49,22 @@ jobs:
       - name: Build site
         run: zensical build
 
+      - name: Guard private docs
+        run: |
+          set -euo pipefail
+          # setup-host must be public
+          if [ ! -f site/setup-host/index.html ]; then
+            echo "ERROR: site/setup-host/index.html not found"
+            exit 1
+          fi
+          # AGENTS, LAUNCH_CHECKLIST, and community must stay private
+          if [ -d site/AGENTS ] || [ -d site/LAUNCH_CHECKLIST ] || [ -d site/community ]; then
+            echo "ERROR: Private docs (AGENTS, LAUNCH_CHECKLIST, or community) found in site/"
+            echo "These must be excluded from the published docs site."
+            exit 1
+          fi
+          echo "Guard checks passed: setup-host is public, private docs are excluded"
+
       - name: Upload built site
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
