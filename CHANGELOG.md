@@ -12,6 +12,10 @@ flight-certified**.
 
 ### Changed
 
+- Bumped pytest to 9.2.0 in `requirements-ci.txt`. All headless unit tests pass with pytest 9.2.0.
+- Fixed Dependabot `cooldown` placement in `.github/dependabot.yml`: moved `cooldown` blocks from nested under `schedule` to sibling keys (correct per GitHub's Dependabot configuration reference).
+- Added Dependabot ignore rules in the pip ecosystem to hold `scipy` and `onnxruntime-gpu` major/minor updates: SciPy >=1.17/1.18 requires numpy 2 (the container pins numpy 1.26.4), and onnxruntime-gpu is pinned in `docker/Dockerfile.dev` to match constraints. These will be upgraded deliberately together with numpy 2.
+
 - Updated NVIDIA driver version requirement in `docs/setup-host.md` from "typically driver version 470 or newer" to driver version 595 or newer for CUDA 13.2, with a link to NVIDIA's official CUDA compatibility table and a note that newer GPU generations may require newer drivers.
 
 - Replaced `docs/setup-host.md` with a generic, public-safe host setup guide. The new version covers supported OS (Ubuntu 24.04/26.04-class Linux), GPU requirements, Docker Engine and NVIDIA Container Toolkit installation with official documentation links, user group configuration, environment variables from `scripts/odl-env.sh`, and generic dual-boot cautions. All machine-specific details have been removed. Added to the docs site navigation.

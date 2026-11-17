@@ -10,9 +10,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
-      cooldown:
-        default-days: 7
-        semver-major-days: 14
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
       actions-minor-patch:
         update-types:
@@ -23,9 +23,21 @@ updates:
     directory: /
     schedule:
       interval: weekly
-      cooldown:
-        default-days: 7
-        semver-major-days: 14
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    # Held: SciPy >=1.17/1.18 needs numpy 2 (the container pins numpy 1.26.4), and
+    # onnxruntime-gpu is pinned in docker/Dockerfile.dev to match constraints.txt.
+    # Upgrade these deliberately together with numpy 2.
+    ignore:
+      - dependency-name: scipy
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+      - dependency-name: onnxruntime-gpu
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
     groups:
       pip-minor-patch:
         update-types:
@@ -36,9 +48,9 @@ updates:
     directory: /docker
     schedule:
       interval: weekly
-      cooldown:
-        default-days: 7
-        semver-major-days: 14
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     open-pull-requests-limit: 3
     # Ignore Ubuntu version bumps: ROS 2 Jazzy only ships binaries for Ubuntu 24.04 (Noble).
     # Digest and patch updates still come through.
