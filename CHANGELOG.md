@@ -21,7 +21,7 @@ flight-certified**.
 ### Removed
 
 - Deleted `docs/LAUNCH_CHECKLIST.md`, `docs/community/` directory, and `scripts/check-preflip.sh` from the repository. These were internal launch-preparation files no longer needed now that the repository is public.
-- Internal pages `AGENTS.md`, `LAUNCH_CHECKLIST.md`, and `community/` are excluded from the public docs site build but remain in the repository.
+- The internal page `AGENTS.md` is excluded from the public docs site build but remains in the repository; `docs/LAUNCH_CHECKLIST.md`, `docs/community/` and `scripts/check-preflip.sh` were removed.
 
 ## [0.1.0] - 2026-11-17
 
