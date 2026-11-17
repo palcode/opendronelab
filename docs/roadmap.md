@@ -6,13 +6,11 @@ We are building in public. The living document is [ROADMAP.md](https://github.co
 
 - VIO robustness (ODL-86), including the baseline far-side jump
 - A scored SITL regression that stays gated
-- Public-launch polish, without loosening gates
 
 ## Next
 
 - Multi-airframe work, including fixed-wing gates
 - A real-hardware testing path (checklist first; not flight certification)
-- This docs site on GitHub Pages (in the tree; Pages is a maintainer setting)
 
 ## Later
 

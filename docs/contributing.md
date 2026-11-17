@@ -12,6 +12,6 @@ Contributions are welcome under [CONTRIBUTING.md](https://github.com/palcode/ope
 
 - Do not loosen regression gates.
 - Do not add secrets, hostnames, or personal paths to the repository.
-- Questions will go to GitHub Discussions once the maintainer enables them. A welcome post draft lives in `docs/community/welcome-discussion.md` and should not be posted until then.
+- Questions belong in [GitHub Discussions](https://github.com/palcode/opendronelab/discussions). See the [welcome post](https://github.com/palcode/opendronelab/discussions/32) for more information.
 
 Automated agents working in the repository must follow [AGENTS.md](AGENTS.md).

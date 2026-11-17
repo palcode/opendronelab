@@ -6,13 +6,9 @@ clip: about 10 seconds mid-square from a passing `mc_gps` SITL flight
 The clip has ground truth and PX4 EKF2 topics only. It does **not**
 include a camera stream, so you do not need `RECORD_CAMERA=1`.
 
-The file is prepared as a future GitHub Release asset. It is not in
-the git tree. Until the maintainer publishes the release, it lives
-next to a local checkout as
-`dronelab-data/release_assets/v0.1.0/odl-v0.1.0-mc_gps-sample.mcap`
-(the `dronelab-data` directory is the sibling of the repository, the
-default `ODL_DATA`). After the release exists, download the same
-filename from the GitHub Release and verify the checksum below.
+The file is not in the git tree. Download `odl-v0.1.0-mc_gps-sample.mcap`
+from the [v0.1.0 release](https://github.com/palcode/opendronelab/releases/tag/v0.1.0)
+and verify the checksum below.
 
 SHA-256 (`odl-v0.1.0-mc_gps-sample.mcap`):
 

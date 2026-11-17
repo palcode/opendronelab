@@ -8,8 +8,7 @@ Contributions that move these items forward are welcome — especially
 [good first issues](https://github.com/palcode/opendronelab/labels/good%20first%20issue).
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) and sign the
 [CLA](CLA.md). For questions, use
-[Discussions](https://github.com/palcode/opendronelab/discussions) once
-they are enabled (planned for the public-launch flip).
+[Discussions](https://github.com/palcode/opendronelab/discussions).
 
 The verified path is software-in-the-loop. This project is **not
 flight-certified**.
@@ -27,9 +26,6 @@ flight-certified**.
   on `baseline`, `faster_motion`, `wind`, and `mc_gps`. `low_texture` is
   a known, non-gating limitation. Fingerprints, pass@1, and the C++
   square-flight path are in place.
-- **Public launch prep.** README, contributing docs, CLA, CI, and
-  issue templates so the repository can be opened without loosening
-  gates or inventing numbers.
 
 ## Next
 
@@ -43,9 +39,6 @@ flight-certified**.
   checklist. Bring-up stays placeholder until an airframe is named;
   GPS / `EKF2_EV_CTRL=0` remains the default until VIO-only bags on
   that airframe look healthy. No flight claims from SITL numbers.
-- **Docs site on GitHub Pages.** The Zensical site is in the tree.
-  Enabling Pages is a remaining maintainer setting (intended URL:
-  <https://palcode.github.io/opendronelab>).
 
 ## Later
 
