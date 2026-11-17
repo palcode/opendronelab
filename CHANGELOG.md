@@ -12,6 +12,8 @@ flight-certified**.
 
 ### Changed
 
+- Updated NVIDIA driver version requirement in `docs/setup-host.md` from "typically driver version 470 or newer" to driver version 595 or newer for CUDA 13.2, with a link to NVIDIA's official CUDA compatibility table and a note that newer GPU generations may require newer drivers.
+
 - Replaced `docs/setup-host.md` with a generic, public-safe host setup guide. The new version covers supported OS (Ubuntu 24.04/26.04-class Linux), GPU requirements, Docker Engine and NVIDIA Container Toolkit installation with official documentation links, user group configuration, environment variables from `scripts/odl-env.sh`, and generic dual-boot cautions. All machine-specific details have been removed. Added to the docs site navigation.
 - Removed pre-launch wording from documentation now that the repository is public, the docs site is live at <https://palcode.github.io/opendronelab>, GitHub Discussions are open with welcome post #32, the v0.1.0 release is published, and the repository About website field is set.
 - CLA workflow now requires `github.event.issue.pull_request` on `issue_comment` trigger to only fire on PR comments.
