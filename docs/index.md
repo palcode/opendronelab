@@ -32,4 +32,4 @@
 - [Contributing](contributing.md) — good first issues, CLA, and house rules
 - [Licensing](licensing.md) — AGPL-3.0-only, with a commercial option
 
-The source repository is [palcode/opendronelab](https://github.com/palcode/opendronelab). This site is a draft; GitHub Pages is not enabled until the maintainer agrees.
+The source repository is [palcode/opendronelab](https://github.com/palcode/opendronelab).

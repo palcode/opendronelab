@@ -4,7 +4,7 @@
 # Zensical docs site. Default token permissions stay read-only.
 # pages:write and id-token:write are granted on the deploy job only.
 # Deploy runs on workflow_dispatch only so a push or pull request cannot
-# publish Pages. Do not enable GitHub Pages until the maintainer agrees.
+# publish Pages.
 
 name: Docs site
 
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type publish-docs-site after GitHub Pages is enabled"
+        description: "Type publish-docs-site to deploy"
         required: true
         type: string
 

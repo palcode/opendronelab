@@ -63,11 +63,9 @@ Tracked in issue #17.
 
 ## 7. Discussions
 
-- [ ] GitHub → Settings → General → Features → **Discussions**.
-- [ ] Keep or create the categories you want for public use
-  (recommended: Announcements, Q&A, Show and tell, Ideas).
-- [ ] Optional: replace the “Discussions pending” badge in the README
-  with a live badge once Discussions is on.
+- [x] **Done 2026-11-17.** GitHub → Settings → General → Features → **Discussions**.
+- [x] Categories created for public use: Announcements, Q&A, Show and tell, Ideas.
+- [x] Welcome post published as [Discussion #32](https://github.com/palcode/opendronelab/discussions/32).
 
 ## 8. After the flip (optional, same day)
 
@@ -75,9 +73,13 @@ Tracked in issue #17.
   repository is public. Recorded in [Post-public verification](#post-public-verification-2026-11-17).
   (The pre-rewrite SHA returned HTTP 422, which the script treats as
   “not served”, same as 404.)
-- [ ] Pin a short “we are public / build in public” announcement in
-  Discussions if you want one. A draft is in
-  [docs/community/welcome-discussion.md](community/welcome-discussion.md).
+- [x] **Done 2026-11-17.** Welcome post published as [Discussion #32](https://github.com/palcode/opendronelab/discussions/32).
+
+## Completed post-flip items
+
+- [x] **Done 2026-11-17.** v0.1.0 GitHub Release published at <https://github.com/palcode/opendronelab/releases/tag/v0.1.0>.
+- [x] **Done 2026-11-17.** Docs site / GitHub Pages live at <https://palcode.github.io/opendronelab>.
+- [x] **Done 2026-11-17.** Website field set in repository About settings.
 
 ## Deferred (not part of the flip)
 
@@ -85,12 +87,6 @@ Tracked in issue #17.
   from `docker/Dockerfile.dev`. Issue #13 is closed as not planned.
   [NVIDIA_REDISTRIBUTION.md](NVIDIA_REDISTRIBUTION.md) remains as
   background for local builds that pull NVIDIA pip wheels.
-- **v0.1.0 GitHub Release or tag.** Release notes and a trimmed sample
-  bag are prepared; do not tag or publish until the maintainer agrees.
-- **Docs site / GitHub Pages.** A Zensical draft lives on the
-  `docs-site` branch. Do not enable Pages until the maintainer agrees.
-- **Discussions, About text, topics, and Website.** Drafts and
-  suggested settings are in [docs/community/](community/).
 
 ## Post-public verification (2026-11-17)
 

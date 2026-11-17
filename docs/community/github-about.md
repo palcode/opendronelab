@@ -17,10 +17,8 @@ px4, ros2, gazebo, sitl, drone, robotics, uav, simulation, visual-inertial-odome
 
 ## Website
 
-Leave this empty until GitHub Pages is enabled and the docs-site draft is published. The intended URL is:
+The Website field is now set to:
 
 ```
 https://palcode.github.io/opendronelab
 ```
-
-Do not point the Website field at a 404 in the meantime.

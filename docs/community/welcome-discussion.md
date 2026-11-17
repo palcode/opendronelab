@@ -1,7 +1,6 @@
 # Welcome to OpenDroneLab
 
-> Draft only. Do not post this until Discussions are enabled. Suggested
-> category: Announcements.
+> This post was published as [Discussion #32](https://github.com/palcode/opendronelab/discussions/32) in the Announcements category.
 
 Hello, and welcome to OpenDroneLab.
 

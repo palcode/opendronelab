@@ -156,14 +156,14 @@ Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-mat
 - [Architecture](docs/architecture.md) and [compatibility matrix](docs/compatibility-matrix.md)
 - [Real-drone readiness](docs/real-drone-readiness.md) — checklist only, no flight claims
 - [Setup](docs/setup-host.md), [official image](docs/official-image.md), [rollback](docs/rollback.md)
-- [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes (draft)](docs/release-notes/v0.1.0.md)
+- [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes](docs/release-notes/v0.1.0.md)
 - [NVIDIA redistribution](docs/NVIDIA_REDISTRIBUTION.md) — CUDA/cuDNN wheels and the CPU/base image option
 
-A Zensical docs site is in the tree (intended URL: <https://palcode.github.io/opendronelab>) once GitHub Pages is enabled. These Markdown guides remain the source of truth until then.
+A Zensical docs site is live at <https://palcode.github.io/opendronelab>. These Markdown guides remain the source of truth.
 
 ## Roadmap
 
-We are building in public. **Now:** VIO robustness (ODL-86) and a clean public launch, without loosening gates. **Next:** fixed-wing gates, a real-hardware testing path, and enabling the in-tree docs site. **Later:** more airframes, a one-command wrapper around the local Docker build, and hardware footage only after a named airframe is flown safely.
+We are building in public. **Now:** VIO robustness (ODL-86). **Next:** fixed-wing gates and a real-hardware testing path. **Later:** more airframes, a one-command wrapper around the local Docker build, and hardware footage only after a named airframe is flown safely.
 
 See [ROADMAP.md](ROADMAP.md) and issues labelled
 [roadmap](https://github.com/palcode/opendronelab/labels/roadmap).
@@ -174,7 +174,7 @@ Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code
 
 Start with [good first issues](https://github.com/palcode/opendronelab/labels/good%20first%20issue). Please use the issue and pull request templates. Do not loosen regression gates. Do not add secrets or personal host paths.
 
-A [welcome post draft](docs/community/welcome-discussion.md) is ready for when [Discussions](https://github.com/palcode/opendronelab/discussions) are enabled (Announcements, Q&A, Show and tell, Ideas). Suggested About text and topics are in [docs/community/github-about.md](docs/community/github-about.md).
+[Discussions](https://github.com/palcode/opendronelab/discussions) are open for Q&A, ideas, and show-and-tell. See the [welcome post](https://github.com/palcode/opendronelab/discussions/32).
 
 Automated agents working in this repository must follow [docs/AGENTS.md](docs/AGENTS.md).
 

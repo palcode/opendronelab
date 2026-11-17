@@ -2,7 +2,6 @@
 # Copyright (C) 2026 Pallab Sarkar
 #
 # Zensical (MkDocs-format) config for https://palcode.github.io/opendronelab
-# Draft only: do not enable GitHub Pages until the maintainer agrees.
 
 site_name: OpenDroneLab
 site_url: https://palcode.github.io/opendronelab
