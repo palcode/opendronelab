@@ -14,4 +14,4 @@ Contributions are welcome under [CONTRIBUTING.md](https://github.com/palcode/ope
 - Do not add secrets, hostnames, or personal paths to the repository.
 - Questions belong in [GitHub Discussions](https://github.com/palcode/opendronelab/discussions). See the [welcome post](https://github.com/palcode/opendronelab/discussions/32) for more information.
 
-Automated agents working in the repository must follow [AGENTS.md](AGENTS.md).
+Automated agents working in the repository must follow [AGENTS.md](https://github.com/palcode/opendronelab/blob/main/docs/AGENTS.md).

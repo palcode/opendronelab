@@ -14,6 +14,14 @@ flight-certified**.
 
 - Replaced `docs/setup-host.md` with a generic, public-safe host setup guide. The new version covers supported OS (Ubuntu 24.04/26.04-class Linux), GPU requirements, Docker Engine and NVIDIA Container Toolkit installation with official documentation links, user group configuration, environment variables from `scripts/odl-env.sh`, and generic dual-boot cautions. All machine-specific details have been removed. Added to the docs site navigation.
 - Removed pre-launch wording from documentation now that the repository is public, the docs site is live at <https://palcode.github.io/opendronelab>, GitHub Discussions are open with welcome post #32, the v0.1.0 release is published, and the repository About website field is set.
+- CLA workflow now requires `github.event.issue.pull_request` on `issue_comment` trigger to only fire on PR comments.
+- ShellCheck in CI is now installed from the official GitHub release tarball at a pinned version (v0.10.0) with sha256 verification, replacing the unpinned apt installation.
+- Docs site workflow now auto-deploys on push to main when docs/, mkdocs.yml, requirements-docs.txt, or the workflow file itself changes, in addition to existing workflow_dispatch trigger.
+
+### Removed
+
+- Deleted `docs/LAUNCH_CHECKLIST.md`, `docs/community/` directory, and `scripts/check-preflip.sh` from the repository. These were internal launch-preparation files no longer needed now that the repository is public.
+- Internal pages `AGENTS.md`, `LAUNCH_CHECKLIST.md`, and `community/` are excluded from the public docs site build but remain in the repository.
 
 ## [0.1.0] - 2026-11-17
 
@@ -56,9 +64,6 @@ on this cut. Prepared sample-bag assets live under
 - A Zensical docs site (merged from #31) aimed at
   <https://palcode.github.io/opendronelab>. Enabling GitHub Pages is a
   remaining maintainer setting.
-- Community drafts: a Discussions welcome post
-  (`docs/community/welcome-discussion.md`) and suggested About / topics
-  / Website text (`docs/community/github-about.md`).
 
 ### Changed
 
@@ -67,8 +72,7 @@ on this cut. Prepared sample-bag assets live under
   image is not planned.
 - README: roadmap badge and a good-first-issues badge and link.
 - `scripts/check-preflip.sh` now probes the GitHub REST API without
-  authentication when the repository is public. Results of the
-  post-public re-run are recorded in `docs/LAUNCH_CHECKLIST.md`.
+  authentication when the repository is public.
 - The CLA action allowlist includes the repository owner (`palcode`).
 
 ### Removed

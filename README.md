@@ -185,7 +185,7 @@ Start with [good first issues](https://github.com/palcode/opendronelab/labels/go
 
 [Discussions](https://github.com/palcode/opendronelab/discussions) are open for Q&A, ideas, and show-and-tell. See the [welcome post](https://github.com/palcode/opendronelab/discussions/32).
 
-Automated agents working in this repository must follow [docs/AGENTS.md](docs/AGENTS.md).
+Automated agents working in this repository must follow [AGENTS.md](https://github.com/palcode/opendronelab/blob/main/docs/AGENTS.md).
 
 ## Safety and limitations
 

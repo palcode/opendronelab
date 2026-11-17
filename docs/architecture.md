@@ -723,10 +723,10 @@ Bring-up checklist and launch hooks: `docs/real-drone-readiness.md`. Do not inve
 open-drone-lab/
 ├── README.md                  # Project overview
 ├── docs/                      # Documentation
-│   ├── AGENTS.md              # AI agent working agreement
+│   ├── AGENTS.md              # AI agent working agreement (internal, not on public site)
 │   ├── architecture.md        # This file
 │   ├── compatibility-matrix.md
-│   ├── setup-host.md
+│   ├── setup-host.md          # Host setup guide (internal, not on public site)
 │   ├── setup-container.md     # (Phase 1)
 │   ├── simulation-guide.md    # (Phase 1)
 │   ├── ros2-integration.md    # (Phase 2)
