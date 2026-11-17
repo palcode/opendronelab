@@ -1,9 +1,6 @@
 # OpenDroneLab Host Setup
 
-**Status:** Phase 0 complete - awaiting user approval for Phase 1  
 **Last audit:** 2026-11-02 23:37 IST
-
-⚠️ **DO NOT PROCEED WITH INSTALLS WITHOUT EXPLICIT USER APPROVAL**
 
 ## Host Audit Summary
 
