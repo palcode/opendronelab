@@ -10,6 +10,10 @@ flight-certified**.
 
 ## [Unreleased]
 
+### Changed
+
+- Removed pre-launch wording from documentation now that the repository is public, the docs site is live at <https://palcode.github.io/opendronelab>, GitHub Discussions are open with welcome post #32, the v0.1.0 release is published, and the repository About website field is set.
+
 ## [0.1.0] - 2026-11-17
 
 First public release. The verified path is software-in-the-loop.

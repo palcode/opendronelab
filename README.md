@@ -168,11 +168,11 @@ Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-mat
 - [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes](docs/release-notes/v0.1.0.md)
 - [NVIDIA redistribution](docs/NVIDIA_REDISTRIBUTION.md) — CUDA/cuDNN wheels and the CPU/base image option
 
-The documentation site is live at <https://palcode.github.io/opendronelab>. These in-tree Markdown guides remain the source of truth.
+A Zensical docs site is live at <https://palcode.github.io/opendronelab>. These Markdown guides remain the source of truth.
 
 ## Roadmap
 
-We are building in public. **Now:** VIO robustness (ODL-86), without loosening gates. **Next:** fixed-wing gates and a real-hardware testing path. **Later:** more airframes, a one-command wrapper around the local Docker build, and hardware footage only after a named airframe is flown safely.
+We are building in public. **Now:** VIO robustness (ODL-86). **Next:** fixed-wing gates and a real-hardware testing path. **Later:** more airframes, a one-command wrapper around the local Docker build, and hardware footage only after a named airframe is flown safely.
 
 See [ROADMAP.md](ROADMAP.md) and issues labelled
 [roadmap](https://github.com/palcode/opendronelab/labels/roadmap).
@@ -183,7 +183,7 @@ Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code
 
 Start with [good first issues](https://github.com/palcode/opendronelab/labels/good%20first%20issue). Please use the issue and pull request templates. Do not loosen regression gates. Do not add secrets or personal host paths.
 
-[Discussions](https://github.com/palcode/opendronelab/discussions) are open. See the [welcome post](https://github.com/palcode/opendronelab/discussions/32) for Q&A, show and tell, and ideas.
+[Discussions](https://github.com/palcode/opendronelab/discussions) are open for Q&A, ideas, and show-and-tell. See the [welcome post](https://github.com/palcode/opendronelab/discussions/32).
 
 Automated agents working in this repository must follow [docs/AGENTS.md](docs/AGENTS.md).
 
