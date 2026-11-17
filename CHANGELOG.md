@@ -19,6 +19,7 @@ flight-certified**.
 - CLA workflow now requires `github.event.issue.pull_request` on `issue_comment` trigger to only fire on PR comments.
 - ShellCheck in CI is now installed from the official GitHub release tarball at a pinned version (v0.10.0) with sha256 verification, replacing the unpinned apt installation.
 - Docs site workflow now auto-deploys on push to main when docs/, mkdocs.yml, requirements-docs.txt, or the workflow file itself changes, in addition to existing workflow_dispatch trigger.
+- Dependabot now ignores Ubuntu major/minor version bumps (ROS 2 Jazzy requires Ubuntu 24.04), adds 7-day cooldowns (14 days for major updates) to all ecosystems, and docs-site workflow deploy job uses `concurrency: group: pages, cancel-in-progress: false` to prevent racing deploys.
 
 ### Removed
 

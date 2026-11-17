@@ -10,6 +10,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      cooldown:
+        default-days: 7
+        semver-major-days: 14
     groups:
       actions-minor-patch:
         update-types:
@@ -20,6 +23,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      cooldown:
+        default-days: 7
+        semver-major-days: 14
     groups:
       pip-minor-patch:
         update-types:
@@ -30,7 +36,17 @@ updates:
     directory: /docker
     schedule:
       interval: weekly
+      cooldown:
+        default-days: 7
+        semver-major-days: 14
     open-pull-requests-limit: 3
+    # Ignore Ubuntu version bumps: ROS 2 Jazzy only ships binaries for Ubuntu 24.04 (Noble).
+    # Digest and patch updates still come through.
+    ignore:
+      - dependency-name: ubuntu
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
     groups:
       docker-minor-patch:
         update-types:
