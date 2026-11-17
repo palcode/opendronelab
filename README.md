@@ -5,8 +5,10 @@
   <img src="docs/media/logo-dark.svg#gh-dark-mode-only" alt="OpenDroneLab" height="56">
 </p>
 
+<h3 align="center">From git clone to a scored autonomous flight in one command.</h3>
+
 <p align="center">
-<strong>Scored, not just simulated.</strong> A current PX4 v1.17 + ROS 2 Jazzy + Gazebo Harmonic SITL stack with official Umeyama RMSE gates, VIO stress worlds, and repeatable regression from one Docker image. Software-in-the-loop only—not flight-certified.
+<strong>Scored, not just simulated.</strong> A current PX4 v1.17 + ROS 2 Jazzy + Gazebo Harmonic SITL stack with Umeyama RMSE gates, VIO stress worlds, and repeatable regression from one Docker image. Software-in-the-loop only, not flight-certified.
 </p>
 
 <p align="center">
@@ -33,7 +35,7 @@
 
 ### Try it without SITL: view the v0.1.0 sample bag in Foxglove
 
-No Docker build or SITL required. Download the `odl-v0.1.0-mc_gps-sample.mcap` bag (~10 seconds, 294 KB) and example report from the [v0.1.0 release](https://github.com/palcode/opendronelab/releases/tag/v0.1.0). Open it in [Foxglove](https://foxglove.dev/download) with the included layout to see a passing GPS-based flight with ground truth and EKF2 paths. Full walkthrough: [docs/QUICKSTART-sample.md](docs/QUICKSTART-sample.md).
+No Docker build or SITL required. Download the `odl-v0.1.0-mc_gps-sample.mcap` bag (about 10 seconds, 294 KB) and example report from the [v0.1.0 release](https://github.com/palcode/opendronelab/releases/tag/v0.1.0). Open it in [Foxglove](https://foxglove.dev/download) with the in-tree layout to see ground truth and EKF2 paths from a passing `mc_gps` flight. Full walkthrough: [docs/QUICKSTART-sample.md](docs/QUICKSTART-sample.md).
 
 ### Full SITL setup: build locally and run scored regression
 
