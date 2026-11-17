@@ -1,20 +1,68 @@
-/* OpenDroneLab brand: navy, orange, teal, slate, off-white. */
-:root, [data-md-color-scheme="default"] {
-  --md-primary-fg-color: #0B1F33;
-  --md-primary-fg-color--light: #16324d;
-  --md-primary-fg-color--dark: #071421;
-  --md-accent-fg-color: #FF6B1A;
-  --md-accent-fg-color--transparent: rgba(255, 107, 26, 0.12);
-  --md-default-bg-color: #F4F6F8;
+/* OpenDroneLab brand: navy, orange, teal, slate, off-white.
+   Text, link, and nav colours meet WCAG AA in both schemes
+   (4.5:1 body text, 3:1 large text). Brand orange/teal are used
+   as link colours only on backgrounds where they pass. */
+
+:root {
+  --odl-navy: #0B1F33;
+  --odl-orange: #FF6B1A;
   --odl-teal: #19C3B1;
   --odl-slate: #8A99AD;
+  --odl-offwhite: #F4F6F8;
+  /* #8A99AD is 2.68:1 on off-white; this darkened slate is 5.01:1. */
+  --odl-slate-on-light: #5C6B80;
+  /* #FF6B1A is 2.63:1 on off-white; this darkened orange is 6.08:1
+     on off-white and 5.08:1 on its 12% active-nav tint. */
+  --odl-orange-on-light: #A03E0A;
+}
+
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--odl-navy);
+  --md-primary-fg-color--light: #16324d;
+  --md-primary-fg-color--dark: #071421;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: var(--odl-orange-on-light);
+  --md-accent-fg-color--transparent: rgba(160, 62, 10, 0.12);
+  --md-default-bg-color: var(--odl-offwhite);
+  --md-default-fg-color: var(--odl-navy);
+  --md-typeset-color: var(--odl-navy);
+  --md-typeset-a-color: var(--odl-navy);
+  --odl-muted: var(--odl-slate-on-light);
+  --odl-callout-title: var(--odl-navy);
 }
 
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color: #0B1F33;
-  --md-accent-fg-color: #FF6B1A;
-  --odl-teal: #19C3B1;
-  --odl-slate: #8A99AD;
+  --md-hue: 210deg;
+  --md-primary-fg-color: var(--odl-orange);
+  --md-primary-fg-color--light: #ff8a4a;
+  --md-primary-fg-color--dark: #b44507;
+  --md-primary-bg-color: var(--odl-navy);
+  --md-primary-bg-color--light: #0b1f33b3;
+  --md-accent-fg-color: var(--odl-teal);
+  --md-accent-fg-color--transparent: rgba(25, 195, 177, 0.16);
+  --md-default-bg-color: var(--odl-navy);
+  --md-default-fg-color: var(--odl-offwhite);
+  --md-default-fg-color--light: var(--odl-slate);
+  --md-typeset-color: var(--odl-offwhite);
+  --md-typeset-a-color: var(--odl-orange);
+  --md-code-fg-color: var(--odl-offwhite);
+  --md-code-bg-color: #071421;
+  --md-admonition-fg-color: var(--odl-offwhite);
+  --md-admonition-bg-color: var(--odl-navy);
+  --color-foreground: 244 246 248;
+  --color-background: 11 31 51;
+  --color-background-subtle: 7 20 33;
+  --color-backdrop: 11 31 51;
+  --odl-muted: var(--odl-slate);
+  --odl-callout-title: var(--odl-offwhite);
+}
+
+/* Header/drawer use a single theme.logo; swap the dark-scheme wordmark. */
+[data-md-color-scheme="slate"] .md-header__button.md-logo img,
+[data-md-color-scheme="slate"] .md-nav__button.md-logo img {
+  content: url("../media/logo-dark.svg");
 }
 
 .odl-hero {
@@ -29,7 +77,7 @@
 
 .odl-hero .tagline {
   font-size: 1.15rem;
-  color: var(--odl-slate);
+  color: var(--odl-muted);
   margin: 0.75rem 0 1.25rem;
 }
 
@@ -39,10 +87,12 @@
 }
 
 .odl-callout {
-  border-left: 4px solid #FF6B1A;
+  border-left: 4px solid var(--odl-orange);
   background: rgba(255, 107, 26, 0.08);
   padding: 0.75rem 1rem;
   margin: 1.25rem 0;
 }
 
-.odl-callout strong { color: #0B1F33; }
+.odl-callout strong {
+  color: var(--odl-callout-title);
+}

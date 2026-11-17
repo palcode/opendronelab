@@ -2,7 +2,9 @@
 
 <div class="odl-hero" markdown>
 
-![OpenDroneLab](media/logo-light.svg){ class="logo" }
+![OpenDroneLab](media/logo-light.svg#only-light){ class="logo" }
+
+![OpenDroneLab](media/logo-dark.svg#only-dark){ class="logo" }
 
 <p class="tagline">From git clone to a scored autonomous flight in one command.</p>
 
