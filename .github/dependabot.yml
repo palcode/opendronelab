@@ -25,10 +25,14 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 14
-    # Held: SciPy >=1.17/1.18 needs numpy 2 (the container pins numpy 1.26.4), and
-    # onnxruntime-gpu is pinned in docker/Dockerfile.dev to match constraints.txt.
-    # Upgrade these deliberately together with numpy 2.
+    # Held: numpy 2, SciPy >=1.17/1.18, and onnxruntime-gpu are held. The container
+    # pins numpy 1.26.4; SciPy >=1.17/1.18 requires numpy 2; onnxruntime-gpu is pinned
+    # in docker/Dockerfile.dev to match constraints.txt. Upgrade these deliberately
+    # together with numpy 2.
     ignore:
+      - dependency-name: numpy
+        update-types:
+          - version-update:semver-major
       - dependency-name: scipy
         update-types:
           - version-update:semver-major

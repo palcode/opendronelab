@@ -93,13 +93,30 @@ If your host dual-boots with another operating system (such as Windows):
 
 - **Back up important data** before making system changes
 - **Do not modify** EFI System Partitions (ESP), other OS partitions, or the bootloader without understanding the consequences
-- **Secure Boot:** If enabled, custom kernel modules (including some third-party NVIDIA driver versions) may require enrolling a Machine Owner Key (MOK). The official NVIDIA proprietary drivers signed by NVIDIA typically work with Secure Boot enabled. If you encounter module loading issues, consult your distribution's documentation on MOK enrollment.
+- **Secure Boot:** On Ubuntu, the prebuilt `linux-modules-nvidia-*` packages installed with `sudo ubuntu-drivers install` are signed by Canonical and load with Secure Boot on without MOK enrollment. DKMS-built modules and NVIDIA's `.run` installer need a Machine Owner Key (MOK) enrollment at the next boot. The `ubuntu-drivers` path is recommended. For CUDA 13.x minor-version compatibility, driver 580 or newer supports any CUDA 13.x container; this project's CUDA 13.2 image requires driver 595 or newer.
 
 OpenDroneLab development happens entirely within containers and does not require modifying the host system partitions, bootloader, or kernel beyond installing Docker and the NVIDIA driver.
 
 ## QGroundControl (Optional)
 
 QGroundControl is used as a ground control station for manual flight testing and monitoring. It runs as a native host application (not in a container).
+
+### Prerequisites
+
+Before running QGroundControl, install the required dependencies and remove ModemManager (which interferes with serial port access):
+
+```bash
+# Remove or disable ModemManager
+sudo systemctl mask --now ModemManager.service
+# Or: sudo apt remove modemmanager
+
+# Install AppImage dependencies (Ubuntu 24.04 and later)
+sudo apt install libfuse2t64 libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor0
+```
+
+**Note:** On Ubuntu versions before 24.04, use `libfuse2` instead of `libfuse2t64`.
+
+### Installation
 
 Download the latest QGroundControl AppImage from the official site:
 
