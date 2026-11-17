@@ -726,7 +726,7 @@ open-drone-lab/
 │   ├── AGENTS.md              # AI agent working agreement (internal, not on public site)
 │   ├── architecture.md        # This file
 │   ├── compatibility-matrix.md
-│   ├── setup-host.md          # Host setup guide (internal, not on public site)
+│   ├── setup-host.md          # Host setup guide
 │   ├── setup-container.md     # (Phase 1)
 │   ├── simulation-guide.md    # (Phase 1)
 │   ├── ros2-integration.md    # (Phase 2)

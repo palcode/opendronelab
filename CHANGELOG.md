@@ -10,6 +10,11 @@ flight-certified**.
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed unsupported `semver-major-days` from Dependabot cooldown configuration for `github-actions` and `docker` package ecosystems in `.github/dependabot.yml` (GitHub Dependabot only supports `default-days` for these ecosystems).
+- Fixed documentation comment in `docs/architecture.md` that incorrectly stated `setup-host.md` is internal; it is now public and included in the docs site navigation.
+
 ### Changed
 
 - Bumped pytest to 9.2.0 in `requirements-ci.txt`. All headless unit tests pass with pytest 9.2.0.
