@@ -9,7 +9,7 @@ This guide covers setting up a Linux host for OpenDroneLab development. The stac
 - x86_64 architecture
 
 **GPU Requirements:**
-- **For scored SITL flights:** NVIDIA GPU with a recent proprietary driver supported by the NVIDIA Container Toolkit (typically driver version 470 or newer)
+- **For scored SITL flights:** NVIDIA GPU with a recent proprietary driver supported by the NVIDIA Container Toolkit (driver version 595 or newer for CUDA 13.2, as used in the verify command below; see [NVIDIA CUDA compatibility table](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html) for your CUDA version). Newer GPU generations may require a newer driver than the CUDA toolkit minimum.
 - **For unit tests and bag replay:** CPU-only works; no GPU required
 
 The development container is Ubuntu 24.04 with PX4 v1.17, Gazebo Harmonic, and ROS 2 Jazzy. See [compatibility-matrix.md](compatibility-matrix.md) for pinned versions.
