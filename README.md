@@ -91,7 +91,7 @@ scenario  metric             result     gate     status
 mc_gps    EKF2 Umeyama xy    0.257 m    0.39 m   PASS   (mean 0.2572 ± 0.0022 m, pass@1 5/5)
 ```
 
-Host and day-to-day SITL notes: [docs/setup-host.md](docs/setup-host.md), [docs/compatibility-matrix.md](docs/compatibility-matrix.md), [docs/simulation-guide.md](docs/simulation-guide.md).
+Host and day-to-day SITL notes: [setup-host.md](https://github.com/palcode/opendronelab/blob/main/docs/setup-host.md), [docs/compatibility-matrix.md](docs/compatibility-matrix.md), [docs/simulation-guide.md](docs/simulation-guide.md).
 
 ## Who it's for
 
@@ -164,7 +164,7 @@ Host, GPU, and stack pins: [docs/compatibility-matrix.md](docs/compatibility-mat
 - [Bag review](docs/bag-review.md) — mcap and Foxglove
 - [Architecture](docs/architecture.md) and [compatibility matrix](docs/compatibility-matrix.md)
 - [Real-drone readiness](docs/real-drone-readiness.md) — checklist only, no flight claims
-- [Setup](docs/setup-host.md), [official image](docs/official-image.md), [rollback](docs/rollback.md)
+- [Setup](https://github.com/palcode/opendronelab/blob/main/docs/setup-host.md), [official image](docs/official-image.md), [rollback](docs/rollback.md)
 - [Sample bag in Foxglove](docs/QUICKSTART-sample.md) and [v0.1.0 release notes](docs/release-notes/v0.1.0.md)
 - [NVIDIA redistribution](docs/NVIDIA_REDISTRIBUTION.md) — CUDA/cuDNN wheels and the CPU/base image option
 
@@ -185,7 +185,7 @@ Start with [good first issues](https://github.com/palcode/opendronelab/labels/go
 
 [Discussions](https://github.com/palcode/opendronelab/discussions) are open for Q&A, ideas, and show-and-tell. See the [welcome post](https://github.com/palcode/opendronelab/discussions/32).
 
-Automated agents working in this repository must follow [docs/AGENTS.md](docs/AGENTS.md).
+Automated agents working in this repository must follow [AGENTS.md](https://github.com/palcode/opendronelab/blob/main/docs/AGENTS.md).
 
 ## Safety and limitations
 
