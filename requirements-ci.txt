@@ -3,5 +3,5 @@
 # is large and platform-specific.
 pytest==9.2.0
 PyYAML==6.0.3
-numpy==1.26.4
+numpy==2.5.4
 matplotlib==3.11.2
