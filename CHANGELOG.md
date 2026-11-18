@@ -10,6 +10,10 @@ flight-certified**.
 
 ## [Unreleased]
 
+### Changed
+
+- Secure Boot bullet in `docs/setup-host.md` now links to GPU Requirements instead of duplicating driver version details.
+
 ### Fixed
 
 - Removed unsupported `semver-major-days` from Dependabot cooldown configuration for `github-actions` and `docker` package ecosystems in `.github/dependabot.yml` (GitHub Dependabot only supports `default-days` for these ecosystems).
