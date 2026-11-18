@@ -10,25 +10,29 @@ flight-certified**.
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed unsupported `semver-major-days` from Dependabot cooldown configuration for `github-actions` and `docker` package ecosystems in `.github/dependabot.yml` (GitHub Dependabot only supports `default-days` for these ecosystems).
+- Fixed documentation comment in `docs/architecture.md` that incorrectly stated `setup-host.md` is internal; it is now public and included in the docs site navigation.
+
 ### Changed
 
 - Bumped pytest to 9.2.0 in `requirements-ci.txt`. All headless unit tests pass with pytest 9.2.0.
 - Fixed Dependabot `cooldown` placement in `.github/dependabot.yml`: moved `cooldown` blocks from nested under `schedule` to sibling keys (correct per GitHub's Dependabot configuration reference).
-- Added Dependabot ignore rules in the pip ecosystem to hold `scipy` and `onnxruntime-gpu` major/minor updates: SciPy >=1.17/1.18 requires numpy 2 (the container pins numpy 1.26.4), and onnxruntime-gpu is pinned in `docker/Dockerfile.dev` to match constraints. These will be upgraded deliberately together with numpy 2.
-
-- Updated NVIDIA driver version requirement in `docs/setup-host.md` from "typically driver version 470 or newer" to driver version 595 or newer for CUDA 13.2, with a link to NVIDIA's official CUDA compatibility table and a note that newer GPU generations may require newer drivers.
-
+- Added Dependabot ignore rules in the pip ecosystem to hold `numpy` (major), `scipy` (major/minor), and `onnxruntime-gpu` (major/minor) updates: the container pins numpy 1.26.4; SciPy >=1.17/1.18 requires numpy 2; onnxruntime-gpu is pinned in `docker/Dockerfile.dev` to match constraints. These will be upgraded deliberately together with numpy 2.
+- Updated NVIDIA driver version requirement in `docs/setup-host.md` from "typically driver version 470 or newer" to driver version 595 or newer for CUDA 13.2, with CUDA 13.x minor-version compatibility notes (driver 580+ supports any CUDA 13.x container).
+- Corrected Secure Boot documentation in `docs/setup-host.md`: Ubuntu's prebuilt `linux-modules-nvidia-*` packages (installed with `ubuntu-drivers`) are signed by Canonical and work with Secure Boot without MOK enrollment; DKMS-built modules and NVIDIA's `.run` installer require MOK enrollment.
+- Added QGroundControl prerequisites to `docs/setup-host.md`: ModemManager removal/masking and AppImage dependencies (`libfuse2t64`, `libxcb-xinerama0`, `libxkbcommon-x11-0`, `libxcb-cursor0` on Ubuntu 24.04+).
 - Replaced `docs/setup-host.md` with a generic, public-safe host setup guide. The new version covers supported OS (Ubuntu 24.04/26.04-class Linux), GPU requirements, Docker Engine and NVIDIA Container Toolkit installation with official documentation links, user group configuration, environment variables from `scripts/odl-env.sh`, and generic dual-boot cautions. All machine-specific details have been removed. Added to the docs site navigation.
 - Removed pre-launch wording from documentation now that the repository is public, the docs site is live at <https://palcode.github.io/opendronelab>, GitHub Discussions are open with welcome post #32, the v0.1.0 release is published, and the repository About website field is set.
 - CLA workflow now requires `github.event.issue.pull_request` on `issue_comment` trigger to only fire on PR comments.
-- ShellCheck in CI is now installed from the official GitHub release tarball at a pinned version (v0.10.0) with sha256 verification, replacing the unpinned apt installation.
+- ShellCheck in CI bumped from v0.10.0 to v0.11.0 with updated sha256 checksum.
 - Docs site workflow now auto-deploys on push to main when docs/, mkdocs.yml, requirements-docs.txt, or the workflow file itself changes, in addition to existing workflow_dispatch trigger.
 - Dependabot now ignores Ubuntu major/minor version bumps (ROS 2 Jazzy requires Ubuntu 24.04), adds 7-day cooldowns (14 days for major updates) to all ecosystems, and docs-site workflow deploy job uses `concurrency: group: pages, cancel-in-progress: false` to prevent racing deploys.
 
 ### Removed
 
-- Deleted `docs/LAUNCH_CHECKLIST.md`, `docs/community/` directory, and `scripts/check-preflip.sh` from the repository. These were internal launch-preparation files no longer needed now that the repository is public.
-- The internal page `AGENTS.md` is excluded from the public docs site build but remains in the repository; `docs/LAUNCH_CHECKLIST.md`, `docs/community/` and `scripts/check-preflip.sh` were removed.
+- Deleted `docs/LAUNCH_CHECKLIST.md`, `docs/community/` directory, and `scripts/check-preflip.sh` from the repository. These were internal launch-preparation files no longer needed now that the repository is public. The internal page `AGENTS.md` is excluded from the public docs site build but remains in the repository.
 
 ## [0.1.0] - 2026-11-17
 
@@ -71,6 +75,9 @@ on this cut. Prepared sample-bag assets live under
 - A Zensical docs site (merged from #31) aimed at
   <https://palcode.github.io/opendronelab>. Enabling GitHub Pages is a
   remaining maintainer setting.
+- Community drafts: a Discussions welcome post
+  (`docs/community/welcome-discussion.md`) and suggested About / topics
+  / Website text (`docs/community/github-about.md`).
 
 ### Changed
 
@@ -79,7 +86,8 @@ on this cut. Prepared sample-bag assets live under
   image is not planned.
 - README: roadmap badge and a good-first-issues badge and link.
 - `scripts/check-preflip.sh` now probes the GitHub REST API without
-  authentication when the repository is public.
+  authentication when the repository is public. Results of the
+  post-public re-run are recorded in `docs/LAUNCH_CHECKLIST.md`.
 - The CLA action allowlist includes the repository owner (`palcode`).
 
 ### Removed
