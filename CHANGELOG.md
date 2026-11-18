@@ -30,6 +30,7 @@ flight-certified**.
 - ShellCheck in CI bumped from v0.10.0 to v0.11.0 with updated sha256 checksum.
 - Docs site workflow now auto-deploys on push to main when docs/, mkdocs.yml, requirements-docs.txt, or the workflow file itself changes, in addition to existing workflow_dispatch trigger.
 - Dependabot now ignores Ubuntu major/minor version bumps (ROS 2 Jazzy requires Ubuntu 24.04), adds 7-day cooldowns (14 days for major updates) to all ecosystems, and docs-site workflow deploy job uses `concurrency: group: pages, cancel-in-progress: false` to prevent racing deploys.
+- Secure Boot bullet in `docs/setup-host.md` now links to GPU Requirements instead of duplicating driver version details.
 
 ### Removed
 
