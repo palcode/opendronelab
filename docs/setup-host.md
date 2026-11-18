@@ -9,7 +9,7 @@ This guide covers setting up a Linux host for OpenDroneLab development. The stac
 - x86_64 architecture
 
 **GPU Requirements:**
-- **For scored SITL flights:** NVIDIA GPU with a recent proprietary driver supported by the NVIDIA Container Toolkit (driver version 595 or newer for CUDA 13.2, as used in the verify command below; see [NVIDIA CUDA compatibility table](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html) for your CUDA version). Newer GPU generations may require a newer driver than the CUDA toolkit minimum.
+- **For scored SITL flights:** NVIDIA GPU with a recent proprietary driver supported by the NVIDIA Container Toolkit (driver requirements: tested on 595; the development image gets CUDA 13 from the onnxruntime-gpu pip wheels with no CUDA toolkit in the image, so with CUDA 13.x minor-version compatibility it needs driver 580 or newer; the `nvidia/cuda:13.2.1-base-ubuntu24.04` verify command below needs a driver that reports CUDA 13.2 or newer, 595.58.03 or newer; see [NVIDIA CUDA compatibility table](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html) for your CUDA version). Newer GPU generations may require a newer driver than the CUDA toolkit minimum.
 - **For unit tests and bag replay:** CPU-only works; no GPU required
 
 The development container is Ubuntu 24.04 with PX4 v1.17, Gazebo Harmonic, and ROS 2 Jazzy. See [compatibility-matrix.md](compatibility-matrix.md) for pinned versions.
@@ -93,7 +93,7 @@ If your host dual-boots with another operating system (such as Windows):
 
 - **Back up important data** before making system changes
 - **Do not modify** EFI System Partitions (ESP), other OS partitions, or the bootloader without understanding the consequences
-- **Secure Boot:** On Ubuntu, the prebuilt `linux-modules-nvidia-*` packages installed with `sudo ubuntu-drivers install` are signed by Canonical and load with Secure Boot on without MOK enrollment. DKMS-built modules and NVIDIA's `.run` installer need a Machine Owner Key (MOK) enrollment at the next boot. The `ubuntu-drivers` path is recommended. For CUDA 13.x minor-version compatibility, driver 580 or newer supports any CUDA 13.x container; this project's CUDA 13.2 image requires driver 595 or newer.
+- **Secure Boot:** On Ubuntu, the prebuilt `linux-modules-nvidia-*` packages installed with `sudo ubuntu-drivers install` are signed by Canonical and load with Secure Boot on without MOK enrollment. DKMS-built modules and NVIDIA's `.run` installer need a Machine Owner Key (MOK) enrollment at the next boot. The `ubuntu-drivers` path is recommended. Driver requirements: tested on 595. The development image gets CUDA 13 from the onnxruntime-gpu pip wheels (no CUDA toolkit in the image), so with CUDA 13.x minor-version compatibility it needs driver 580 or newer. The `nvidia/cuda:13.2.1-base-ubuntu24.04` verify command above needs a driver that reports CUDA 13.2 or newer (595.58.03 or newer).
 
 OpenDroneLab development happens entirely within containers and does not require modifying the host system partitions, bootloader, or kernel beyond installing Docker and the NVIDIA driver.
 
@@ -103,10 +103,10 @@ QGroundControl is used as a ground control station for manual flight testing and
 
 ### Prerequisites
 
-Before running QGroundControl, install the required dependencies and remove ModemManager (which interferes with serial port access):
+Before running QGroundControl, install the required dependencies. ModemManager removal or masking is recommended if you do not otherwise use ModemManager (which can interfere with serial port access, though QGroundControl's guide treats removal as optional in that case):
 
 ```bash
-# Remove or disable ModemManager
+# Remove or disable ModemManager (recommended if not using mobile broadband)
 sudo systemctl mask --now ModemManager.service
 # Or: sudo apt remove modemmanager
 
@@ -115,6 +115,8 @@ sudo apt install libfuse2t64 libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor0
 ```
 
 **Note:** On Ubuntu versions before 24.04, use `libfuse2` instead of `libfuse2t64`.
+
+**Note:** Masking ModemManager disables mobile-broadband (WWAN/LTE) modems on the host. To undo it, run `sudo systemctl unmask --now ModemManager.service` (or reinstall with `sudo apt install modemmanager` if removed).
 
 ### Installation
 
