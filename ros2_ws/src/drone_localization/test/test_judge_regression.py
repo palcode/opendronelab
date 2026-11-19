@@ -443,6 +443,37 @@ def test_overall_verdicts_ignores_nongating_for_overall_only(judge_mod):
     assert v['overall_all_scenarios'] is True
 
 
+def test_fingerprint_includes_model_deterministically(fingerprint_mod, tmp_path):
+    """ODL-92: MODEL is hashed; same inputs give the same hash, a new MODEL a new one."""
+    repo = tmp_path / 'repo'
+    overlay = repo / 'config' / 'openvins' / 'cam'
+    overlay.mkdir(parents=True)
+    (repo / 'worlds').mkdir()
+    (repo / 'worlds' / 'vio_test.sdf').write_text('<sdf>world-a</sdf>\n')
+    (overlay / 'estimator_config.yaml').write_text('chi2: 1\n')
+    cfg = overlay / 'estimator_config.yaml'
+
+    a1 = fingerprint_mod.compute_scenario_fingerprint(repo, 'vio_test', cfg, model='gz_x500_mono_cam')
+    a2 = fingerprint_mod.compute_scenario_fingerprint(repo, 'vio_test', cfg, model='gz_x500_mono_cam')
+    assert a1['sha256'] == a2['sha256']
+    assert a1['model'] == 'gz_x500_mono_cam'
+
+    b = fingerprint_mod.compute_scenario_fingerprint(repo, 'vio_test', cfg, model='gz_x500')
+    assert b['sha256'] != a1['sha256']
+
+    # No MODEL hashes as an empty MODEL (fixed layout), not as the old world-only hash.
+    none = fingerprint_mod.compute_scenario_fingerprint(repo, 'vio_test', cfg)
+    empty = fingerprint_mod.compute_scenario_fingerprint(repo, 'vio_test', cfg, model='')
+    assert none['sha256'] == empty['sha256']
+    assert none['model'] is None
+    assert none['sha256'] not in (a1['sha256'], b['sha256'])
+
+    # World-only (no overlay) scenarios also differ by MODEL.
+    w1 = fingerprint_mod.compute_scenario_fingerprint(repo, 'vio_test', None, model='gz_x500')
+    w2 = fingerprint_mod.compute_scenario_fingerprint(repo, 'vio_test', None, model='gz_rc_cessna')
+    assert w1['sha256'] != w2['sha256']
+
+
 def test_fingerprint_includes_shared_mask_outside_overlay(fingerprint_mod, tmp_path):
     repo = tmp_path / 'repo'
     overlay = repo / 'config' / 'openvins' / 'cam'

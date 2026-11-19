@@ -26,13 +26,16 @@ LEGACY = {
     'wind': ('vio_wind', 'config/openvins/gz_x500_mono_cam'),
 }
 
-# Documented in docs/localization.md (recomputed at c6651fa / bcddfc5).
+# Documented in docs/localization.md. Recomputed for ODL-92 (MODEL is
+# hashed); the pre-ODL-92 world/overlay-only values are in the docs table.
 DOCUMENTED_FINGERPRINTS = {
-    'baseline': 'e730382e0d054c0630f815395fd13116e0b41729267d714c451f3c8a981479df',
-    'low_texture': 'ab61657c2d46de8a15bf0d8f2a34e810100f48abb51182705c9b6251e66ab8ee',
-    'faster_motion': '9832949ddac49a1f2ff8ea70432d9c62de5d7346fbbb7f2506cac5884ba9e69a',
-    'faster_motion_aggressive': '9832949ddac49a1f2ff8ea70432d9c62de5d7346fbbb7f2506cac5884ba9e69a',
-    'wind': '97201132f2070b7ea903b6a682dd3cd90a6fa43574c49f6f93a297789189768e',
+    'baseline': 'df30c0c5527ade3c0f51725e6cc24fb4ad020526f4701804ae1389719d9b72a9',
+    'low_texture': '9c67d000bf4983c000f5260f03a61accc9fc84fd92e47b594f7a1bd1b7f23362',
+    'faster_motion': '6c3a592f8ea00b520d441720667169838fe652aeb9582b41af709a332b9cea74',
+    'faster_motion_aggressive': '6c3a592f8ea00b520d441720667169838fe652aeb9582b41af709a332b9cea74',
+    'wind': '05038b7ebbf1553e17982475fd56ee7e610b3bdfa121962ad8dc712df412bc32',
+    'mc_gps': '71401996f3b3627ace4f7d585715b3149b98f6e38e383148bde150ac37400e33',
+    'fw_mission': 'f0b7ad5987cd195a8fc9fc909702f8fb36d8661c3bd1f15f4d4b5c290781896c',
 }
 
 
@@ -84,11 +87,23 @@ def test_vio_five_unchanged_airframe_world_overlay(reg_mod, registry):
         assert sc['score_vio'] is True
 
 
-def test_vio_five_fingerprints_match_documented(reg_mod, registry, fp_mod):
-    for name in VIO_FIVE:
+def test_all_fingerprints_match_documented(reg_mod, registry, fp_mod):
+    """Every registry scenario fingerprints to its documented hash, MODEL included."""
+    assert set(DOCUMENTED_FINGERPRINTS) == set(registry['scenarios'])
+    for name in registry['scenarios']:
         sc = reg_mod.scenario(name, registry)
-        fp = fp_mod.compute_scenario_fingerprint(REPO, sc['world'], sc['ov_config'])
+        fp = fp_mod.compute_scenario_fingerprint(
+            REPO, sc['world'], sc['ov_config'] or None, model=sc['model'])
         assert fp['sha256'] == DOCUMENTED_FINGERPRINTS[name], name
+        assert fp['model'] == sc['model']
+
+
+def test_mc_gps_fingerprint_differs_from_same_world_other_model(reg_mod, registry, fp_mod):
+    """ODL-92: vio_test with no overlay hashes differently per airframe."""
+    sc = reg_mod.scenario('mc_gps', registry)
+    a = fp_mod.compute_scenario_fingerprint(REPO, sc['world'], None, model='gz_x500')
+    b = fp_mod.compute_scenario_fingerprint(REPO, sc['world'], None, model='gz_x500_mono_cam')
+    assert a['sha256'] != b['sha256']
 
 
 def test_mc_gps_is_plain_x500_ekf2_only(reg_mod, registry):

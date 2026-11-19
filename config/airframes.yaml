@@ -8,10 +8,11 @@
 #
 # Rules:
 # - The five VIO-shadow scenarios keep MODEL=gz_x500_mono_cam and their
-#   exact pre-registry world + overlay, so scenario fingerprints are unchanged.
+#   exact pre-registry world + overlay.
 # - GPS stays the default everywhere (EKF2_EV_CTRL=0). Nothing here enables EV.
-# - MODEL is NOT part of the scenario fingerprint yet (ODL-92 pending Pallab).
-#   mc_gps therefore hashes as world-only (vio_test, no overlay).
+# - MODEL is part of the scenario fingerprint (ODL-92), so mc_gps (gz_x500 on
+#   vio_test, no overlay) and fw_mission hash differently from any other
+#   airframe on the same world. See docs/localization.md for the hashes.
 #
 # Placeholders in camera topics: {world} and {instance}.
 

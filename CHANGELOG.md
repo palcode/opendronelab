@@ -17,6 +17,7 @@ flight-certified**.
 
 ### Changed
 
+- **Scenario fingerprints now include the vehicle `MODEL` (ODL-92, #16).** `scripts/scenario_fingerprint.py` hashes the PX4 SITL airframe ahead of the world, OpenVINS overlay and shared mask, and `run-vio-stress.sh` passes it, so the same world flown by a different airframe (e.g. `mc_gps` on `vio_test`) gets its own hash. **All scenario fingerprints changed once**; results recorded before this change are not comparable by fingerprint (compare by scenario name and `model`). Flight results and gates are unchanged. Old → new hashes are in `docs/localization.md`.
 - Bumped pytest to 9.2.0 in `requirements-ci.txt`. All headless unit tests pass with pytest 9.2.0.
 - Fixed Dependabot `cooldown` placement in `.github/dependabot.yml`: moved `cooldown` blocks from nested under `schedule` to sibling keys (correct per GitHub's Dependabot configuration reference).
 - Added Dependabot ignore rules in the pip ecosystem to hold `numpy` (major), `scipy` (major/minor), and `onnxruntime-gpu` (major/minor) updates: the container pins numpy 1.26.4; SciPy >=1.17/1.18 requires numpy 2; onnxruntime-gpu is pinned in `docker/Dockerfile.dev` to match constraints. These will be upgraded deliberately together with numpy 2.
