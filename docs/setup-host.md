@@ -8,7 +8,7 @@ This guide covers setting up a Linux host for OpenDroneLab development. The stac
 - Ubuntu 24.04 LTS or Ubuntu 26.04 LTS (or similar Debian-based distributions)
 - x86_64 architecture
 
-**GPU Requirements:**
+<a id="gpu-requirements"></a>**GPU Requirements:**
 - **For scored SITL flights:** NVIDIA GPU with a recent proprietary driver supported by the NVIDIA Container Toolkit (driver requirements: tested on 595; the development image gets CUDA 13 from the onnxruntime-gpu pip wheels with no CUDA toolkit in the image, so with CUDA 13.x minor-version compatibility it needs driver 580 or newer; the `nvidia/cuda:13.2.1-base-ubuntu24.04` verify command below needs a driver that reports CUDA 13.2 or newer, 595.58.03 or newer; see [NVIDIA CUDA compatibility table](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html) for your CUDA version). Newer GPU generations may require a newer driver than the CUDA toolkit minimum.
 - **For unit tests and bag replay:** CPU-only works; no GPU required
 
@@ -93,7 +93,7 @@ If your host dual-boots with another operating system (such as Windows):
 
 - **Back up important data** before making system changes
 - **Do not modify** EFI System Partitions (ESP), other OS partitions, or the bootloader without understanding the consequences
-- **Secure Boot:** On Ubuntu, the prebuilt `linux-modules-nvidia-*` packages installed with `sudo ubuntu-drivers install` are signed by Canonical and load with Secure Boot on without MOK enrollment. DKMS-built modules and NVIDIA's `.run` installer need a Machine Owner Key (MOK) enrollment at the next boot. The `ubuntu-drivers` path is recommended. For which driver version you need, see [GPU Requirements](#supported-systems).
+- **Secure Boot:** On Ubuntu, the prebuilt `linux-modules-nvidia-*` packages installed with `sudo ubuntu-drivers install` are signed by Canonical and load with Secure Boot on without MOK enrollment. DKMS-built modules and NVIDIA's `.run` installer need a Machine Owner Key (MOK) enrollment at the next boot. The `ubuntu-drivers` path is recommended. For which driver version you need, see [GPU Requirements](#gpu-requirements).
 
 OpenDroneLab development happens entirely within containers and does not require modifying the host system partitions, bootloader, or kernel beyond installing Docker and the NVIDIA driver.
 
