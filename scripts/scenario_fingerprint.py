@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Pallab Sarkar
 
-"""Scenario fingerprint: sha256 of the world SDF + OpenVINS overlay directory
-plus any maskN files the overlay config references outside that directory.
+"""Scenario fingerprint: sha256 of the vehicle MODEL (PX4 SITL airframe),
+the world SDF + OpenVINS overlay directory, plus any maskN files the overlay
+config references outside that directory.
 
 Used so a low_texture (or other) result can be compared only with runs that
 used the same world and overlay. The git SHA is recorded too, but is not the
@@ -120,10 +121,13 @@ def compute_scenario_fingerprint(
     repo: str | Path,
     world: str | None,
     overlay_config: str | Path | None = None,
+    model: str | None = None,
 ) -> dict:
-    """Return {sha256, git_sha, world, openvins_overlay}.
+    """Return {sha256, git_sha, model, world, openvins_overlay}.
 
-    sha256 covers the world SDF bytes, the overlay directory files, and any
+    sha256 covers the vehicle MODEL name (e.g. gz_x500_mono_cam; always
+    hashed, as an empty string when unknown, since ODL-92), the world SDF
+    bytes, the overlay directory files, and any
     maskN file referenced by estimator_config.yaml that lives outside the
     overlay directory (OpenVINS resolves mask paths relative to the config
     file). It changes when the scenario itself changes and not when unrelated
@@ -133,7 +137,15 @@ def compute_scenario_fingerprint(
     world_path, world_rel = _resolve_world(repo, world)
     overlay_dir, overlay_rel = _resolve_overlay(repo, overlay_config)
 
+    model_name = (model or '').strip()
+
     hasher = hashlib.sha256()
+    # MODEL first (ODL-92): the same world + overlay flown by a different
+    # airframe is a different scenario. Always present so the input layout
+    # is fixed.
+    hasher.update(b'model:')
+    hasher.update(model_name.encode())
+    hasher.update(b'\0')
     if world_path is not None:
         hasher.update(b'world:')
         hasher.update((world_rel or world_path.as_posix()).encode())
@@ -172,6 +184,7 @@ def compute_scenario_fingerprint(
     return {
         'sha256': hasher.hexdigest(),
         'git_sha': _git_sha(repo),
+        'model': model_name or None,
         'world': world_rel,
         'openvins_overlay': overlay_rel,
     }
@@ -184,5 +197,8 @@ if __name__ == '__main__':
     ap.add_argument('--repo', default='.')
     ap.add_argument('--world', required=True)
     ap.add_argument('--overlay', required=False)
+    ap.add_argument('--model', required=False,
+                    help='PX4 SITL airframe (MODEL), e.g. gz_x500_mono_cam')
     args = ap.parse_args()
-    print(json.dumps(compute_scenario_fingerprint(args.repo, args.world, args.overlay), indent=2))
+    print(json.dumps(compute_scenario_fingerprint(
+        args.repo, args.world, args.overlay, model=args.model), indent=2))

@@ -272,10 +272,11 @@ of hardcoded `x500_mono_cam` strings. Gates stay in
 - Switching `MODEL` recreates `odl-sim` (`launch-sitl.sh`); PX4 resets params
   when `SYS_AUTOSTART` changes. No image or PX4 source rebuild is needed for
   stock airframes.
-- Scenario fingerprints still hash only world + overlay (+ shared mask).
-  `MODEL` is **not** hashed yet (ODL-92 pending), so `mc_gps` fingerprints as
-  `vio_test` with no overlay. Compare `mc_gps` results using the scenario name
-  and the `model` field in `summary.json`, not the hash alone.
+- Scenario fingerprints hash `MODEL` + world + overlay (+ shared mask) since
+  ODL-92, so `mc_gps` (`gz_x500` on `vio_test`, no overlay) has its own hash
+  (`71401996f3b3…`). Results recorded before ODL-92 carry the old
+  world/overlay-only hashes and are not comparable by fingerprint; see
+  `docs/localization.md` for the old → new table.
 - Phase B (fixed-wing, `fw_mission`) is below; C (VTOL) and D (rover) are
   planned in ODL-93.
 
@@ -286,7 +287,8 @@ plain `gz_x500` (`x500_0` spawned and tracked), default square on
 `vio_test`. Results `/data/results/regression_20261113_{194115,194409,194712,195009,195300}`;
 bags `/data/bags/20261113_{194142,194442,194738,195035,195326}` (no camera topics).
 Fingerprint `db105a65ed6d0b4d94481ebac8173713563372ef3bc0c7a001d2b4e3211bb2f3`
-(world-only; see note above).
+(pre-ODL-92 world-only hash; with `MODEL` hashed it is now
+`71401996f3b3627ace4f7d585715b3149b98f6e38e383148bde150ac37400e33`).
 
 | Run | Mission | Retries | EKF2 Umeyama xy | 3D | origin H | origin V | samples |
 |---|---|---|---|---|---|---|---|
@@ -508,7 +510,8 @@ No image rebuild, no PX4 source edits.
 `GZ_SEED=1234`, GstCamera off, `EKF2_EV_CTRL=0`. Results
 `/data/results/regression_20261113_{205624,210045,210506,210938,211359}`;
 bags `/data/bags/20261113_{205646,210107,210528,211000,211421}` (~20 MB each).
-Fingerprint `0818407e823c…` (world-only, `worlds/default.sdf`).
+Fingerprint `0818407e823c…` (pre-ODL-92 world-only, `worlds/default.sdf`;
+now `f0b7ad5987cd…` with `MODEL` hashed).
 
 | Run | Mission | Arm→disarm | EKF2 Umeyama xy | 3D | origin H | origin V | samples | judge (inherited 0.60 defaults) |
 |---|---|---|---|---|---|---|---|---|
@@ -545,7 +548,7 @@ Downwind/base/final pattern. `GZ_SEED=1234`, GstCamera off, `EKF2_EV_CTRL=0`,
 `FW_LND_USETER=0`. Results
 `/data/results/regression_20261113_{213242,213750,214251,214758,215259}`;
 bags `/data/bags/20261113_{213305,213812,214319,214820,215321}`.
-Fingerprint `0818407e823c…` (unchanged world-only hash).
+Fingerprint `0818407e823c…` (unchanged pre-ODL-92 world-only hash).
 
 | Run | Mission | Arm→disarm | EKF2 Umeyama xy | 3D | origin H | origin V | samples |
 |---|---|---|---|---|---|---|---|

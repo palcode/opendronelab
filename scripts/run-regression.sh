@@ -742,17 +742,19 @@ if fps:
     lines.extend([
         "## Scenario fingerprints",
         "",
-        "sha256 of the world SDF + OpenVINS overlay directory + any mask",
-        "file the overlay references outside that directory; changes when",
-        "those inputs change, not when unrelated files change. git SHA is extra.",
+        "sha256 of the vehicle MODEL + world SDF + OpenVINS overlay directory",
+        "+ any mask file the overlay references outside that directory (MODEL",
+        "since ODL-92); changes when those inputs change, not when unrelated",
+        "files change. git SHA is extra.",
         "",
-        "| Scenario | sha256 | world | overlay | git |",
-        "|----------|--------|-------|---------|-----|",
+        "| Scenario | sha256 | model | world | overlay | git |",
+        "|----------|--------|-------|-------|---------|-----|",
     ])
     for j in fps:
         fp = (j.get("summary") or {}).get("scenario_fingerprint") or {}
         lines.append(
             f"| {j.get('scenario')} | `{fp.get('sha256', '')}` | "
+            f"{fp.get('model') or (j.get('summary') or {}).get('model') or ''} | "
             f"{fp.get('world') or ''} | {fp.get('openvins_overlay') or ''} | "
             f"`{fp.get('git_sha') or ''}` |"
         )

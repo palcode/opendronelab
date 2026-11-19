@@ -422,7 +422,7 @@ summary = {
 }
 summary = {k: json_safe(v) for k, v in summary.items()}
 summary['scenario_fingerprint'] = compute_scenario_fingerprint(
-    '/workspace', '${GZ_WORLD}', '${OV_CONFIG}')
+    '/workspace', '${GZ_WORLD}', '${OV_CONFIG}', model='${MODEL}')
 (out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 print(json.dumps(summary, indent=2))
 PY

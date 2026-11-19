@@ -408,6 +408,32 @@ omitted the README edits:
 | low_texture (`vio_low_texture` + `gz_x500_mono_cam_low_texture`) | `8b2c7db584912b6872374923189af86f60c6a070d76965605fc6769c15aba239` | `ab61657c2d46de8a15bf0d8f2a34e810100f48abb51182705c9b6251e66ab8ee` |
 | faster_motion / faster_motion_aggressive (`vio_test` + `gz_x500_mono_cam_fast_motion`) | `c4f5442b74c60fbf2e31020ede36e7a92d27c4de3fd3e8831c8ebc420b790466` | `9832949ddac49a1f2ff8ea70432d9c62de5d7346fbbb7f2506cac5884ba9e69a` |
 
+#### MODEL in the scenario fingerprint (ODL-92, 2026-11-19)
+
+Since ODL-92 (GitHub issue #16) `scripts/scenario_fingerprint.py` also
+hashes the vehicle `MODEL` (PX4 SITL airframe), first in the hash input as
+`model:<MODEL>\0`, followed by the world, overlay, and shared mask exactly as
+before. `MODEL` is always hashed (an empty string if unknown), so the input
+layout is fixed. `run-vio-stress.sh` passes the resolved `MODEL`, and
+`summary.json` → `scenario_fingerprint.model` records it. No world, overlay,
+mask, or gate changed, so flight results are unchanged, but **every
+fingerprint changed once**. Results recorded before this change are not
+comparable by fingerprint. Compare them by scenario name, `model`, and the
+old hash below.
+
+| Scenario (MODEL) | old sha256 (world + overlay) | new sha256 (MODEL + world + overlay) |
+|---|---|---|
+| baseline (`gz_x500_mono_cam`) | `e730382e0d054c0630f815395fd13116e0b41729267d714c451f3c8a981479df` | `df30c0c5527ade3c0f51725e6cc24fb4ad020526f4701804ae1389719d9b72a9` |
+| low_texture (`gz_x500_mono_cam`) | `ab61657c2d46de8a15bf0d8f2a34e810100f48abb51182705c9b6251e66ab8ee` | `9c67d000bf4983c000f5260f03a61accc9fc84fd92e47b594f7a1bd1b7f23362` |
+| faster_motion / faster_motion_aggressive (`gz_x500_mono_cam`) | `9832949ddac49a1f2ff8ea70432d9c62de5d7346fbbb7f2506cac5884ba9e69a` | `6c3a592f8ea00b520d441720667169838fe652aeb9582b41af709a332b9cea74` |
+| wind (`gz_x500_mono_cam`) | `97201132f2070b7ea903b6a682dd3cd90a6fa43574c49f6f93a297789189768e` | `05038b7ebbf1553e17982475fd56ee7e610b3bdfa121962ad8dc712df412bc32` |
+| mc_gps (`gz_x500`, no overlay) | `db105a65ed6d0b4d94481ebac8173713563372ef3bc0c7a001d2b4e3211bb2f3` | `71401996f3b3627ace4f7d585715b3149b98f6e38e383148bde150ac37400e33` |
+| fw_mission (`gz_rc_cessna`, `default`, no overlay) | `0818407e823c99b3ea62d492cfc570ca3a3cfeeff00ca0f53752ee200deb271e` | `f0b7ad5987cd195a8fc9fc909702f8fb36d8661c3bd1f15f4d4b5c290781896c` |
+
+Recompute with
+`python3 scripts/scenario_fingerprint.py --world <world> --overlay <overlay>/estimator_config.yaml --model <MODEL>`
+(omit `--overlay` for EKF2-only scenarios).
+
 ### Bring-up
 
 ```bash
