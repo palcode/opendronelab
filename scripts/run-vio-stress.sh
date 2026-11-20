@@ -337,36 +337,74 @@ fi
 wait "${RECORD_PID}" || true
 break
 done
-RETRY_BAGS_PY="[$(printf "'%s'," "${RETRY_BAGS[@]+"${RETRY_BAGS[@]}"}")]"
+# Build RETRY_BAGS as JSON without eval()
+if [ "${#RETRY_BAGS[@]}" -gt 0 ]; then
+    RETRY_BAGS_JSON="$(printf '%s\n' "${RETRY_BAGS[@]}" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip().split("\n")))')"
+else
+    RETRY_BAGS_JSON="[]"
+fi
 
 BAG="/data/bags/${BAG_STAMP}"
-if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bash -c "test -d ${BAG} && ls ${BAG}/*.mcap >/dev/null 2>&1"; then
+if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${BAG}" "${CONTAINER_NAME}" bash -c 'test -d "$ODL_BAG" && ls "$ODL_BAG"/*.mcap >/dev/null 2>&1'; then
     echo "[ERROR] expected bag ${BAG} missing or empty (refusing to score an older bag via ls -1dt)" >&2
     # Show newest bag for diagnosis only — do not use it
-    docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"         bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -3' >&2 || true
+    docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -3' >&2 || true
     exit 1
 fi
 echo "[INFO] Scoring ${BAG} -> ${SUMMARY_DIR}"
 echo "${BAG}" > "${REPO_DIR}/logs/vio-stress-${SCENARIO}-bag.txt"
 
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -c "
-${SOURCE_CMD}
-mkdir -p ${SUMMARY_DIR}/tum_ekf2 ${SUMMARY_DIR}/tum_vio
-ros2 run drone_localization localization_metrics ${BAG} \
-  --output-dir ${SUMMARY_DIR} --metrics-name metrics_ekf2.json --tum-dir ${SUMMARY_DIR}/tum_ekf2${AGL_ARGS}
-# Never score a VIO estimate when init missed liftoff on every attempt.
-if [ ${VIO_INIT_FAILED} != 1 ] && [ ${SCORE_VIO} != 0 ]; then
-ros2 run drone_localization localization_metrics ${BAG} \
-  --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
-  --output-dir ${SUMMARY_DIR} --metrics-name metrics_vio.json --tum-dir ${SUMMARY_DIR}/tum_vio
+docker exec -i -u "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
+  -e ODL_SUMMARY_DIR="${SUMMARY_DIR}" \
+  -e ODL_BAG="${BAG}" \
+  -e ODL_AGL_ARGS="${AGL_ARGS}" \
+  -e ODL_VIO_INIT_FAILED="${VIO_INIT_FAILED}" \
+  -e ODL_SCORE_VIO="${SCORE_VIO}" \
+  -e ODL_SCENARIO="${SCENARIO}" \
+  -e ODL_GZ_WORLD="${GZ_WORLD}" \
+  -e ODL_MODEL="${MODEL}" \
+  -e ODL_GZ_MODEL="${GZ_MODEL}" \
+  -e ODL_FLIGHT="${FLIGHT}" \
+  -e ODL_MISSION="${MISSION}" \
+  -e ODL_ATTEMPT="${ATTEMPT}" \
+  -e ODL_RETRY_BAGS_JSON="${RETRY_BAGS_JSON}" \
+  -e ODL_OV_CONFIG="${OV_CONFIG}" \
+  "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
+set -euo pipefail
+set +u
+source /opt/ros/jazzy/setup.bash
+[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
+[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
+[ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
+
+# Prefer first-party Python sources over a stale overlay copy. colcon
+# --symlink-install does not actually symlink this ament_python/setuptools
+# combo, so without this, `ros2 run drone_localization localization_metrics`
+# can silently use an outdated install after a source edit (no image rebuild).
+if [ -d /workspace/ros2_ws/src/drone_localization ]; then
+    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
 fi
-evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_ekf2_ape_xy.txt
-evo_ape tum ${SUMMARY_DIR}/tum_ekf2/gt_ned.tum ${SUMMARY_DIR}/tum_ekf2/est_ned.tum -r trans_part -a > ${SUMMARY_DIR}/evo_ekf2_ape_3d.txt
-evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a --project_to_plane xy > ${SUMMARY_DIR}/evo_vio_ape_xy.txt || true
-evo_ape tum ${SUMMARY_DIR}/tum_vio/gt_ned.tum ${SUMMARY_DIR}/tum_vio/est_ned.tum -r trans_part -a > ${SUMMARY_DIR}/evo_vio_ape_3d.txt || true
+set -u
+export ROS_DOMAIN_ID=42
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+
+mkdir -p "${ODL_SUMMARY_DIR}/tum_ekf2" "${ODL_SUMMARY_DIR}/tum_vio"
+ros2 run drone_localization localization_metrics "${ODL_BAG}" \
+  --output-dir "${ODL_SUMMARY_DIR}" --metrics-name metrics_ekf2.json --tum-dir "${ODL_SUMMARY_DIR}/tum_ekf2"${ODL_AGL_ARGS} || true
+# Never score a VIO estimate when init missed liftoff on every attempt.
+if [ "${ODL_VIO_INIT_FAILED}" != 1 ] && [ "${ODL_SCORE_VIO}" != 0 ]; then
+ros2 run drone_localization localization_metrics "${ODL_BAG}" \
+  --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
+  --output-dir "${ODL_SUMMARY_DIR}" --metrics-name metrics_vio.json --tum-dir "${ODL_SUMMARY_DIR}/tum_vio"
+fi
+evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_xy.txt" || true
+evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_3d.txt" || true
+evo_ape tum "${ODL_SUMMARY_DIR}/tum_vio/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_SUMMARY_DIR}/evo_vio_ape_xy.txt" || true
+evo_ape tum "${ODL_SUMMARY_DIR}/tum_vio/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_vio/est_ned.tum" -r trans_part -a > "${ODL_SUMMARY_DIR}/evo_vio_ape_3d.txt" || true
 python3 - <<'PY'
-import json, math, re, pathlib, sys
-out = pathlib.Path('${SUMMARY_DIR}')
+import json, math, os, re, pathlib, sys
+out = pathlib.Path(os.environ['ODL_SUMMARY_DIR'])
 sys.path.insert(0, '/workspace/scripts')
 from scenario_fingerprint import compute_scenario_fingerprint
 def ape_rmse(path):
@@ -374,7 +412,7 @@ def ape_rmse(path):
     if not path.exists():
         return None
     t = path.read_text()
-    m = re.search(r'rmse\\s+([0-9.]+)', t)
+    m = re.search(r'rmse\s+([0-9.]+)', t)
     return float(m.group(1)) if m else None
 def json_safe(v):
     if isinstance(v, float) and not math.isfinite(v):
@@ -388,25 +426,39 @@ vio = json.loads(vio_path.read_text()) if vio_path.exists() else {}
 status_path = out/'flight_status.json'
 status = json.loads(status_path.read_text()) if status_path.exists() else {}
 # OV publish check from bag sample count
+scenario = os.environ['ODL_SCENARIO']
+gz_world = os.environ['ODL_GZ_WORLD']
+model = os.environ['ODL_MODEL']
+gz_model = os.environ['ODL_GZ_MODEL']
+score_vio = int(os.environ['ODL_SCORE_VIO'])
+flight = os.environ['ODL_FLIGHT']
+agl_args = os.environ['ODL_AGL_ARGS']
+bag = os.environ['ODL_BAG']
+mission = os.environ['ODL_MISSION']
+attempt = int(os.environ['ODL_ATTEMPT'])
+retry_bags_json = os.environ['ODL_RETRY_BAGS_JSON']
+ov_config = os.environ['ODL_OV_CONFIG']
+# retry_bags_json is a JSON array
+retry_bags = json.loads(retry_bags_json)
 summary = {
-  'scenario': '${SCENARIO}',
-  'gz_world': '${GZ_WORLD}',
-  'model': '${MODEL}',
-  'gz_model': '${GZ_MODEL}',
-  'score_vio': bool(${SCORE_VIO}),
-  'flight': '${FLIGHT}',
-  'airborne_agl': '${AGL_ARGS# }' or None,
-  'bag': '${BAG}',
-  'mission': '${MISSION}',
+  'scenario': scenario,
+  'gz_world': gz_world,
+  'model': model,
+  'gz_model': gz_model,
+  'score_vio': bool(score_vio),
+  'flight': flight,
+  'airborne_agl': agl_args.lstrip() or None,
+  'bag': bag,
+  'mission': mission,
   'vio_init_timeout': bool(status.get('vio_init_timeout', False)),
   'hold_for_topic': status.get('hold_for_topic'),
   'flight_status_found': status_path.exists(),
-  'vio_init_attempts': ${ATTEMPT},
-  'vio_init_retries': ${ATTEMPT} - 1,
-  'vio_init_failed': bool(${VIO_INIT_FAILED}),
+  'vio_init_attempts': attempt,
+  'vio_init_retries': attempt - 1,
+  'vio_init_failed': bool(int(os.environ['ODL_VIO_INIT_FAILED'])),
   'vio_init_window_s': status.get('vio_init_window'),
   'vio_first_msg_after_liftoff_s': status.get('first_msg_after_liftoff_s'),
-  'retry_bags': ${RETRY_BAGS_PY},
+  'retry_bags': retry_bags,
   'ov_published': bool(vio.get('estimate_count', 0) > 0 or vio.get('num_samples', 0) > 0),
   'ekf2_origin_h_rmse': ekf2.get('horizontal_rmse'),
   'ekf2_origin_v_rmse': ekf2.get('vertical_rmse'),
@@ -422,10 +474,10 @@ summary = {
 }
 summary = {k: json_safe(v) for k, v in summary.items()}
 summary['scenario_fingerprint'] = compute_scenario_fingerprint(
-    '/workspace', '${GZ_WORLD}', '${OV_CONFIG}', model='${MODEL}')
+    '/workspace', gz_world, ov_config if ov_config else None, model=model)
 (out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 print(json.dumps(summary, indent=2))
 PY
-" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
+OUTER_SH
 
 echo "[INFO] Stress scenario ${SCENARIO} complete: ${SUMMARY_DIR}"

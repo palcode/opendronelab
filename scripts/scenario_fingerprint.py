@@ -68,6 +68,9 @@ def _iter_overlay_files(overlay_dir: Path):
         rel_parts = f.relative_to(overlay_dir).parts
         if any(p.startswith('.') or p == '__pycache__' for p in rel_parts):
             continue
+        # TODO: exclude README*.md files from the hash when the next
+        # intentional hash change happens (deferred to avoid changing all
+        # fingerprints twice in quick succession).
         files.append(f)
     files.sort(key=lambda p: p.relative_to(overlay_dir).as_posix())
     return files
@@ -123,7 +126,11 @@ def compute_scenario_fingerprint(
     overlay_config: str | Path | None = None,
     model: str | None = None,
 ) -> dict:
-    """Return {sha256, git_sha, model, world, openvins_overlay}.
+    """Return {scheme, sha256, git_sha, model, world, openvins_overlay}.
+
+    scheme is the fingerprint version: 2 (current, includes MODEL),
+    1 (pre-ODL-92, world+overlay only). Missing scheme in old results
+    should be treated as 1.
 
     sha256 covers the vehicle MODEL name (e.g. gz_x500_mono_cam; always
     hashed, as an empty string when unknown, since ODL-92), the world SDF
@@ -182,6 +189,7 @@ def compute_scenario_fingerprint(
             hashed_resolved.add(resolved_real)
 
     return {
+        'scheme': 2,
         'sha256': hasher.hexdigest(),
         'git_sha': _git_sha(repo),
         'model': model_name or None,

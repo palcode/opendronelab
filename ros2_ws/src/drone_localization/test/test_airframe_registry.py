@@ -88,14 +88,18 @@ def test_vio_five_unchanged_airframe_world_overlay(reg_mod, registry):
 
 
 def test_all_fingerprints_match_documented(reg_mod, registry, fp_mod):
-    """Every registry scenario fingerprints to its documented hash, MODEL included."""
+    """Every registry scenario fingerprints to its documented hash, MODEL included.
+    
+    Hardening follow-up from PR #46: scheme field added but sha256 values unchanged.
+    """
     assert set(DOCUMENTED_FINGERPRINTS) == set(registry['scenarios'])
     for name in registry['scenarios']:
         sc = reg_mod.scenario(name, registry)
         fp = fp_mod.compute_scenario_fingerprint(
             REPO, sc['world'], sc['ov_config'] or None, model=sc['model'])
-        assert fp['sha256'] == DOCUMENTED_FINGERPRINTS[name], name
-        assert fp['model'] == sc['model']
+        assert fp['scheme'] == 2, f"{name}: scheme must be 2"
+        assert fp['sha256'] == DOCUMENTED_FINGERPRINTS[name], f"{name}: sha256 changed"
+        assert fp['model'] == sc['model'], f"{name}: model mismatch"
 
 
 def test_mc_gps_fingerprint_differs_from_same_world_other_model(reg_mod, registry, fp_mod):

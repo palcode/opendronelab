@@ -149,3 +149,4 @@ Thumbs.db
 
 # Zensical / MkDocs build output
 /site/
+shellcheck-v*

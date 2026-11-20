@@ -408,6 +408,21 @@ omitted the README edits:
 | low_texture (`vio_low_texture` + `gz_x500_mono_cam_low_texture`) | `8b2c7db584912b6872374923189af86f60c6a070d76965605fc6769c15aba239` | `ab61657c2d46de8a15bf0d8f2a34e810100f48abb51182705c9b6251e66ab8ee` |
 | faster_motion / faster_motion_aggressive (`vio_test` + `gz_x500_mono_cam_fast_motion`) | `c4f5442b74c60fbf2e31020ede36e7a92d27c4de3fd3e8831c8ebc420b790466` | `9832949ddac49a1f2ff8ea70432d9c62de5d7346fbbb7f2506cac5884ba9e69a` |
 
+#### Fingerprint scheme version
+
+`scenario_fingerprint` includes an explicit `scheme` version field (hardening
+follow-up from PR #46). The current scheme is `2` (includes MODEL as of
+ODL-92), vs `1` (pre-ODL-92, world+overlay only). When manually comparing
+fingerprints across runs (e.g. from regression reports), treat a missing
+`scheme` as 1 and do not compare sha256 values across different schemes -
+they use different hash inputs. The `sha256` hash values are determined by
+the scheme: scheme 2 hashes `MODEL` first, then world, overlay, and masks.
+
+Fingerprints returned by `compute_scenario_fingerprint()` always include
+`scheme: 2`. The sha256 values documented below match those returned by the
+current code. Regression reports include the scheme field in the fingerprint
+table for each scenario.
+
 #### MODEL in the scenario fingerprint (ODL-92, 2026-11-19)
 
 Since ODL-92 (GitHub issue #16) `scripts/scenario_fingerprint.py` also
