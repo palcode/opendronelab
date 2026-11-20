@@ -541,6 +541,59 @@ def test_fingerprint_always_returns_scheme_2(fingerprint_mod, tmp_path):
     assert fp3['scheme'] == 2
 
 
+def test_docker_exec_with_heredoc_requires_interactive_flag():
+    """Heredoc-fed docker exec needs -i or bash gets EOF and exits immediately (critical)."""
+    import re
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[4]
+    scripts = list((repo / 'scripts').glob('*.sh'))
+    assert len(scripts) > 0, "No scripts found"
+    
+    failures = []
+    for script in scripts:
+        content = script.read_text()
+        lines = content.split('\n')
+        for i, line in enumerate(lines, 1):
+            # Match docker exec ... bash followed by <<
+            if 'docker exec' in line and 'bash' in line:
+                # Check if this or the next few lines have a heredoc
+                heredoc_found = False
+                for offset in range(5):  # Check next 5 lines
+                    if i + offset - 1 < len(lines):
+                        check_line = lines[i + offset - 1]
+                        if '<<' in check_line and ("'OUTER_SH'" in check_line or '"OUTER_SH"' in check_line or 'OUTER_SH' in check_line):
+                            heredoc_found = True
+                            # Check if -i or --interactive is present in the docker exec command
+                            # Look backwards from heredoc to find the docker exec line
+                            exec_lines = []
+                            for back_offset in range(offset + 1):
+                                if i - back_offset - 1 >= 0:
+                                    exec_lines.insert(0, lines[i - back_offset - 1])
+                            exec_block = '\n'.join(exec_lines)
+                            if 'docker exec' in exec_block and not (re.search(r'\s-i\s|\s-i$|^-i\s', exec_block) or '--interactive' in exec_block):
+                                failures.append(f"{script.name}:{i} docker exec with heredoc missing -i flag")
+                            break
+    
+    assert not failures, f"Docker exec commands with heredocs missing -i flag:\n" + "\n".join(failures)
+
+
+def test_regression_report_shows_missing_scheme_as_1():
+    """A summary without scheme should show as scheme 1 in the regression report."""
+    import importlib.util
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[4]
+    
+    # Load run-regression.sh Python code that generates the report
+    # The report generation is in the embedded Python at the end of run-regression.sh
+    # For this test, we'll check that the code treats missing scheme as 1
+    script_path = repo / 'scripts' / 'run-regression.sh'
+    content = script_path.read_text()
+    
+    # Check that the report generation code has: scheme = fp.get('scheme', 1)
+    assert "fp.get('scheme', 1)" in content or "fp.get('scheme') or 1" in content, \
+        "Report generation must treat missing scheme as 1"
+
+
 def test_pose_jumps_are_report_only_and_do_not_fail(judge_mod, thresholds):
     """A flagged VIO jump is attached as diagnostics and does not change the 0.70 gate."""
     s = _healthy_summary()

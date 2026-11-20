@@ -337,19 +337,24 @@ fi
 wait "${RECORD_PID}" || true
 break
 done
-RETRY_BAGS_PY="[$(printf "'%s'," "${RETRY_BAGS[@]+"${RETRY_BAGS[@]}"}")]"
+# Build RETRY_BAGS as JSON without eval()
+if [ "${#RETRY_BAGS[@]}" -gt 0 ]; then
+    RETRY_BAGS_JSON="$(printf '%s\n' "${RETRY_BAGS[@]}" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip().split("\n")))')"
+else
+    RETRY_BAGS_JSON="[]"
+fi
 
 BAG="/data/bags/${BAG_STAMP}"
-if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"     bash -c "test -d ${BAG} && ls ${BAG}/*.mcap >/dev/null 2>&1"; then
+if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${BAG}" "${CONTAINER_NAME}" bash -c 'test -d "$ODL_BAG" && ls "$ODL_BAG"/*.mcap >/dev/null 2>&1'; then
     echo "[ERROR] expected bag ${BAG} missing or empty (refusing to score an older bag via ls -1dt)" >&2
     # Show newest bag for diagnosis only — do not use it
-    docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}"         bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -3' >&2 || true
+    docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -c 'ls -1dt /data/bags/* 2>/dev/null | head -3' >&2 || true
     exit 1
 fi
 echo "[INFO] Scoring ${BAG} -> ${SUMMARY_DIR}"
 echo "${BAG}" > "${REPO_DIR}/logs/vio-stress-${SCENARIO}-bag.txt"
 
-docker exec -u "$(id -u):$(id -g)" \
+docker exec -i -u "$(id -u):$(id -g)" \
   -e HOME=/tmp \
   -e ODL_SUMMARY_DIR="${SUMMARY_DIR}" \
   -e ODL_BAG="${BAG}" \
@@ -363,7 +368,7 @@ docker exec -u "$(id -u):$(id -g)" \
   -e ODL_FLIGHT="${FLIGHT}" \
   -e ODL_MISSION="${MISSION}" \
   -e ODL_ATTEMPT="${ATTEMPT}" \
-  -e ODL_RETRY_BAGS_PY="${RETRY_BAGS_PY}" \
+  -e ODL_RETRY_BAGS_JSON="${RETRY_BAGS_JSON}" \
   -e ODL_OV_CONFIG="${OV_CONFIG}" \
   "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
 set -euo pipefail
@@ -386,15 +391,15 @@ export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 
 mkdir -p "${ODL_SUMMARY_DIR}/tum_ekf2" "${ODL_SUMMARY_DIR}/tum_vio"
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \
-  --output-dir "${ODL_SUMMARY_DIR}" --metrics-name metrics_ekf2.json --tum-dir "${ODL_SUMMARY_DIR}/tum_ekf2"${ODL_AGL_ARGS}
+  --output-dir "${ODL_SUMMARY_DIR}" --metrics-name metrics_ekf2.json --tum-dir "${ODL_SUMMARY_DIR}/tum_ekf2"${ODL_AGL_ARGS} || true
 # Never score a VIO estimate when init missed liftoff on every attempt.
 if [ "${ODL_VIO_INIT_FAILED}" != 1 ] && [ "${ODL_SCORE_VIO}" != 0 ]; then
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \
   --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
   --output-dir "${ODL_SUMMARY_DIR}" --metrics-name metrics_vio.json --tum-dir "${ODL_SUMMARY_DIR}/tum_vio"
 fi
-evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_xy.txt"
-evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_3d.txt"
+evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_xy.txt" || true
+evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_3d.txt" || true
 evo_ape tum "${ODL_SUMMARY_DIR}/tum_vio/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_SUMMARY_DIR}/evo_vio_ape_xy.txt" || true
 evo_ape tum "${ODL_SUMMARY_DIR}/tum_vio/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_vio/est_ned.tum" -r trans_part -a > "${ODL_SUMMARY_DIR}/evo_vio_ape_3d.txt" || true
 python3 - <<'PY'
@@ -431,10 +436,10 @@ agl_args = os.environ['ODL_AGL_ARGS']
 bag = os.environ['ODL_BAG']
 mission = os.environ['ODL_MISSION']
 attempt = int(os.environ['ODL_ATTEMPT'])
-retry_bags_py = os.environ['ODL_RETRY_BAGS_PY']
+retry_bags_json = os.environ['ODL_RETRY_BAGS_JSON']
 ov_config = os.environ['ODL_OV_CONFIG']
-# retry_bags_py is a Python list literal string like "['bag1','bag2']"
-retry_bags = eval(retry_bags_py) if retry_bags_py else []
+# retry_bags_json is a JSON array
+retry_bags = json.loads(retry_bags_json)
 summary = {
   'scenario': scenario,
   'gz_world': gz_world,

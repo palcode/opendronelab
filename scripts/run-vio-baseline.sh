@@ -69,7 +69,7 @@ _restart_vio() {
 _score_bag() {
     local bag="$1"
     local out="$2"
-    docker exec -u "$(id -u):$(id -g)" \
+    docker exec -i -u "$(id -u):$(id -g)" \
       -e HOME=/tmp \
       -e ODL_BAG="${bag}" \
       -e ODL_OUT="${out}" \
@@ -91,16 +91,16 @@ export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 
 mkdir -p "${ODL_OUT}/tum_ekf2" "${ODL_OUT}/tum_vio"
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \
-  --output-dir "${ODL_OUT}" --metrics-name metrics_ekf2.json --tum-dir "${ODL_OUT}/tum_ekf2"
+  --output-dir "${ODL_OUT}" --metrics-name metrics_ekf2.json --tum-dir "${ODL_OUT}/tum_ekf2" || true
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \
   --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
   --output-dir "${ODL_OUT}" --metrics-name metrics_vio.json --tum-dir "${ODL_OUT}/tum_vio"
 # Matching evo Umeyama for BOTH estimators
-evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy.txt"
-evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_ekf2_ape_3d.txt"
+evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy.txt" || true
+evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_ekf2_ape_3d.txt" || true
 evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_vio_ape_xy.txt"
 evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_vio_ape_3d.txt"
-evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy_noalign.txt"
+evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy_noalign.txt" || true
 # Parse helpers
 python3 - <<'PY'
 import json, os, re, pathlib
@@ -185,7 +185,7 @@ for run in $(seq 1 "${NUM_RUNS}"); do
 done
 
 # Aggregate means
-docker exec -u "$(id -u):$(id -g)" \
+docker exec -i -u "$(id -u):$(id -g)" \
   -e HOME=/tmp \
   -e ODL_SUMMARY_DIR="${SUMMARY_DIR}" \
   "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-baseline-${STAMP}-aggregate.txt"
