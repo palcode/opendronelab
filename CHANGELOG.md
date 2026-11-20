@@ -12,10 +12,13 @@ flight-certified**.
 
 ### Fixed
 
+- **Fixed shell variable interpolation security issue in scoring scripts.** `scripts/run-vio-stress.sh` and `scripts/run-vio-baseline.sh` now pass variables as environment variables (`docker exec -e NAME=value`) and read them in Python with `os.environ`, using quoted heredoc delimiters to prevent shell expansion. This prevents potential code injection if environment variables contain special characters.
 - Removed unsupported `semver-major-days` from Dependabot cooldown configuration for `github-actions` and `docker` package ecosystems in `.github/dependabot.yml` (GitHub Dependabot only supports `default-days` for these ecosystems).
 - Fixed documentation comment in `docs/architecture.md` that incorrectly stated `setup-host.md` is internal; it is now public and included in the docs site navigation.
 
 ### Changed
+
+- **Scenario fingerprints now include an explicit `scheme` version field** (hardening follow-up from PR #46). `scripts/scenario_fingerprint.py` returns `scheme: 2` (current, includes MODEL as of ODL-92) vs `1` (pre-ODL-92, world+overlay only). Tooling that compares fingerprints should treat a missing `scheme` as 1 and refuse or flag comparisons across different schemes. **The sha256 values themselves are unchanged**; this is metadata only. Documented fingerprints in tests and `docs/localization.md` stay exactly the same.
 
 - **Scenario fingerprints now include the vehicle `MODEL` (ODL-92, #16).** `scripts/scenario_fingerprint.py` hashes the PX4 SITL airframe ahead of the world, OpenVINS overlay and shared mask, and `run-vio-stress.sh` passes it, so the same world flown by a different airframe (e.g. `mc_gps` on `vio_test`) gets its own hash. **All scenario fingerprints changed once**; results recorded before this change are not comparable by fingerprint (compare by scenario name and `model`). Flight results and gates are unchanged. Old → new hashes are in `docs/localization.md`.
 - Bumped pytest to 9.2.0 in `requirements-ci.txt`. All headless unit tests pass with pytest 9.2.0.

@@ -69,32 +69,51 @@ _restart_vio() {
 _score_bag() {
     local bag="$1"
     local out="$2"
-    docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -c "
-${SOURCE_CMD}
-mkdir -p ${out}/tum_ekf2 ${out}/tum_vio
-ros2 run drone_localization localization_metrics ${bag} \
-  --output-dir ${out} --metrics-name metrics_ekf2.json --tum-dir ${out}/tum_ekf2
-ros2 run drone_localization localization_metrics ${bag} \
+    docker exec -u "$(id -u):$(id -g)" \
+      -e HOME=/tmp \
+      -e ODL_BAG="${bag}" \
+      -e ODL_OUT="${out}" \
+      "${CONTAINER_NAME}" bash <<'OUTER_SH'
+set -euo pipefail
+set +u
+source /opt/ros/jazzy/setup.bash
+[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
+[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
+[ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
+
+# Prefer first-party Python sources over a stale overlay copy.
+if [ -d /workspace/ros2_ws/src/drone_localization ]; then
+    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
+fi
+set -u
+export ROS_DOMAIN_ID=42
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+
+mkdir -p "${ODL_OUT}/tum_ekf2" "${ODL_OUT}/tum_vio"
+ros2 run drone_localization localization_metrics "${ODL_BAG}" \
+  --output-dir "${ODL_OUT}" --metrics-name metrics_ekf2.json --tum-dir "${ODL_OUT}/tum_ekf2"
+ros2 run drone_localization localization_metrics "${ODL_BAG}" \
   --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
-  --output-dir ${out} --metrics-name metrics_vio.json --tum-dir ${out}/tum_vio
+  --output-dir "${ODL_OUT}" --metrics-name metrics_vio.json --tum-dir "${ODL_OUT}/tum_vio"
 # Matching evo Umeyama for BOTH estimators
-evo_ape tum ${out}/tum_ekf2/gt_ned.tum ${out}/tum_ekf2/est_ned.tum -r trans_part -a --project_to_plane xy > ${out}/evo_ekf2_ape_xy.txt
-evo_ape tum ${out}/tum_ekf2/gt_ned.tum ${out}/tum_ekf2/est_ned.tum -r trans_part -a > ${out}/evo_ekf2_ape_3d.txt
-evo_ape tum ${out}/tum_vio/gt_ned.tum ${out}/tum_vio/est_ned.tum -r trans_part -a --project_to_plane xy > ${out}/evo_vio_ape_xy.txt
-evo_ape tum ${out}/tum_vio/gt_ned.tum ${out}/tum_vio/est_ned.tum -r trans_part -a > ${out}/evo_vio_ape_3d.txt
-evo_ape tum ${out}/tum_ekf2/gt_ned.tum ${out}/tum_ekf2/est_ned.tum -r trans_part --project_to_plane xy > ${out}/evo_ekf2_ape_xy_noalign.txt
+evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy.txt"
+evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_ekf2_ape_3d.txt"
+evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_vio_ape_xy.txt"
+evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_vio_ape_3d.txt"
+evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy_noalign.txt"
 # Parse helpers
 python3 - <<'PY'
-import json, re, pathlib
-out = pathlib.Path('${out}')
+import json, os, re, pathlib
+out = pathlib.Path(os.environ['ODL_OUT'])
+bag = os.environ['ODL_BAG']
 def ape_rmse(path):
     t = path.read_text()
-    m = re.search(r'rmse\\s+([0-9.]+)', t)
+    m = re.search(r'rmse\s+([0-9.]+)', t)
     return float(m.group(1)) if m else float('nan')
 ekf2 = json.loads((out/'metrics_ekf2.json').read_text())
 vio = json.loads((out/'metrics_vio.json').read_text())
 summary = {
-  'bag': '${bag}',
+  'bag': bag,
   'ekf2_origin_h_rmse': ekf2['horizontal_rmse'],
   'ekf2_origin_v_rmse': ekf2['vertical_rmse'],
   'ekf2_origin_samples': ekf2['num_samples'],
@@ -166,11 +185,22 @@ for run in $(seq 1 "${NUM_RUNS}"); do
 done
 
 # Aggregate means
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -c "
-${SOURCE_CMD}
+docker exec -u "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
+  -e ODL_SUMMARY_DIR="${SUMMARY_DIR}" \
+  "${CONTAINER_NAME}" bash <<'OUTER_SH'
+set -euo pipefail
+set +u
+source /opt/ros/jazzy/setup.bash
+[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
+[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
+set -u
+export ROS_DOMAIN_ID=42
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+
 python3 - <<'PY'
-import json, pathlib, statistics
-root = pathlib.Path('${SUMMARY_DIR}')
+import json, os, pathlib, statistics
+root = pathlib.Path(os.environ['ODL_SUMMARY_DIR'])
 runs = sorted(root.glob('run*/summary.json'))
 rows = [json.loads(p.read_text()) for p in runs]
 def mean(key):
@@ -187,6 +217,7 @@ print(json.dumps(out, indent=2))
 healthy = sum(1 for r in rows if r['vio_umeyama_xy_rmse'] < 5.0 and r['vio_origin_samples'] > 500)
 print(f'HEALTHY_RUNS={healthy}/{len(rows)}')
 PY
+OUTER_SH
 " | tee "${REPO_DIR}/logs/vio-baseline-${STAMP}-aggregate.txt"
 
 echo "[INFO] Baseline complete: ${SUMMARY_DIR}"
