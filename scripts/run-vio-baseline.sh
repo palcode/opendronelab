@@ -133,7 +133,7 @@ print(json.dumps(summary, indent=2))
 healthy = (summary['vio_umeyama_xy_rmse'] < 5.0 and summary['vio_origin_samples'] > 500)
 print('VIO_HEALTHY=' + ('1' if healthy else '0'))
 PY
-"
+OUTER_SH
 }
 
 for run in $(seq 1 "${NUM_RUNS}"); do
@@ -188,7 +188,7 @@ done
 docker exec -u "$(id -u):$(id -g)" \
   -e HOME=/tmp \
   -e ODL_SUMMARY_DIR="${SUMMARY_DIR}" \
-  "${CONTAINER_NAME}" bash <<'OUTER_SH'
+  "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-baseline-${STAMP}-aggregate.txt"
 set -euo pipefail
 set +u
 source /opt/ros/jazzy/setup.bash
@@ -218,6 +218,5 @@ healthy = sum(1 for r in rows if r['vio_umeyama_xy_rmse'] < 5.0 and r['vio_origi
 print(f'HEALTHY_RUNS={healthy}/{len(rows)}')
 PY
 OUTER_SH
-" | tee "${REPO_DIR}/logs/vio-baseline-${STAMP}-aggregate.txt"
 
 echo "[INFO] Baseline complete: ${SUMMARY_DIR}"

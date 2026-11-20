@@ -365,7 +365,7 @@ docker exec -u "$(id -u):$(id -g)" \
   -e ODL_ATTEMPT="${ATTEMPT}" \
   -e ODL_RETRY_BAGS_PY="${RETRY_BAGS_PY}" \
   -e ODL_OV_CONFIG="${OV_CONFIG}" \
-  "${CONTAINER_NAME}" bash <<'OUTER_SH'
+  "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
 set -euo pipefail
 set +u
 source /opt/ros/jazzy/setup.bash
@@ -474,6 +474,5 @@ summary['scenario_fingerprint'] = compute_scenario_fingerprint(
 print(json.dumps(summary, indent=2))
 PY
 OUTER_SH
-" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
 
 echo "[INFO] Stress scenario ${SCENARIO} complete: ${SUMMARY_DIR}"
