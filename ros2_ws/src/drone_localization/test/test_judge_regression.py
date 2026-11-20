@@ -518,6 +518,29 @@ def test_fingerprint_does_not_double_hash_in_overlay_mask(fingerprint_mod, tmp_p
     assert len(a['sha256']) == 64
 
 
+def test_fingerprint_always_returns_scheme_2(fingerprint_mod, tmp_path):
+    """compute_scenario_fingerprint always returns scheme: 2 (hardening follow-up from PR #46)."""
+    repo = tmp_path / 'repo'
+    (repo / 'worlds').mkdir()
+    (repo / 'worlds' / 'test.sdf').write_text('<sdf/>\n')
+    
+    # With overlay
+    overlay = repo / 'config' / 'openvins' / 'cam'
+    overlay.mkdir(parents=True)
+    (overlay / 'estimator_config.yaml').write_text('chi2: 1\n')
+    fp1 = fingerprint_mod.compute_scenario_fingerprint(
+        repo, 'test', overlay / 'estimator_config.yaml', model='gz_x500_mono_cam')
+    assert fp1['scheme'] == 2
+    
+    # Without overlay
+    fp2 = fingerprint_mod.compute_scenario_fingerprint(repo, 'test', None, model='gz_x500')
+    assert fp2['scheme'] == 2
+    
+    # Without model
+    fp3 = fingerprint_mod.compute_scenario_fingerprint(repo, 'test', None)
+    assert fp3['scheme'] == 2
+
+
 def test_pose_jumps_are_report_only_and_do_not_fail(judge_mod, thresholds):
     """A flagged VIO jump is attached as diagnostics and does not change the 0.70 gate."""
     s = _healthy_summary()
