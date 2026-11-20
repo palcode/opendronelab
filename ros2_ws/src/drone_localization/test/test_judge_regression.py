@@ -521,7 +521,7 @@ def test_fingerprint_does_not_double_hash_in_overlay_mask(fingerprint_mod, tmp_p
 def test_fingerprint_always_returns_scheme_2(fingerprint_mod, tmp_path):
     """compute_scenario_fingerprint always returns scheme: 2 (hardening follow-up from PR #46)."""
     repo = tmp_path / 'repo'
-    (repo / 'worlds').mkdir()
+    (repo / 'worlds').mkdir(parents=True)
     (repo / 'worlds' / 'test.sdf').write_text('<sdf/>\n')
     
     # With overlay
