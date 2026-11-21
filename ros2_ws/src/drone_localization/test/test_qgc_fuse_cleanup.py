@@ -165,3 +165,23 @@ def test_ours_unmount_targets_from_start_snapshot_after_pid_gone(mounts):
     assert r.returncode == 0, r.stderr
     lines = [ln for ln in r.stdout.splitlines() if ln]
     assert lines == ['/tmp/.mount_QGrounODL85ours']
+
+
+@pytest.mark.parametrize('path,want', [
+    ('/tmp/.mount_QGrounAbC123/usr/bin/QGroundControl', True),
+    # APPIMAGE_EXTRACT_AND_RUN=1 extracts instead of FUSE-mounting.
+    ('/tmp/appimage_extracted_769fb81d76a7b70384c0399076fe9d37/usr/bin/QGroundControl', True),
+    ('/opt/other/usr/bin/QGroundControl', False),
+    ('/tmp/appimage_extracted_abc/usr/bin/other-app', False),
+])
+def test_qgc_bin_pattern_matches_mounted_and_extracted(tmp_path, path, want):
+    """Stop logic must see the extracted binary (it ignores SIGTERM)."""
+    empty = tmp_path / 'proc'
+    empty.mkdir()
+    r = _run_helpers(
+        empty,
+        f'if printf "%s\\n" "{path}" | grep -Eq "${{QGC_BIN_PATTERN}}"; '
+        'then echo match; else echo nomatch; fi',
+    )
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == ('match' if want else 'nomatch')

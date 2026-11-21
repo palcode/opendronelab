@@ -57,10 +57,14 @@ fi
 # (which lists every mount in the namespace, including a QGC opened by hand).
 QGC_PROC_ROOT="${QGC_PROC_ROOT:-/proc}"
 
-# Extracted QGC binaries in the process group/session we started.
+# Extracted QGC binaries in the process group/session we started. The
+# AppImage runtime either FUSE-mounts the image (/tmp/.mount_QGroun*) or,
+# with APPIMAGE_EXTRACT_AND_RUN=1, extracts it to /tmp/appimage_extracted_*;
+# match both. The extracted binary ignores SIGTERM and outlives the runtime.
+QGC_BIN_PATTERN='/tmp/(\.mount_QGroun[^/]*|appimage_extracted_[^/]*)/usr/bin/QGroundControl'
 qgc_ours() {
     local pid
-    for pid in $(pgrep -f '/tmp/\.mount_QGroun[^/]*/usr/bin/QGroundControl' 2>/dev/null); do
+    for pid in $(pgrep -f "${QGC_BIN_PATTERN}" 2>/dev/null); do
         if [ "$(ps -o pgid= -p "${pid}" 2>/dev/null | tr -d ' ')" = "${QGC_PGID}" ] \
             || [ "$(ps -o sid= -p "${pid}" 2>/dev/null | tr -d ' ')" = "${QGC_PGID}" ]; then
             echo "${pid}"
@@ -266,44 +270,65 @@ cleanup_qgc_fuse() {
     done <<< "${ours_line}"
 }
 
+# Our QGC pids (runtime, group members, extracted binary) that are still alive.
+qgc_alive_ours() {
+    local pid
+    for pid in $(qgc_our_pids); do
+        kill -0 "${pid}" >/dev/null 2>&1 && printf '%s\n' "${pid}"
+    done
+    return 0
+}
+
+# Poll up to $1 half-second steps until none of our QGC pids are alive.
+qgc_wait_gone() {
+    local steps="$1" i
+    for i in $(seq 1 "${steps}"); do
+        [ -z "$(qgc_alive_ours)" ] && return 0
+        sleep 0.5
+    done
+    [ -z "$(qgc_alive_ours)" ]
+}
+
 stop_our_qgc() {
     # Kill only the QGC this script started. $! is the AppImage runtime;
-    # the real binary is extracted to /tmp/.mount_QGroun*/usr/bin/QGroundControl
-    # and can outlive it. QGC was started with setsid, so it leads its own
-    # process group (pgid == QGC_PID) and we signal that whole group.
+    # the real binary (/tmp/.mount_QGroun*/usr/bin/QGroundControl, or
+    # /tmp/appimage_extracted_*/usr/bin/QGroundControl with
+    # APPIMAGE_EXTRACT_AND_RUN=1) can outlive it and ignores SIGTERM.
+    # QGC was started with setsid, so it leads its own process group
+    # (pgid == QGC_PID): TERM that group, wait, then KILL it and any
+    # extracted QGC binary in it. Report "stopped" only once nothing is left.
     [ "${REG_STARTED_QGC:-0}" = "1" ] && [ -n "${QGC_PID:-}" ] || return 0
-    local i left pid
+    local left pid label
     # Snapshot unmount targets while the processes may still be alive:
     # our exe-derived mounts unioned with the post-start snapshot, excluding
     # pre-existing mounts and any still used outside our process group.
     QGC_OURS_MOUNTS="$(qgc_ours_unmount_targets)"
     if [ -z "${QGC_PGID:-}" ] || [ "${QGC_PGID}" != "${QGC_PID}" ]; then
-        # Not a group leader: old behaviour, our pid only.
-        kill "${QGC_PID}" >/dev/null 2>&1 && echo "[REG] stopped QGC pid ${QGC_PID} (no own process group)"
+        # Not a group leader: signal our pid only (never a group we do not lead).
+        QGC_PGID=""
+        label="pid ${QGC_PID} (no own process group)"
+        kill -TERM "${QGC_PID}" >/dev/null 2>&1 || true
+    else
+        label="pgid ${QGC_PGID}"
+        kill -TERM -- "-${QGC_PGID}" >/dev/null 2>&1 || true
+    fi
+    if qgc_wait_gone 10; then
+        echo "[REG] stopped QGC (${label}) started by this regression run"
         cleanup_qgc_fuse
         return 0
     fi
-    kill -TERM -- "-${QGC_PGID}" >/dev/null 2>&1 || true
-    for i in $(seq 1 10); do
-        left="$(qgc_ours)"
-        if [ -z "${left}" ] && ! kill -0 "${QGC_PID}" >/dev/null 2>&1; then
-            echo "[REG] stopped QGC (pgid ${QGC_PGID}) started by this regression run"
-            cleanup_qgc_fuse
-            return 0
-        fi
-        sleep 0.5
-    done
-    echo "[REG] QGC (pgid ${QGC_PGID}) still running after TERM; sending KILL to its group"
-    kill -KILL -- "-${QGC_PGID}" >/dev/null 2>&1 || true
-    for pid in $(qgc_ours); do
+    echo "[REG] QGC (${label}) still running after TERM; sending KILL"
+    if [ -n "${QGC_PGID:-}" ]; then
+        kill -KILL -- "-${QGC_PGID}" >/dev/null 2>&1 || true
+    fi
+    for pid in $(qgc_alive_ours); do
         kill -KILL "${pid}" >/dev/null 2>&1 || true
     done
-    sleep 0.5
-    left="$(qgc_ours)"
-    if [ -n "${left}" ]; then
-        echo "[WARN] extracted QGroundControl still running: ${left}" >&2
+    if qgc_wait_gone 6; then
+        echo "[REG] stopped QGC (${label}) after KILL"
     else
-        echo "[REG] stopped QGC (pgid ${QGC_PGID}) after KILL"
+        left="$(qgc_alive_ours | tr '\n' ' ')"
+        echo "[WARN] QGC (${label}) still running after KILL: ${left}" >&2
     fi
     cleanup_qgc_fuse
 }
