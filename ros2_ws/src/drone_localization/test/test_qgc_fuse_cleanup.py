@@ -275,7 +275,21 @@ CHILD="$(pgrep -f -g "${QGC_PGID}" '^/tmp/appimage_extracted_odltest/usr/bin/QGr
 echo "child=${CHILD}"
 [ -n "${ODLTEST_FALLBACK:-}" ] && QGC_PGID=""
 stop_our_qgc
-if kill -0 "${CHILD}" 2>/dev/null; then echo "child-alive"; else echo "child-gone"; fi
+# Gone = no /proc entry, or state (field after the last ')') is Z/X/x: the
+# same rule as qgc_pid_live in the stop code. kill -0 alone is not enough:
+# when pytest is PID 1 in a container without an init (run-regression.sh's
+# `bash -lc '...; pytest ...'` execs pytest), the killed dummy is reparented
+# to pytest, never reaped, and stays a zombie that kill -0 still reports.
+child_state=""
+if child_stat="$(cat "/proc/${CHILD}/stat" 2>/dev/null)"; then
+    child_rest="${child_stat##*)}"
+    set -- ${child_rest}
+    child_state="${1:-}"
+fi
+case "${child_state}" in
+    ""|Z|X|x) echo "child-gone" ;;
+    *) echo "child-alive" ;;
+esac
 '''
 
 
