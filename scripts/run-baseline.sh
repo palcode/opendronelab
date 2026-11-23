@@ -183,7 +183,7 @@ echo "================================================================"
 echo "[INFO] Aggregating results..."
 SUMMARY_FILE="${RESULTS_DIR}/summary.txt"
 
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+docker exec -i -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
     bash -c "cat > ${SUMMARY_FILE}" << 'EOF'
 Localization Baseline Summary
 =============================

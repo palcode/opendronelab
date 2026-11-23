@@ -5,6 +5,7 @@
 import importlib.util
 import json
 import math
+import re
 from pathlib import Path
 
 import numpy as np
@@ -541,40 +542,137 @@ def test_fingerprint_always_returns_scheme_2(fingerprint_mod, tmp_path):
     assert fp3['scheme'] == 2
 
 
+def _logical_lines(text):
+    """Yield (first_line_no, line) with backslash-continued lines joined."""
+    buf, first = [], None
+    for no, raw in enumerate(text.split('\n'), 1):
+        if first is None:
+            first = no
+        if raw.endswith('\\') and not raw.endswith('\\\\'):
+            buf.append(raw[:-1])
+            continue
+        buf.append(raw)
+        yield first, ' '.join(buf)
+        buf, first = [], None
+    if buf:
+        yield first, ' '.join(buf)
+
+
+def _shell_segment(line, start):
+    """Text from start up to the first unquoted | ; & or ) (end of command)."""
+    quote = None
+    i = start
+    while i < len(line):
+        c = line[i]
+        if quote:
+            if c == '\\' and quote == '"':
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+        elif c in ('"', "'"):
+            quote = c
+        elif c == '#' and (i == 0 or line[i - 1].isspace()):
+            return line[start:i]
+        elif c in '|;&)':
+            return line[start:i]
+        i += 1
+    return line[start:]
+
+
+def _unquoted(segment):
+    """segment with quoted text blanked out (keeps unquoted operators)."""
+    out, quote = [], None
+    for c in segment:
+        if quote:
+            if c == quote:
+                quote = None
+            out.append(' ')
+        elif c in ('"', "'"):
+            quote = c
+            out.append(' ')
+        else:
+            out.append(c)
+    return ''.join(out)
+
+
+_INTERACTIVE = re.compile(r'(?<!\S)(?:-[a-hj-zA-Z]*i[a-zA-Z]*|--interactive(?:=true)?)(?!\S)')
+
+
+def docker_exec_stdin_without_i(text):
+    """Line numbers of `docker exec` fed by a heredoc/here-string (<<, <<<)
+    or by a pipe into it, that lack -i/--interactive. Without -i the
+    container shell reads EOF and exits 0 without running anything."""
+    bad = []
+    for no, line in _logical_lines(text):
+        stripped = line.lstrip()
+        if stripped.startswith('#'):
+            continue
+        for m in re.finditer(r'\bdocker\s+exec\b', line):
+            seg = _unquoted(_shell_segment(line, m.start()))
+            before = _unquoted(line[:m.start()]).rstrip()
+            fed_by_heredoc = '<<' in seg
+            fed_by_pipe = before.endswith('|') and not before.endswith('||')
+            if not (fed_by_heredoc or fed_by_pipe):
+                continue
+            # Flags sit between `docker exec` and the first heredoc operator.
+            flags = seg.split('<<', 1)[0]
+            if not _INTERACTIVE.search(flags):
+                bad.append(no)
+    return bad
+
+
+@pytest.mark.parametrize('snippet,want_bad', [
+    ("docker exec c bash <<'EOF'\necho hi\nEOF\n", True),
+    ("docker exec \\\n  -u 1:1 \\\n  c bash <<'OUTER_SH' | tee log\nOUTER_SH\n", True),
+    ("docker exec -i \\\n  -u 1:1 \\\n  c bash <<'OUTER_SH' | tee log\nOUTER_SH\n", False),
+    ("docker exec -it c bash <<EOF\nEOF\n", False),
+    ("docker exec --interactive c bash <<EOF\nEOF\n", False),
+    ("printf 'x' | docker exec c bash\n", True),
+    ("printf 'x' | docker exec -i c bash\n", False),
+    ("docker exec c cat <<< \"$x\"\n", True),
+    ("N=$(docker exec -u 1:1 c bash -c \"a; b | c\" | grep -c x || true)\n", False),
+    ("docker exec c pkill -f 'x' || docker exec c true\n", False),
+    ("docker exec c bash -c 'cat <<EOF'\n", False),  # quoted: not a heredoc
+    ("# docker exec c bash <<EOF\n", False),
+    ("docker exec c ls  # see <<EOF in docs\n", False),
+])
+def test_docker_exec_stdin_checker(snippet, want_bad):
+    assert bool(docker_exec_stdin_without_i(snippet)) == want_bad
+
+
 def test_docker_exec_with_heredoc_requires_interactive_flag():
-    """Heredoc-fed docker exec needs -i or bash gets EOF and exits immediately (critical)."""
-    import re
-    from pathlib import Path
-    repo = Path(__file__).resolve().parents[4]
-    scripts = list((repo / 'scripts').glob('*.sh'))
-    assert len(scripts) > 0, "No scripts found"
-    
-    failures = []
-    for script in scripts:
-        content = script.read_text()
-        lines = content.split('\n')
-        for i, line in enumerate(lines, 1):
-            # Match docker exec ... bash followed by <<
-            if 'docker exec' in line and 'bash' in line:
-                # Check if this or the next few lines have a heredoc
-                heredoc_found = False
-                for offset in range(5):  # Check next 5 lines
-                    if i + offset - 1 < len(lines):
-                        check_line = lines[i + offset - 1]
-                        if '<<' in check_line and ("'OUTER_SH'" in check_line or '"OUTER_SH"' in check_line or 'OUTER_SH' in check_line):
-                            heredoc_found = True
-                            # Check if -i or --interactive is present in the docker exec command
-                            # Look backwards from heredoc to find the docker exec line
-                            exec_lines = []
-                            for back_offset in range(offset + 1):
-                                if i - back_offset - 1 >= 0:
-                                    exec_lines.insert(0, lines[i - back_offset - 1])
-                            exec_block = '\n'.join(exec_lines)
-                            if 'docker exec' in exec_block and not (re.search(r'\s-i\s|\s-i$|^-i\s', exec_block) or '--interactive' in exec_block):
-                                failures.append(f"{script.name}:{i} docker exec with heredoc missing -i flag")
-                            break
-    
-    assert not failures, f"Docker exec commands with heredocs missing -i flag:\n" + "\n".join(failures)
+    """Heredoc- or pipe-fed docker exec needs -i or bash gets EOF and exits 0 (critical)."""
+    scripts = sorted((REPO / 'scripts').rglob('*.sh')) + sorted((REPO / 'docker').glob('*.sh'))
+    assert scripts, 'No scripts found'
+    failures = [
+        f'{script.relative_to(REPO)}:{no}'
+        for script in scripts
+        for no in docker_exec_stdin_without_i(script.read_text())
+    ]
+    assert not failures, (
+        'docker exec fed by a heredoc or pipe is missing -i:\n' + '\n'.join(failures))
+
+
+def test_scoring_heredocs_are_checked():
+    """Guard against the checker silently matching nothing."""
+    for name in ('run-vio-stress.sh', 'run-vio-baseline.sh'):
+        text = (REPO / 'scripts' / name).read_text()
+        fed = [no for no, line in _logical_lines(text)
+               if re.search(r'\bdocker\s+exec\b', line) and "<<'OUTER_SH'" in line]
+        assert fed, name
+        # Dropping -i from those lines must be caught.
+        broken = text.replace('docker exec -i ', 'docker exec ')
+        assert docker_exec_stdin_without_i(broken), name
+
+
+def test_no_host_paths_interpolated_into_container_bash_c():
+    """Bag/summary paths go in as -e ODL_* (R2), not pasted into bash -c "..."."""
+    pat = re.compile(r'bash -l?c "[^"]*\$\{(?:BAG|SUMMARY_DIR|ATTEMPT|RUN_OUT)\}')
+    for name in ('run-vio-stress.sh', 'run-vio-baseline.sh'):
+        text = (REPO / 'scripts' / name).read_text()
+        hits = [no for no, line in _logical_lines(text) if pat.search(line)]
+        assert not hits, f'{name}: interpolated path at line(s) {hits}'
 
 
 def test_regression_report_shows_missing_scheme_as_1():
