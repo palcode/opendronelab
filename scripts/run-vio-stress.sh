@@ -315,8 +315,9 @@ fi
 echo "mission=${MISSION}" | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-mission.txt"
 # Keep the OpenVINS log (init/disparity/feature lines) with the results.
 # Report-only; ~1.5 MB per run; nothing is deleted.
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "cp /tmp/vio-launch.log ${SUMMARY_DIR}/vio-launch_attempt${ATTEMPT}.log && cp /tmp/vio-launch.log ${SUMMARY_DIR}/vio-launch.log" 2>/dev/null \
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp \
+    -e ODL_SUMMARY_DIR="${SUMMARY_DIR}" -e ODL_ATTEMPT="${ATTEMPT}" "${CONTAINER_NAME}" \
+    bash -c 'cp /tmp/vio-launch.log "${ODL_SUMMARY_DIR}/vio-launch_attempt${ODL_ATTEMPT}.log" && cp /tmp/vio-launch.log "${ODL_SUMMARY_DIR}/vio-launch.log"' 2>/dev/null \
     || echo "[WARN] could not copy /tmp/vio-launch.log to ${SUMMARY_DIR}"
 if [ "${FLIGHT_RC}" -eq 3 ]; then
     # square_flight_cpp: VIO did not publish within VIO_INIT_WINDOW of

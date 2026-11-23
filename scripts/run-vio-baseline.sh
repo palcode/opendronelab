@@ -175,8 +175,8 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     # Per-run bag path so NUM_RUNS>1 does not re-score run 1's bag.
     RUN_BAG_STAMP="${STAMP}_run${run}"
     BAG="/data/bags/${RUN_BAG_STAMP}"
-    if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "test -d ${BAG}"; then
+    if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${BAG}" "${CONTAINER_NAME}" \
+        bash -c 'test -d "${ODL_BAG}"'; then
         echo "[ERROR] bag path ${BAG} already exists; refusing to record over it" >&2
         exit 1
     fi
@@ -196,8 +196,8 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     fi
     wait "${RECORD_PID}" || true
 
-    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "test -d ${BAG}"; then
+    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${BAG}" "${CONTAINER_NAME}" \
+        bash -c 'test -d "${ODL_BAG}"'; then
         echo "[ERROR] expected bag ${BAG} missing" >&2
         exit 1
     fi
