@@ -396,8 +396,11 @@ ros2 run drone_localization localization_metrics "${ODL_BAG}" \
 if [ "${ODL_VIO_INIT_FAILED}" != 1 ] && [ "${ODL_SCORE_VIO}" != 0 ]; then
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \
   --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
-  --output-dir "${ODL_SUMMARY_DIR}" --metrics-name metrics_vio.json --tum-dir "${ODL_SUMMARY_DIR}/tum_vio"
+  --output-dir "${ODL_SUMMARY_DIR}" --metrics-name metrics_vio.json --tum-dir "${ODL_SUMMARY_DIR}/tum_vio" || true
 fi
+# set -e above is fail-closed for setup only: a metrics/evo step that fails
+# (e.g. VIO never published, or no samples after the airborne mask) must not
+# abort before summary.json is written. The parser below records None.
 evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_xy.txt" || true
 evo_ape tum "${ODL_SUMMARY_DIR}/tum_ekf2/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_SUMMARY_DIR}/evo_ekf2_ape_3d.txt" || true
 evo_ape tum "${ODL_SUMMARY_DIR}/tum_vio/gt_ned.tum" "${ODL_SUMMARY_DIR}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_SUMMARY_DIR}/evo_vio_ape_xy.txt" || true
@@ -411,20 +414,28 @@ def ape_rmse(path):
     # None (JSON null), not NaN: keep summary.json strict JSON.
     if not path.exists():
         return None
-    t = path.read_text()
+    t = path.read_text(errors='replace')
     m = re.search(r'rmse\s+([0-9.]+)', t)
     return float(m.group(1)) if m else None
 def json_safe(v):
     if isinstance(v, float) and not math.isfinite(v):
         return None
     return v
-ekf2 = json.loads((out/'metrics_ekf2.json').read_text())
-vio_path = out/'metrics_vio.json'
-vio = json.loads(vio_path.read_text()) if vio_path.exists() else {}
+def load_metrics(path):
+    # localization_metrics exits 1 with no file on an empty estimate topic
+    # (and with null metrics on an empty airborne mask). Missing or
+    # unreadable file -> {} so every field below becomes None.
+    try:
+        d = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+ekf2 = load_metrics(out/'metrics_ekf2.json')
+vio = load_metrics(out/'metrics_vio.json')
 # square_flight_cpp status_file: vio_init_timeout true when the wp0 hold for
 # /ov_msckf/odomimu timed out (OpenVINS never published before the square).
 status_path = out/'flight_status.json'
-status = json.loads(status_path.read_text()) if status_path.exists() else {}
+status = load_metrics(status_path)
 # OV publish check from bag sample count
 scenario = os.environ['ODL_SCENARIO']
 gz_world = os.environ['ODL_GZ_WORLD']
@@ -459,7 +470,7 @@ summary = {
   'vio_init_window_s': status.get('vio_init_window'),
   'vio_first_msg_after_liftoff_s': status.get('first_msg_after_liftoff_s'),
   'retry_bags': retry_bags,
-  'ov_published': bool(vio.get('estimate_count', 0) > 0 or vio.get('num_samples', 0) > 0),
+  'ov_published': bool((vio.get('estimate_count') or 0) > 0 or (vio.get('num_samples') or 0) > 0),
   'ekf2_origin_h_rmse': ekf2.get('horizontal_rmse'),
   'ekf2_origin_v_rmse': ekf2.get('vertical_rmse'),
   'ekf2_origin_samples': ekf2.get('num_samples'),
