@@ -91,6 +91,7 @@ jobs:
             ros2_ws/src/drone_localization/test/test_judge_regression.py \
             ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
             ros2_ws/src/drone_localization/test/test_vio_scoring_heredoc.py \
+            ros2_ws/src/drone_localization/test/test_container_env.py \
             ros2_ws/src/drone_localization/test/test_airframe_registry.py
         # Perception and vision_px4_bridge tests need OpenCV / ROS 2
         # (px4_msgs, rclpy) from the unpublished dev image. They run in

@@ -93,6 +93,9 @@ def sandbox(tmp_path):
     env['PATH'] = os.pathsep.join(
         [str(bindir), str(Path(sys.executable).parent), env.get('PATH', '')])
     env['HOME'] = str(tmp_path)
+    # scripts/container-env.sh (sourced by the heredocs) reads these.
+    env['ODL_ROS_SETUP'] = str(empty_setup)
+    env['ODL_ROS2_BUILD'] = str(tmp_path / 'no_ros2_build')
     return {'tmp': tmp_path, 'env': env, 'setup': empty_setup}
 
 

@@ -10,6 +10,10 @@ flight-certified**.
 
 ## [Unreleased]
 
+### Changed
+
+- `run-vio-stress.sh` and `run-vio-baseline.sh` share one container ROS setup, `scripts/container-env.sh` (sourced from `/workspace` inside the sim container), instead of five inline copies: Jazzy, deps, ws and OpenVINS `setup.bash` with nounset off, the `drone_localization` source `PYTHONPATH` override, `ROS_DOMAIN_ID=42` and `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`. `SOURCE_CMD` now exits if the file cannot be sourced. The baseline aggregate step, which had no OpenVINS overlay or `PYTHONPATH` override, now gets the same environment. `test_container_env.py` checks that both scripts source it and that no inline copies remain.
+
 ### Fixed
 
 - **VIO scoring no longer aborts before `summary.json` when VIO has no data** (follow-up to #47). The container scoring heredocs run under `set -euo pipefail`, but only the EKF2 metrics/evo steps tolerated failure. `localization_metrics` exits 1 on "No messages on /ov_msckf/odomimu" and "No samples left after airborne mask", which aborted the heredoc, so `run-regression.sh` reported "missing summary.json" and dropped the VIO diagnostics. The VIO `localization_metrics` step (`run-vio-stress.sh`, `run-vio-baseline.sh`) and the baseline's VIO `evo_ape` steps now have `|| true`; both summary writers load missing or unreadable metrics as empty and write `null` fields. `test_vio_scoring_heredoc.py` runs the real heredocs with stub `ros2`/`evo_ape` where the VIO step fails and checks that `summary.json` is still written.
