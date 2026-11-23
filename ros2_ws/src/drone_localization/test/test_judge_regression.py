@@ -5,6 +5,7 @@
 import importlib.util
 import json
 import math
+import os
 import re
 from pathlib import Path
 
@@ -675,21 +676,62 @@ def test_no_host_paths_interpolated_into_container_bash_c():
         assert not hits, f'{name}: interpolated path at line(s) {hits}'
 
 
-def test_regression_report_shows_missing_scheme_as_1():
-    """A summary without scheme should show as scheme 1 in the regression report."""
-    import importlib.util
-    from pathlib import Path
-    repo = Path(__file__).resolve().parents[4]
-    
-    # Load run-regression.sh Python code that generates the report
-    # The report generation is in the embedded Python at the end of run-regression.sh
-    # For this test, we'll check that the code treats missing scheme as 1
-    script_path = repo / 'scripts' / 'run-regression.sh'
-    content = script_path.read_text()
-    
-    # Check that the report generation code has: scheme = fp.get('scheme', 1)
-    assert "fp.get('scheme', 1)" in content or "fp.get('scheme') or 1" in content, \
-        "Report generation must treat missing scheme as 1"
+def _regression_report_code():
+    """The report generator: the last `python3 << 'PY'` heredoc of run-regression.sh."""
+    lines = (REPO / 'scripts' / 'run-regression.sh').read_text().splitlines()
+    starts = [i for i, ln in enumerate(lines) if ln.strip() == "python3 << 'PY'"]
+    assert starts, 'report heredoc not found in run-regression.sh'
+    i = starts[-1] + 1
+    j = lines.index('PY', i)
+    return '\n'.join(lines[i:j]) + '\n'
+
+
+def _run_regression_report(tmp_path, judges):
+    import subprocess
+    import sys
+    report = tmp_path / 'report'
+    report.mkdir()
+    (report / 'pytest.json').write_text(json.dumps({'step': 'pytest', 'pass': True, 'skipped': True}))
+    for j in judges:
+        (report / f"judge_{j['scenario']}.json").write_text(json.dumps(j))
+    env = dict(os.environ)
+    env.update({
+        'REPORT_HOST': str(report),
+        'STAMP': '20260101_000000',
+        'ELAPSED': '1',
+        'GZ_SEED': '1234',
+        'BAG_DURATION': '100',
+        'THRESHOLDS': str(THRESHOLDS_PATH),
+        'DATA_DIR': str(tmp_path / 'no_data'),
+        'N_FLIGHTS': str(len(judges)),
+        'FLIGHT_ORDER': ','.join(j['scenario'] for j in judges),
+    })
+    r = subprocess.run([sys.executable, '-'], input=_regression_report_code(), env=env,
+                       text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                       check=False, timeout=60)
+    assert r.returncode in (0, 1), r.stdout + r.stderr
+    return (report / 'report.md').read_text(), json.loads((report / 'report.json').read_text())
+
+
+def test_regression_report_shows_missing_scheme_as_1(tmp_path):
+    """Run the real report code on fixture judges: a fingerprint without
+    `scheme` (pre-#47 summary) is shown as scheme 1, scheme 2 as 2."""
+    old_fp = {'sha256': 'a' * 64, 'world': 'worlds/vio_test.sdf', 'openvins_overlay': None,
+              'git_sha': 'deadbee'}
+    new_fp = dict(old_fp, sha256='b' * 64, scheme=2, model='gz_x500_mono_cam')
+    judges = [
+        {'scenario': 'baseline', 'pass': True, 'pass_at_1': True, 'checks': [],
+         'summary': {'scenario_fingerprint': old_fp, 'model': 'gz_x500_mono_cam'}},
+        {'scenario': 'wind', 'pass': True, 'pass_at_1': True, 'checks': [],
+         'summary': {'scenario_fingerprint': new_fp}},
+    ]
+    md, rj = _run_regression_report(tmp_path, judges)
+    rows = {ln.split('|')[1].strip(): ln for ln in md.splitlines()
+            if ln.startswith('| ') and '`' in ln}
+    assert rows['baseline'].split('|')[2].strip() == '1', md
+    assert rows['wind'].split('|')[2].strip() == '2', md
+    assert 'missing = 1' in md
+    assert rj['overall_pass'] is True
 
 
 def test_pose_jumps_are_report_only_and_do_not_fail(judge_mod, thresholds):
