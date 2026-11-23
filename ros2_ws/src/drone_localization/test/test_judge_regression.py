@@ -5,6 +5,8 @@
 import importlib.util
 import json
 import math
+import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -541,57 +543,195 @@ def test_fingerprint_always_returns_scheme_2(fingerprint_mod, tmp_path):
     assert fp3['scheme'] == 2
 
 
+def _logical_lines(text):
+    """Yield (first_line_no, line) with backslash-continued lines joined."""
+    buf, first = [], None
+    for no, raw in enumerate(text.split('\n'), 1):
+        if first is None:
+            first = no
+        if raw.endswith('\\') and not raw.endswith('\\\\'):
+            buf.append(raw[:-1])
+            continue
+        buf.append(raw)
+        yield first, ' '.join(buf)
+        buf, first = [], None
+    if buf:
+        yield first, ' '.join(buf)
+
+
+def _shell_segment(line, start):
+    """Text from start up to the first unquoted | ; & or ) (end of command)."""
+    quote = None
+    i = start
+    while i < len(line):
+        c = line[i]
+        if quote:
+            if c == '\\' and quote == '"':
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+        elif c in ('"', "'"):
+            quote = c
+        elif c == '#' and (i == 0 or line[i - 1].isspace()):
+            return line[start:i]
+        elif c in '|;&)':
+            return line[start:i]
+        i += 1
+    return line[start:]
+
+
+def _unquoted(segment):
+    """segment with quoted text blanked out (keeps unquoted operators)."""
+    out, quote = [], None
+    for c in segment:
+        if quote:
+            if c == quote:
+                quote = None
+            out.append(' ')
+        elif c in ('"', "'"):
+            quote = c
+            out.append(' ')
+        else:
+            out.append(c)
+    return ''.join(out)
+
+
+_INTERACTIVE = re.compile(r'(?<!\S)(?:-[a-hj-zA-Z]*i[a-zA-Z]*|--interactive(?:=true)?)(?!\S)')
+
+
+def docker_exec_stdin_without_i(text):
+    """Line numbers of `docker exec` fed by a heredoc/here-string (<<, <<<)
+    or by a pipe into it, that lack -i/--interactive. Without -i the
+    container shell reads EOF and exits 0 without running anything."""
+    bad = []
+    for no, line in _logical_lines(text):
+        stripped = line.lstrip()
+        if stripped.startswith('#'):
+            continue
+        for m in re.finditer(r'\bdocker\s+exec\b', line):
+            seg = _unquoted(_shell_segment(line, m.start()))
+            before = _unquoted(line[:m.start()]).rstrip()
+            fed_by_heredoc = '<<' in seg
+            fed_by_pipe = before.endswith('|') and not before.endswith('||')
+            if not (fed_by_heredoc or fed_by_pipe):
+                continue
+            # Flags sit between `docker exec` and the first heredoc operator.
+            flags = seg.split('<<', 1)[0]
+            if not _INTERACTIVE.search(flags):
+                bad.append(no)
+    return bad
+
+
+@pytest.mark.parametrize('snippet,want_bad', [
+    ("docker exec c bash <<'EOF'\necho hi\nEOF\n", True),
+    ("docker exec \\\n  -u 1:1 \\\n  c bash <<'OUTER_SH' | tee log\nOUTER_SH\n", True),
+    ("docker exec -i \\\n  -u 1:1 \\\n  c bash <<'OUTER_SH' | tee log\nOUTER_SH\n", False),
+    ("docker exec -it c bash <<EOF\nEOF\n", False),
+    ("docker exec --interactive c bash <<EOF\nEOF\n", False),
+    ("printf 'x' | docker exec c bash\n", True),
+    ("printf 'x' | docker exec -i c bash\n", False),
+    ("docker exec c cat <<< \"$x\"\n", True),
+    ("N=$(docker exec -u 1:1 c bash -c \"a; b | c\" | grep -c x || true)\n", False),
+    ("docker exec c pkill -f 'x' || docker exec c true\n", False),
+    ("docker exec c bash -c 'cat <<EOF'\n", False),  # quoted: not a heredoc
+    ("# docker exec c bash <<EOF\n", False),
+    ("docker exec c ls  # see <<EOF in docs\n", False),
+])
+def test_docker_exec_stdin_checker(snippet, want_bad):
+    assert bool(docker_exec_stdin_without_i(snippet)) == want_bad
+
+
 def test_docker_exec_with_heredoc_requires_interactive_flag():
-    """Heredoc-fed docker exec needs -i or bash gets EOF and exits immediately (critical)."""
-    import re
-    from pathlib import Path
-    repo = Path(__file__).resolve().parents[4]
-    scripts = list((repo / 'scripts').glob('*.sh'))
-    assert len(scripts) > 0, "No scripts found"
-    
-    failures = []
-    for script in scripts:
-        content = script.read_text()
-        lines = content.split('\n')
-        for i, line in enumerate(lines, 1):
-            # Match docker exec ... bash followed by <<
-            if 'docker exec' in line and 'bash' in line:
-                # Check if this or the next few lines have a heredoc
-                heredoc_found = False
-                for offset in range(5):  # Check next 5 lines
-                    if i + offset - 1 < len(lines):
-                        check_line = lines[i + offset - 1]
-                        if '<<' in check_line and ("'OUTER_SH'" in check_line or '"OUTER_SH"' in check_line or 'OUTER_SH' in check_line):
-                            heredoc_found = True
-                            # Check if -i or --interactive is present in the docker exec command
-                            # Look backwards from heredoc to find the docker exec line
-                            exec_lines = []
-                            for back_offset in range(offset + 1):
-                                if i - back_offset - 1 >= 0:
-                                    exec_lines.insert(0, lines[i - back_offset - 1])
-                            exec_block = '\n'.join(exec_lines)
-                            if 'docker exec' in exec_block and not (re.search(r'\s-i\s|\s-i$|^-i\s', exec_block) or '--interactive' in exec_block):
-                                failures.append(f"{script.name}:{i} docker exec with heredoc missing -i flag")
-                            break
-    
-    assert not failures, f"Docker exec commands with heredocs missing -i flag:\n" + "\n".join(failures)
+    """Heredoc- or pipe-fed docker exec needs -i or bash gets EOF and exits 0 (critical)."""
+    scripts = sorted((REPO / 'scripts').rglob('*.sh')) + sorted((REPO / 'docker').glob('*.sh'))
+    assert scripts, 'No scripts found'
+    failures = [
+        f'{script.relative_to(REPO)}:{no}'
+        for script in scripts
+        for no in docker_exec_stdin_without_i(script.read_text())
+    ]
+    assert not failures, (
+        'docker exec fed by a heredoc or pipe is missing -i:\n' + '\n'.join(failures))
 
 
-def test_regression_report_shows_missing_scheme_as_1():
-    """A summary without scheme should show as scheme 1 in the regression report."""
-    import importlib.util
-    from pathlib import Path
-    repo = Path(__file__).resolve().parents[4]
-    
-    # Load run-regression.sh Python code that generates the report
-    # The report generation is in the embedded Python at the end of run-regression.sh
-    # For this test, we'll check that the code treats missing scheme as 1
-    script_path = repo / 'scripts' / 'run-regression.sh'
-    content = script_path.read_text()
-    
-    # Check that the report generation code has: scheme = fp.get('scheme', 1)
-    assert "fp.get('scheme', 1)" in content or "fp.get('scheme') or 1" in content, \
-        "Report generation must treat missing scheme as 1"
+def test_scoring_heredocs_are_checked():
+    """Guard against the checker silently matching nothing."""
+    for name in ('run-vio-stress.sh', 'run-vio-baseline.sh'):
+        text = (REPO / 'scripts' / name).read_text()
+        fed = [no for no, line in _logical_lines(text)
+               if re.search(r'\bdocker\s+exec\b', line) and "<<'OUTER_SH'" in line]
+        assert fed, name
+        # Dropping -i from those lines must be caught.
+        broken = text.replace('docker exec -i ', 'docker exec ')
+        assert docker_exec_stdin_without_i(broken), name
+
+
+def test_no_host_paths_interpolated_into_container_bash_c():
+    """Bag/summary paths go in as -e ODL_* (R2), not pasted into bash -c "..."."""
+    pat = re.compile(r'bash -l?c "[^"]*\$\{(?:BAG|SUMMARY_DIR|ATTEMPT|RUN_OUT)\}')
+    for name in ('run-vio-stress.sh', 'run-vio-baseline.sh'):
+        text = (REPO / 'scripts' / name).read_text()
+        hits = [no for no, line in _logical_lines(text) if pat.search(line)]
+        assert not hits, f'{name}: interpolated path at line(s) {hits}'
+
+
+def _regression_report_code():
+    """The report generator: the last `python3 << 'PY'` heredoc of run-regression.sh."""
+    lines = (REPO / 'scripts' / 'run-regression.sh').read_text().splitlines()
+    starts = [i for i, ln in enumerate(lines) if ln.strip() == "python3 << 'PY'"]
+    assert starts, 'report heredoc not found in run-regression.sh'
+    i = starts[-1] + 1
+    j = lines.index('PY', i)
+    return '\n'.join(lines[i:j]) + '\n'
+
+
+def _run_regression_report(tmp_path, judges):
+    import subprocess
+    import sys
+    report = tmp_path / 'report'
+    report.mkdir()
+    (report / 'pytest.json').write_text(json.dumps({'step': 'pytest', 'pass': True, 'skipped': True}))
+    for j in judges:
+        (report / f"judge_{j['scenario']}.json").write_text(json.dumps(j))
+    env = dict(os.environ)
+    env.update({
+        'REPORT_HOST': str(report),
+        'STAMP': '20260101_000000',
+        'ELAPSED': '1',
+        'GZ_SEED': '1234',
+        'BAG_DURATION': '100',
+        'THRESHOLDS': str(THRESHOLDS_PATH),
+        'DATA_DIR': str(tmp_path / 'no_data'),
+        'N_FLIGHTS': str(len(judges)),
+        'FLIGHT_ORDER': ','.join(j['scenario'] for j in judges),
+    })
+    r = subprocess.run([sys.executable, '-'], input=_regression_report_code(), env=env,
+                       text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                       check=False, timeout=60)
+    assert r.returncode in (0, 1), r.stdout + r.stderr
+    return (report / 'report.md').read_text(), json.loads((report / 'report.json').read_text())
+
+
+def test_regression_report_shows_missing_scheme_as_1(tmp_path):
+    """Run the real report code on fixture judges: a fingerprint without
+    `scheme` (pre-#47 summary) is shown as scheme 1, scheme 2 as 2."""
+    old_fp = {'sha256': 'a' * 64, 'world': 'worlds/vio_test.sdf', 'openvins_overlay': None,
+              'git_sha': 'deadbee'}
+    new_fp = dict(old_fp, sha256='b' * 64, scheme=2, model='gz_x500_mono_cam')
+    judges = [
+        {'scenario': 'baseline', 'pass': True, 'pass_at_1': True, 'checks': [],
+         'summary': {'scenario_fingerprint': old_fp, 'model': 'gz_x500_mono_cam'}},
+        {'scenario': 'wind', 'pass': True, 'pass_at_1': True, 'checks': [],
+         'summary': {'scenario_fingerprint': new_fp}},
+    ]
+    md, rj = _run_regression_report(tmp_path, judges)
+    rows = {ln.split('|')[1].strip(): ln for ln in md.splitlines()
+            if ln.startswith('| ') and '`' in ln}
+    assert rows['baseline'].split('|')[2].strip() == '1', md
+    assert rows['wind'].split('|')[2].strip() == '2', md
+    assert 'missing = 1' in md
+    assert rj['overall_pass'] is True
 
 
 def test_pose_jumps_are_report_only_and_do_not_fail(judge_mod, thresholds):

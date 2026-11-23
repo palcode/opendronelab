@@ -94,32 +94,52 @@ ros2 run drone_localization localization_metrics "${ODL_BAG}" \
   --output-dir "${ODL_OUT}" --metrics-name metrics_ekf2.json --tum-dir "${ODL_OUT}/tum_ekf2" || true
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \
   --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
-  --output-dir "${ODL_OUT}" --metrics-name metrics_vio.json --tum-dir "${ODL_OUT}/tum_vio"
+  --output-dir "${ODL_OUT}" --metrics-name metrics_vio.json --tum-dir "${ODL_OUT}/tum_vio" || true
+# set -e above is fail-closed for setup only: a metrics/evo step that fails
+# (e.g. VIO never published, or no samples after the airborne mask) must not
+# abort before summary.json is written. The parser below records None.
 # Matching evo Umeyama for BOTH estimators
 evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy.txt" || true
 evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_ekf2_ape_3d.txt" || true
-evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_vio_ape_xy.txt"
-evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_vio_ape_3d.txt"
+evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${ODL_OUT}/evo_vio_ape_xy.txt" || true
+evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r trans_part -a > "${ODL_OUT}/evo_vio_ape_3d.txt" || true
 evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy_noalign.txt" || true
 # Parse helpers
 python3 - <<'PY'
-import json, os, re, pathlib
+import json, math, os, re, pathlib
 out = pathlib.Path(os.environ['ODL_OUT'])
 bag = os.environ['ODL_BAG']
 def ape_rmse(path):
-    t = path.read_text()
+    # None (JSON null), not NaN: keep summary.json strict JSON. A missing
+    # or unparsable evo output (failed evo_ape) is also None.
+    if not path.exists():
+        return None
+    t = path.read_text(errors='replace')
     m = re.search(r'rmse\s+([0-9.]+)', t)
-    return float(m.group(1)) if m else float('nan')
-ekf2 = json.loads((out/'metrics_ekf2.json').read_text())
-vio = json.loads((out/'metrics_vio.json').read_text())
+    return float(m.group(1)) if m else None
+def json_safe(v):
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    return v
+def load_metrics(path):
+    # localization_metrics exits 1 with no file on an empty estimate topic
+    # (and with null metrics on an empty airborne mask). Missing or
+    # unreadable file -> {} so every field below becomes None.
+    try:
+        d = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+ekf2 = load_metrics(out/'metrics_ekf2.json')
+vio = load_metrics(out/'metrics_vio.json')
 summary = {
   'bag': bag,
-  'ekf2_origin_h_rmse': ekf2['horizontal_rmse'],
-  'ekf2_origin_v_rmse': ekf2['vertical_rmse'],
-  'ekf2_origin_samples': ekf2['num_samples'],
-  'vio_origin_h_rmse': vio['horizontal_rmse'],
-  'vio_origin_v_rmse': vio['vertical_rmse'],
-  'vio_origin_samples': vio['num_samples'],
+  'ekf2_origin_h_rmse': ekf2.get('horizontal_rmse'),
+  'ekf2_origin_v_rmse': ekf2.get('vertical_rmse'),
+  'ekf2_origin_samples': ekf2.get('num_samples'),
+  'vio_origin_h_rmse': vio.get('horizontal_rmse'),
+  'vio_origin_v_rmse': vio.get('vertical_rmse'),
+  'vio_origin_samples': vio.get('num_samples'),
   'ekf2_umeyama_xy_rmse': ape_rmse(out/'evo_ekf2_ape_xy.txt'),
   'ekf2_umeyama_3d_rmse': ape_rmse(out/'evo_ekf2_ape_3d.txt'),
   'vio_umeyama_xy_rmse': ape_rmse(out/'evo_vio_ape_xy.txt'),
@@ -127,10 +147,13 @@ summary = {
   'ekf2_noalign_xy_rmse': ape_rmse(out/'evo_ekf2_ape_xy_noalign.txt'),
   'vio_pose_jumps': vio.get('pose_jumps'),
 }
-(out/'summary.json').write_text(json.dumps(summary, indent=2))
+summary = {k: json_safe(v) for k, v in summary.items()}
+(out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 print(json.dumps(summary, indent=2))
-# Health: VIO umeyama xy under 5 m and samples > 500
-healthy = (summary['vio_umeyama_xy_rmse'] < 5.0 and summary['vio_origin_samples'] > 500)
+# Health: VIO umeyama xy under 5 m and samples > 500 (missing = unhealthy)
+xy = summary['vio_umeyama_xy_rmse']
+n = summary['vio_origin_samples']
+healthy = xy is not None and n is not None and xy < 5.0 and n > 500
 print('VIO_HEALTHY=' + ('1' if healthy else '0'))
 PY
 OUTER_SH
@@ -152,8 +175,8 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     # Per-run bag path so NUM_RUNS>1 does not re-score run 1's bag.
     RUN_BAG_STAMP="${STAMP}_run${run}"
     BAG="/data/bags/${RUN_BAG_STAMP}"
-    if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "test -d ${BAG}"; then
+    if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${BAG}" "${CONTAINER_NAME}" \
+        bash -c 'test -d "${ODL_BAG}"'; then
         echo "[ERROR] bag path ${BAG} already exists; refusing to record over it" >&2
         exit 1
     fi
@@ -173,8 +196,8 @@ for run in $(seq 1 "${NUM_RUNS}"); do
     fi
     wait "${RECORD_PID}" || true
 
-    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "test -d ${BAG}"; then
+    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${BAG}" "${CONTAINER_NAME}" \
+        bash -c 'test -d "${ODL_BAG}"'; then
         echo "[ERROR] expected bag ${BAG} missing" >&2
         exit 1
     fi
@@ -199,22 +222,37 @@ export ROS_DOMAIN_ID=42
 export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 
 python3 - <<'PY'
-import json, os, pathlib, statistics
+import json, math, os, pathlib
 root = pathlib.Path(os.environ['ODL_SUMMARY_DIR'])
 runs = sorted(root.glob('run*/summary.json'))
-rows = [json.loads(p.read_text()) for p in runs]
+def _clean(v):
+    # Older summaries may hold NaN; aggregate.json stays strict JSON.
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    if isinstance(v, dict):
+        return {k: _clean(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_clean(x) for x in v]
+    return v
+rows = [_clean(json.loads(p.read_text())) for p in runs]
 def mean(key):
-    vals = [r[key] for r in rows]
-    return sum(vals)/len(vals), vals
+    # Runs where a metric is missing (None, e.g. VIO produced no data) are
+    # left out of the mean but kept in _vals so the gap stays visible.
+    vals = [r.get(key) for r in rows]
+    nums = [v for v in vals if isinstance(v, (int, float)) and math.isfinite(v)]
+    return (sum(nums)/len(nums) if nums else None), vals
 out = {'n': len(rows), 'runs': rows}
 for k in ['ekf2_origin_h_rmse','ekf2_origin_v_rmse','vio_origin_h_rmse','vio_origin_v_rmse',
           'ekf2_umeyama_xy_rmse','ekf2_umeyama_3d_rmse','vio_umeyama_xy_rmse','vio_umeyama_3d_rmse']:
     m, vals = mean(k)
     out[k+'_mean'] = m
     out[k+'_vals'] = vals
-(root/'aggregate.json').write_text(json.dumps(out, indent=2))
+(root/'aggregate.json').write_text(json.dumps(out, indent=2, allow_nan=False))
 print(json.dumps(out, indent=2))
-healthy = sum(1 for r in rows if r['vio_umeyama_xy_rmse'] < 5.0 and r['vio_origin_samples'] > 500)
+def _healthy(r):
+    xy, n = r.get('vio_umeyama_xy_rmse'), r.get('vio_origin_samples')
+    return xy is not None and n is not None and xy < 5.0 and n > 500
+healthy = sum(1 for r in rows if _healthy(r))
 print(f'HEALTHY_RUNS={healthy}/{len(rows)}')
 PY
 OUTER_SH

@@ -72,16 +72,50 @@ qgc_ours() {
     done
 }
 
-# pgrp from /proc/<pid>/stat (works with a fake QGC_PROC_ROOT in tests).
-qgc_pid_pgid() {
-    local pid="$1" stat rest
-    stat="$(cat "${QGC_PROC_ROOT}/${pid}/stat" 2>/dev/null || true)"
+# Field N (1-based, N >= 3) of /proc/<pid>/stat (works with a fake
+# QGC_PROC_ROOT in tests). comm (field 2) may contain spaces and ')', so
+# split after the LAST ')': field 3 (state) is then the first word.
+qgc_stat_field() {
+    local pid="$1" n="$2" stat rest
+    local -a f
+    [[ "${pid}" =~ ^[0-9]+$ ]] && [[ "${n}" =~ ^[0-9]+$ ]] && [ "${n}" -ge 3 ] || return 1
+    stat=""
+    IFS= read -r stat < "${QGC_PROC_ROOT}/${pid}/stat" 2>/dev/null || true
     [ -n "${stat}" ] || return 1
     rest="${stat##*)}"
-    # After comm: state ppid pgrp session ...
-    set -- ${rest}
-    [ -n "${3:-}" ] || return 1
-    printf '%s\n' "$3"
+    read -r -a f <<< "${rest}"
+    [ -n "${f[n - 3]:-}" ] || return 1
+    printf '%s\n' "${f[n - 3]}"
+}
+
+# pgrp (field 5) from /proc/<pid>/stat.
+qgc_pid_pgid() {
+    qgc_stat_field "$1" 5
+}
+
+# Kernel start time (field 22, clock ticks since boot). Together with the
+# pid it identifies one process: a reused pid has a different start time.
+qgc_pid_starttime() {
+    qgc_stat_field "$1" 22
+}
+
+# True if the pid exists and is not a zombie/dead entry.
+qgc_pid_live() {
+    local state
+    state="$(qgc_stat_field "$1" 3 2>/dev/null)" || return 1
+    case "${state}" in
+        Z|X|x) return 1 ;;
+    esac
+    return 0
+}
+
+# True if /proc/<pid>/exe is an extracted or FUSE-mounted QGroundControl.
+qgc_exe_is_qgc() {
+    local exe
+    exe="$(readlink "${QGC_PROC_ROOT}/$1/exe" 2>/dev/null || true)"
+    [ -n "${exe}" ] || return 1
+    exe="${exe% (deleted)}"
+    [[ "${exe}" =~ ^${QGC_BIN_PATTERN}$ ]]
 }
 
 qgc_path_under_mount() {
@@ -123,18 +157,21 @@ qgc_our_pids() {
         _qgc_emit "${pid}"
     done
     if [ -n "${QGC_PGID:-}" ]; then
-        for pidpath in "${QGC_PROC_ROOT}"/[0-9]*; do
-            [ -e "${pidpath}" ] || continue
-            pid="${pidpath##*/}"
-            [[ "${pid}" =~ ^[0-9]+$ ]] || continue
-            pgid="$(qgc_pid_pgid "${pid}" 2>/dev/null || true)"
-            if [ "${pgid}" = "${QGC_PGID}" ]; then
-                _qgc_emit "${pid}"
-            fi
-        done
         if [ "${QGC_PROC_ROOT}" = "/proc" ]; then
+            # One pgrep instead of forking per /proc entry (this runs in
+            # the stop wait loop).
             for pid in $(pgrep -g "${QGC_PGID}" 2>/dev/null); do
                 _qgc_emit "${pid}"
+            done
+        else
+            for pidpath in "${QGC_PROC_ROOT}"/[0-9]*; do
+                [ -e "${pidpath}" ] || continue
+                pid="${pidpath##*/}"
+                [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+                pgid="$(qgc_pid_pgid "${pid}" 2>/dev/null || true)"
+                if [ "${pgid}" = "${QGC_PGID}" ]; then
+                    _qgc_emit "${pid}"
+                fi
             done
         fi
     fi
@@ -216,19 +253,6 @@ qgc_ours_unmount_targets() {
     done
 }
 
-# Allow tests to source the helpers above without creating a report dir or
-# installing the regression EXIT trap.
-if [ "${QGC_FUSE_HELPERS_ONLY:-0}" = "1" ]; then
-    return 0 2>/dev/null || exit 0
-fi
-
-mkdir -p "${REPORT_HOST}" "${REPO_DIR}/logs"
-START_EPOCH="$(date +%s)"
-REG_STARTED_QGC=0
-QGC_PID=""
-QGC_PGID=""
-QGC_MOUNTS=""
-
 # Report leftover AppImage FUSE mounts with findmnt; unmount only those we
 # recorded as ours. Never sudo. Never touch unrelated /tmp/.mount_* mounts.
 cleanup_qgc_fuse() {
@@ -270,11 +294,118 @@ cleanup_qgc_fuse() {
     done <<< "${ours_line}"
 }
 
-# Our QGC pids (runtime, group members, extracted binary) that are still alive.
+# --- QGC stop (sourceable with QGC_FUSE_HELPERS_ONLY=1 for tests) --------
+#
+# A pid alone is not proof the process is ours: if the AppImage runtime
+# exits early its pid can be reused. At launch we record QGC_STARTTIME
+# (field 22 of /proc/$QGC_PID/stat) and QGC_SID; a pid is only signalled if
+# - it is QGC_PID and its start time still matches QGC_STARTTIME, or
+# - its pgid (or sid) equals QGC_PGID, the group is still ours (leader gone,
+#   or leader start time matches) and its exe is QGC_BIN_PATTERN, or
+# - fallback (no own process group, QGC_PGID cleared): its exe is
+#   QGC_BIN_PATTERN, it started no earlier than QGC_STARTTIME, and it is a
+#   child of our (verified) QGC_PID or in QGC_SID.
+
+# Our launch pid still is the process we started.
+qgc_leader_verified() {
+    [ -n "${QGC_PID:-}" ] && [ -n "${QGC_STARTTIME:-}" ] || return 1
+    qgc_pid_live "${QGC_PID}" || return 1
+    [ "$(qgc_pid_starttime "${QGC_PID}" 2>/dev/null)" = "${QGC_STARTTIME}" ]
+}
+
+# Our process group can still be signalled as a group. While any member of
+# group N exists the kernel does not reuse pid N, so if pid N is gone the
+# group (if any) is the one we started; if pid N exists it must be ours.
+qgc_group_trusted() {
+    [ -n "${QGC_PGID:-}" ] && [ "${QGC_PGID}" = "${QGC_PID:-}" ] || return 1
+    if [ ! -e "${QGC_PROC_ROOT}/${QGC_PGID}/stat" ]; then
+        return 0
+    fi
+    [ -n "${QGC_STARTTIME:-}" ] \
+        && [ "$(qgc_pid_starttime "${QGC_PGID}" 2>/dev/null)" = "${QGC_STARTTIME}" ]
+}
+
+# All live QGC binaries (verified by exe). On the real /proc, pgrep narrows
+# the candidates (cmdline or comm); a fake QGC_PROC_ROOT is scanned.
+qgc_all_bin_pids() {
+    local pidpath pid
+    {
+        if [ "${QGC_PROC_ROOT}" = "/proc" ]; then
+            pgrep -f "${QGC_BIN_PATTERN}" 2>/dev/null || true
+            pgrep -x QGroundControl 2>/dev/null || true
+        else
+            for pidpath in "${QGC_PROC_ROOT}"/[0-9]*; do
+                [ -e "${pidpath}" ] && printf '%s\n' "${pidpath##*/}"
+            done
+        fi
+    } | sort -un | while IFS= read -r pid; do
+        [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+        qgc_pid_live "${pid}" || continue
+        qgc_exe_is_qgc "${pid}" && printf '%s\n' "${pid}"
+    done
+    return 0
+}
+
+# Started no earlier than our launch (fallback heuristics only).
+qgc_started_after_ours() {
+    local st
+    [ -n "${QGC_STARTTIME:-}" ] || return 1
+    st="$(qgc_pid_starttime "$1" 2>/dev/null)" || return 1
+    [ "${st}" -ge "${QGC_STARTTIME}" ]
+}
+
+# True if we may signal this pid (see rules above).
+qgc_pid_is_ours() {
+    local pid="$1" pgid sid ppid
+    [[ "${pid}" =~ ^[0-9]+$ ]] || return 1
+    qgc_pid_live "${pid}" || return 1
+    if [ "${pid}" = "${QGC_PID:-}" ]; then
+        qgc_leader_verified
+        return
+    fi
+    qgc_exe_is_qgc "${pid}" || return 1
+    if [ -n "${QGC_PGID:-}" ]; then
+        qgc_group_trusted || return 1
+        pgid="$(qgc_stat_field "${pid}" 5 2>/dev/null || true)"
+        sid="$(qgc_stat_field "${pid}" 6 2>/dev/null || true)"
+        [ "${pgid}" = "${QGC_PGID}" ] || [ "${sid}" = "${QGC_PGID}" ]
+        return
+    fi
+    # Fallback: no own process group.
+    qgc_started_after_ours "${pid}" || return 1
+    ppid="$(qgc_stat_field "${pid}" 4 2>/dev/null || true)"
+    if [ "${ppid}" = "${QGC_PID:-}" ] && qgc_leader_verified; then
+        return 0
+    fi
+    sid="$(qgc_stat_field "${pid}" 6 2>/dev/null || true)"
+    [ -n "${QGC_SID:-}" ] && [ "${sid}" = "${QGC_SID}" ]
+}
+
+# Our QGC pids (runtime, group members, extracted binary) that are still
+# alive and provably ours.
 qgc_alive_ours() {
-    local pid
-    for pid in $(qgc_our_pids); do
-        kill -0 "${pid}" >/dev/null 2>&1 && printf '%s\n' "${pid}"
+    local pid seen=" "
+    for pid in $(qgc_our_pids; [ -n "${QGC_PGID:-}" ] || qgc_all_bin_pids); do
+        case "${seen}" in
+            *" ${pid} "*) continue ;;
+        esac
+        seen="${seen}${pid} "
+        qgc_pid_is_ours "${pid}" && printf '%s\n' "${pid}"
+    done
+    return 0
+}
+
+# Fallback mode: QGC binaries started after ours that we could not prove
+# are ours (not signalled; reported so we never claim "stopped").
+qgc_unproven_survivors() {
+    local pid ours
+    [ -z "${QGC_PGID:-}" ] || return 0
+    ours=" $(qgc_alive_ours | tr '\n' ' ') "
+    for pid in $(qgc_all_bin_pids); do
+        case "${ours}" in
+            *" ${pid} "*) continue ;;
+        esac
+        qgc_started_after_ours "${pid}" && printf '%s\n' "${pid}"
     done
     return 0
 }
@@ -289,6 +420,61 @@ qgc_wait_gone() {
     [ -z "$(qgc_alive_ours)" ]
 }
 
+# /tmp/appimage_extracted_<hash> directories holding our live QGC binaries.
+qgc_extracted_dirs_of_ours() {
+    local pid exe
+    for pid in $(qgc_alive_ours); do
+        exe="$(readlink "${QGC_PROC_ROOT}/${pid}/exe" 2>/dev/null || true)"
+        exe="${exe% (deleted)}"
+        if [[ "${exe}" =~ ^(/tmp/appimage_extracted_[A-Za-z0-9_]+)/usr/bin/QGroundControl$ ]]; then
+            printf '%s\n' "${BASH_REMATCH[1]}"
+        fi
+    done | sort -u
+}
+
+# Pid of a live process whose exe, cwd or a mapped file is under dir.
+qgc_dir_used_by() {
+    local dir="$1" pidpath pid exe cwd
+    for pidpath in "${QGC_PROC_ROOT}"/[0-9]*; do
+        [ -e "${pidpath}" ] || continue
+        pid="${pidpath##*/}"
+        [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+        exe="$(readlink "${pidpath}/exe" 2>/dev/null || true)"
+        cwd="$(readlink "${pidpath}/cwd" 2>/dev/null || true)"
+        if qgc_path_under_mount "${exe% (deleted)}" "${dir}" \
+            || qgc_path_under_mount "${cwd% (deleted)}" "${dir}" \
+            || grep -qF -- " ${dir}/" "${pidpath}/maps" 2>/dev/null; then
+            printf '%s\n' "${pid}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# After a SIGKILL the AppImage runtime cannot delete its extraction dir.
+# Report leftovers; remove only dirs we recorded as ours and nothing uses.
+cleanup_qgc_extracted() {
+    local d user_pid others
+    while IFS= read -r d; do
+        [ -n "${d}" ] || continue
+        [[ "${d}" =~ ^/tmp/appimage_extracted_[A-Za-z0-9_]+$ ]] || continue
+        [ -d "${d}" ] && [ ! -L "${d}" ] && [ -O "${d}" ] || continue
+        if user_pid="$(qgc_dir_used_by "${d}")"; then
+            echo "[REG] leftover extracted QGC dir ${d} kept: still used by pid ${user_pid}"
+        elif rm -rf -- "${d}"; then
+            echo "[REG] removed leftover extracted QGC dir ${d}"
+        else
+            echo "[WARN] could not remove leftover extracted QGC dir ${d}" >&2
+        fi
+    done <<< "${QGC_EXTRACTED_DIRS:-}"
+    others="$(find /tmp -maxdepth 1 -name 'appimage_extracted_*' -type d 2>/dev/null \
+        | grep -vxF -f <(printf '%s\n' "${QGC_EXTRACTED_DIRS:-}" | awk 'NF') || true)"
+    if [ -n "${others}" ]; then
+        echo "[REG] other /tmp/appimage_extracted_* dirs (not ours, left alone):"
+        printf '%s\n' "${others}" | sed 's/^/[REG]   /'
+    fi
+}
+
 stop_our_qgc() {
     # Kill only the QGC this script started. $! is the AppImage runtime;
     # the real binary (/tmp/.mount_QGroun*/usr/bin/QGroundControl, or
@@ -298,40 +484,77 @@ stop_our_qgc() {
     # (pgid == QGC_PID): TERM that group, wait, then KILL it and any
     # extracted QGC binary in it. Report "stopped" only once nothing is left.
     [ "${REG_STARTED_QGC:-0}" = "1" ] && [ -n "${QGC_PID:-}" ] || return 0
-    local left pid label
+    local left pid label stray group=0 killed=0
+    local how="started by this regression run"
     # Snapshot unmount targets while the processes may still be alive:
     # our exe-derived mounts unioned with the post-start snapshot, excluding
     # pre-existing mounts and any still used outside our process group.
     QGC_OURS_MOUNTS="$(qgc_ours_unmount_targets)"
+    QGC_EXTRACTED_DIRS=""
     if [ -z "${QGC_PGID:-}" ] || [ "${QGC_PGID}" != "${QGC_PID}" ]; then
-        # Not a group leader: signal our pid only (never a group we do not lead).
+        # Not a group leader: signal provably-ours pids only (never a group
+        # we do not lead).
         QGC_PGID=""
         label="pid ${QGC_PID} (no own process group)"
-        kill -TERM "${QGC_PID}" >/dev/null 2>&1 || true
+    elif qgc_group_trusted; then
+        label="pgid ${QGC_PGID}"
+        group=1
     else
         label="pgid ${QGC_PGID}"
+        echo "[WARN] QGC pid ${QGC_PID} was reused by another process; not signalling group ${QGC_PGID}" >&2
+    fi
+    if [ "${group}" = 1 ]; then
         kill -TERM -- "-${QGC_PGID}" >/dev/null 2>&1 || true
-    fi
-    if qgc_wait_gone 10; then
-        echo "[REG] stopped QGC (${label}) started by this regression run"
-        cleanup_qgc_fuse
-        return 0
-    fi
-    echo "[REG] QGC (${label}) still running after TERM; sending KILL"
-    if [ -n "${QGC_PGID:-}" ]; then
-        kill -KILL -- "-${QGC_PGID}" >/dev/null 2>&1 || true
-    fi
-    for pid in $(qgc_alive_ours); do
-        kill -KILL "${pid}" >/dev/null 2>&1 || true
-    done
-    if qgc_wait_gone 6; then
-        echo "[REG] stopped QGC (${label}) after KILL"
     else
-        left="$(qgc_alive_ours | tr '\n' ' ')"
-        echo "[WARN] QGC (${label}) still running after KILL: ${left}" >&2
+        for pid in $(qgc_alive_ours); do
+            kill -TERM "${pid}" >/dev/null 2>&1 || true
+        done
+    fi
+    if ! qgc_wait_gone "${QGC_TERM_WAIT_STEPS:-10}"; then
+        echo "[REG] QGC (${label}) still running after TERM; sending KILL"
+        killed=1
+        QGC_EXTRACTED_DIRS="$(qgc_extracted_dirs_of_ours)"
+        if [ "${group}" = 1 ] && qgc_group_trusted; then
+            kill -KILL -- "-${QGC_PGID}" >/dev/null 2>&1 || true
+        fi
+        for pid in $(qgc_alive_ours); do
+            kill -KILL "${pid}" >/dev/null 2>&1 || true
+        done
+        if ! qgc_wait_gone 6; then
+            left="$(qgc_alive_ours | tr '\n' ' ')"
+            echo "[WARN] QGC (${label}) still running after KILL: ${left}" >&2
+            cleanup_qgc_fuse
+            return 0
+        fi
+        how="after KILL"
+    fi
+    stray="$(qgc_unproven_survivors | tr '\n' ' ')"
+    if [ -n "${stray// /}" ]; then
+        echo "[WARN] QGC (${label}): ours stopped ${how}, but QGroundControl pid(s) ${stray}started after ours still running (not provably ours; not signalled)" >&2
+    else
+        echo "[REG] stopped QGC (${label}) ${how}"
+    fi
+    if [ "${killed}" = 1 ]; then
+        cleanup_qgc_extracted
     fi
     cleanup_qgc_fuse
 }
+
+# Allow tests to source the helpers above without creating a report dir or
+# installing the regression EXIT trap.
+if [ "${QGC_FUSE_HELPERS_ONLY:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
+mkdir -p "${REPORT_HOST}" "${REPO_DIR}/logs"
+START_EPOCH="$(date +%s)"
+REG_STARTED_QGC=0
+QGC_PID=""
+QGC_PGID=""
+QGC_STARTTIME=""
+QGC_SID=""
+QGC_MOUNTS=""
+QGC_EXTRACTED_DIRS=""
 
 cleanup() {
     local ec=$?
@@ -385,6 +608,7 @@ pytest -q \
   ros2_ws/src/drone_localization/test/test_metrics.py \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
   ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
+  ros2_ws/src/drone_localization/test/test_vio_scoring_heredoc.py \
   ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py \
   ros2_ws/src/drone_localization/test/test_airframe_registry.py
 ' | tee "${REPORT_HOST}/pytest.txt"
@@ -424,14 +648,25 @@ if [ "${#FLIGHTS[@]}" -gt 0 ] && ! pgrep -af QGroundControl >/dev/null 2>&1; the
         setsid nohup "${HOME}/Applications/QGroundControl-x86_64.AppImage" >/tmp/qgc-regression.log 2>&1 &
         QGC_PID=$!
         REG_STARTED_QGC=1
+        # Identify this exact process for cleanup (pid reuse guard).
+        QGC_STARTTIME="$(qgc_pid_starttime "${QGC_PID}" 2>/dev/null || true)"
+        if [ -z "${QGC_STARTTIME}" ]; then
+            echo "[WARN] could not read start time of QGC pid ${QGC_PID}; cleanup will not signal that pid" >&2
+        fi
         sleep 5
         QGC_PGID="$(ps -o pgid= -p "${QGC_PID}" 2>/dev/null | tr -d ' ')"
+        # Session after setsid has run (read after the sleep, not at fork).
+        # Never use this script's own session for the fallback match.
+        QGC_SID="$(qgc_stat_field "${QGC_PID}" 6 2>/dev/null || true)"
+        if [ -n "${QGC_SID}" ] && [ "${QGC_SID}" = "$(qgc_stat_field "$$" 6 2>/dev/null || true)" ]; then
+            QGC_SID=""
+        fi
         if [ "${QGC_PGID}" != "${QGC_PID}" ]; then
             # Never signal a group we do not lead (could be this script's own).
-            echo "[WARN] QGC pgid '${QGC_PGID}' != pid ${QGC_PID}; cleanup falls back to killing pid ${QGC_PID} only" >&2
+            echo "[WARN] QGC pgid '${QGC_PGID}' != pid ${QGC_PID}; cleanup falls back to pid ${QGC_PID} and QGC binaries it started" >&2
             QGC_PGID=""
         fi
-        echo "[REG] started QGC pid ${QGC_PID} (pgid ${QGC_PGID})"
+        echo "[REG] started QGC pid ${QGC_PID} (pgid ${QGC_PGID}, sid ${QGC_SID}, starttime ${QGC_STARTTIME})"
         QGC_MOUNTS="$(qgc_mounts_from_pids | qgc_filter_preexisting)"
         if [ -n "${QGC_MOUNTS}" ]; then
             echo "[REG] recorded our QGC FUSE mounts:"
