@@ -118,6 +118,7 @@ import json, math, os, re, pathlib, sys
 out = pathlib.Path(os.environ['ODL_OUT'])
 sys.path.insert(0, '/workspace/scripts')
 from git_state import git_fields
+from scoring_version import summary_scoring_version
 bag = os.environ['ODL_BAG']
 def ape_rmse(path):
     # None (JSON null), not NaN: keep summary.json strict JSON. A missing
@@ -158,6 +159,8 @@ summary = {
   'vio_pose_jumps': vio.get('pose_jumps'),
 }
 summary = {k: json_safe(v) for k, v in summary.items()}
+# How the numbers were scored (ODL-118/119); not in the fingerprint.
+summary['scoring_version'] = summary_scoring_version(ekf2, vio)
 summary.update(git_fields())
 if os.environ.get('ODL_TEST_SUPPRESS_VIO') == '1':
     summary['test_suppress_vio'] = True
