@@ -156,11 +156,17 @@ The mission manager enforces these **hard limits** (configurable as ROS 2 parame
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `target_altitude` | 3.0 m | Target hover altitude |
-| `max_altitude` | 4.0 m | Maximum allowed altitude (refuses higher targets) |
+| `target_altitude` | 3.0 m | Target hover altitude; must be `0 < target <= max_altitude` (NaN, zero and negative targets are refused) |
+| `max_altitude` | 4.0 m | Maximum allowed altitude: refuses higher targets, and lands in flight if the measured altitude exceeds `max_altitude + 0.5 m` (same margin as `drone_flight_cpp`) |
 | `hover_duration` | 10.0 s | Hover time before landing |
 | `max_mission_time` | 60.0 s | Abort and land if mission exceeds this |
 | `max_xy_drift` | 2.0 m | Abort and land if XY drift exceeds this |
+
+All five accept integers or decimals (`target_altitude:=3` works). A NaN or
+infinite position during takeoff or hover lands immediately. Timeouts use the
+ROS clock, so they follow `use_sim_time` and a paused simulation. The checks
+live in `drone_mission_manager/safety.py`; `test_safety_limits.py` and
+`test_mission_node.py` test that code and the node itself.
 
 **These limits never override PX4 failsafes.** They are an additional application-level safety layer.
 

@@ -599,6 +599,16 @@ PX4 clock minus OV message age on the sim clock. Re-aligns if OV jumps by
 (default 1.5 m) so post-land OV divergence cannot yank EKF2. Default
 `EKF2_EV_CTRL` remains **0**.
 
+**Velocity frame:** the OpenVINS `odomimu` twist is in the IMU (body) frame.
+The bridge rotates it into the OV world frame with the odometry orientation,
+then applies the same axis swap and alignment yaw as the position, so
+`VELOCITY_FRAME_NED` is PX4 local NED. Before this fix the body-frame twist was
+published as NED directly (e.g. a northward flight at ENU yaw 90° came out as
+eastward); this only mattered with EV velocity fusion enabled, since the
+documented `EKF2_EV_CTRL=3` uses position only. If the orientation is not a
+usable quaternion, that sample is published without velocity
+(`VELOCITY_FRAME_UNKNOWN`, NaN).
+
 **Verification (2026-11-06 Asia/Calcutta, one opt-in flight):** bag
 `20261106_155243`, results `vio_ev_align_20261106_155243`. Square completed.
 `cs_ev_pos`/`cs_ev_hgt` true for 115/128 flags. EKF2 Umeyama xy **0.210 m**,

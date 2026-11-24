@@ -9,18 +9,22 @@ Executes a bounded takeoff-hover-land mission using PX4 offboard mode.
 Publishes OffboardControlMode + TrajectorySetpoint at >=10 Hz.
 Uses VehicleCommand to arm and switch to offboard mode.
 
-Hard safety limits:
-- Max altitude: 4m (parameter configurable, refuses targets above)
-- Max mission time: 60s
+Hard safety limits (checks live in drone_mission_manager.safety):
+- Max altitude: 4m (parameter configurable). Targets must be 0 < target <= max;
+  in flight the node lands if the measured altitude exceeds max + 0.5 m
+  (same margin as drone_flight_cpp).
+- Max mission time: 60s (ROS clock, so it follows use_sim_time)
 - Max XY drift: 2m from hover start (aborts to land if exceeded)
+- A non-finite (NaN/inf) position while airborne lands immediately.
 
 Never disables PX4 failsafes.
 
 For the production 10 m square path use drone_flight_cpp (scripts/run-baseline.sh), not this hover node.
 """
-import math
-import time
+import sys
+
 import rclpy
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 
@@ -32,33 +36,52 @@ from px4_msgs.msg import (
     VehicleLocalPosition
 )
 
+from drone_mission_manager.safety import (
+    airborne_violation,
+    as_float_param,
+    timed_out,
+    validate_limits,
+)
+
+# Numeric parameters: dynamic typing so `target_altitude:=3` (an integer on
+# the command line) is accepted and converted to float.
+FLOAT_PARAMS = (
+    ('target_altitude', 3.0),
+    ('hover_duration', 10.0),
+    ('max_altitude', 4.0),
+    ('max_mission_time', 60.0),
+    ('max_xy_drift', 2.0),
+)
+
 
 class MissionNode(Node):
     """PX4 offboard mission manager node."""
 
-    def __init__(self):
-        """Initialize mission node."""
-        super().__init__('mission_node')
+    def __init__(self, **kwargs):
+        """Initialize mission node (kwargs go to rclpy Node, e.g. overrides)."""
+        super().__init__('mission_node', **kwargs)
 
         # Mission parameters
-        self.declare_parameter('target_altitude', 3.0)
-        self.declare_parameter('hover_duration', 10.0)
-        self.declare_parameter('max_altitude', 4.0)
-        self.declare_parameter('max_mission_time', 60.0)
-        self.declare_parameter('max_xy_drift', 2.0)
+        values = {}
+        for name, default in FLOAT_PARAMS:
+            self.declare_parameter(
+                name, default, ParameterDescriptor(dynamic_typing=True))
+            values[name] = as_float_param(name, self.get_parameter(name).value)
 
-        self.target_altitude = self.get_parameter('target_altitude').value
-        self.hover_duration = self.get_parameter('hover_duration').value
-        self.max_altitude = self.get_parameter('max_altitude').value
-        self.max_mission_time = self.get_parameter('max_mission_time').value
-        self.max_xy_drift = self.get_parameter('max_xy_drift').value
+        self.target_altitude = values['target_altitude']
+        self.hover_duration = values['hover_duration']
+        self.max_altitude = values['max_altitude']
+        self.max_mission_time = values['max_mission_time']
+        self.max_xy_drift = values['max_xy_drift']
 
-        # Validate target altitude
-        if self.target_altitude > self.max_altitude:
-            self.get_logger().error(
-                f'Target altitude {self.target_altitude}m exceeds max {self.max_altitude}m'
-            )
-            raise ValueError('Target altitude exceeds safety limit')
+        # Validate limits (NaN, <= 0 or above max_altitude are refused)
+        try:
+            validate_limits(self.target_altitude, self.max_altitude,
+                            self.hover_duration, self.max_mission_time,
+                            self.max_xy_drift)
+        except ValueError as e:
+            self.get_logger().error(str(e))
+            raise
 
         # PX4-compatible QoS profile
         qos_profile = QoSProfile(
@@ -202,24 +225,43 @@ class MissionNode(Node):
         )
         self.get_logger().info('Land command sent')
 
+    def now_s(self):
+        """ROS clock in seconds (sim time when use_sim_time is set)."""
+        return self.get_clock().now().nanoseconds * 1e-9
+
+    def abort_to_land(self, reason):
+        """Failsafe: log, command NAV_LAND once and enter LANDING."""
+        self.get_logger().error(f'{reason}, landing')
+        self.land()
+        self.offboard_setpoint_counter = 0
+        self.state = 'LANDING'
+
     def control_loop(self):
         """Main control loop (20 Hz)."""
         if not all([self.vehicle_status, self.vehicle_local_position]):
             return
 
-        current_time = time.time()
+        current_time = self.now_s()
 
         # Check global mission timeout (once; not while already landing)
-        if (self.mission_start_time is not None and
-                self.state not in ('LANDING', 'COMPLETE')):
-            elapsed = current_time - self.mission_start_time
-            if elapsed > self.max_mission_time:
-                self.get_logger().error(
-                    f'Mission timeout ({self.max_mission_time}s), landing'
-                )
-                self.land()
-                self.offboard_setpoint_counter = 0
-                self.state = 'LANDING'
+        if (self.state not in ('LANDING', 'COMPLETE') and
+                timed_out(current_time, self.mission_start_time,
+                          self.max_mission_time)):
+            self.abort_to_land(f'Mission timeout ({self.max_mission_time}s)')
+            return
+
+        # Airborne checks: non-finite position, runtime max altitude and
+        # (in HOVER) XY drift. Any violation lands.
+        if self.state in ('TAKEOFF', 'HOVER'):
+            pos = self.vehicle_local_position
+            reason = airborne_violation(
+                float(pos.x), float(pos.y), float(pos.z), self.max_altitude,
+                hover_start=(self.hover_start_position
+                             if self.state == 'HOVER' else None),
+                max_xy_drift=self.max_xy_drift,
+            )
+            if reason is not None:
+                self.abort_to_land(reason)
                 return
 
         # State machine
@@ -287,19 +329,7 @@ class MissionNode(Node):
             target_z = -self.target_altitude
             self.publish_trajectory_setpoint(0.0, 0.0, target_z, 0.0)
 
-            # Check XY drift
-            dx = self.vehicle_local_position.x - self.hover_start_position[0]
-            dy = self.vehicle_local_position.y - self.hover_start_position[1]
-            drift = math.sqrt(dx * dx + dy * dy)
-
-            if drift > self.max_xy_drift:
-                self.get_logger().error(
-                    f'XY drift {drift:.2f}m exceeds limit {self.max_xy_drift}m, aborting'
-                )
-                self.land()
-                self.offboard_setpoint_counter = 0
-                self.state = 'LANDING'
-                return
+            # XY drift, altitude and NaN checks run above (airborne_violation).
 
             # Check hover duration
             hover_elapsed = current_time - self.hover_start_time
@@ -332,7 +362,13 @@ class MissionNode(Node):
 def main(args=None):
     """Main entry point."""
     rclpy.init(args=args)
-    node = MissionNode()
+    try:
+        node = MissionNode()
+    except ValueError as e:
+        # Refused parameters (already logged): exit non-zero, no traceback.
+        print(f'[mission_node] refusing to start: {e}', file=sys.stderr)
+        rclpy.shutdown()
+        return 1
     try:
         rclpy.spin(node)
     except (KeyboardInterrupt, SystemExit):
@@ -340,7 +376,8 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

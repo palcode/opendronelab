@@ -598,13 +598,18 @@ source /opt/ros/jazzy/setup.bash
 [ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
 [ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
 # Prefer first-party Python sources over a stale overlay copy.
-if [ -d /workspace/ros2_ws/src/drone_localization ]; then
-    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
-fi
+for pkg in drone_localization drone_mission_manager drone_perception; do
+    if [ -d "/workspace/ros2_ws/src/${pkg}" ]; then
+        export PYTHONPATH="/workspace/ros2_ws/src/${pkg}${PYTHONPATH:+:$PYTHONPATH}"
+    fi
+done
 set -u
 pytest -q \
   ros2_ws/src/drone_perception/test/test_processing.py \
   ros2_ws/src/drone_perception/test/test_yolox.py \
+  ros2_ws/src/drone_perception/test/test_params.py \
+  ros2_ws/src/drone_mission_manager/test/test_safety_limits.py \
+  ros2_ws/src/drone_mission_manager/test/test_mission_node.py \
   ros2_ws/src/drone_localization/test/test_metrics.py \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
   ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \

@@ -22,6 +22,8 @@ from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 from cv_bridge import CvBridge
 
+from drone_perception.params import validate_process_every_n
+
 # COCO class names (80 classes)
 COCO_CLASSES = [
     'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
@@ -204,7 +206,8 @@ class YOLOXDetectorNode(Node):
         model_path = self.get_parameter('model_path').value
         self.score_threshold = self.get_parameter('score_threshold').value
         self.nms_threshold = self.get_parameter('nms_threshold').value
-        self.process_every_n = int(self.get_parameter('process_every_n').value)
+        self.process_every_n = validate_process_every_n(
+            self.get_parameter('process_every_n').value)
         num_threads = int(self.get_parameter('num_threads').value)
         _fc = self.get_parameter('force_cpu').value
         if isinstance(_fc, str):

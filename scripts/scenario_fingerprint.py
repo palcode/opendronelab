@@ -54,10 +54,16 @@ def _resolve_overlay(repo: Path, overlay_config: str | Path | None) -> tuple[Pat
         raw = repo / parts[len('/workspace/'):]
     elif not raw.is_absolute():
         raw = repo / raw
-    directory = raw if raw.is_dir() else raw.parent
-    if directory.is_dir():
-        return directory, _repo_relative(repo, directory)
-    return None, _repo_relative(repo, directory)
+    if raw.is_dir():
+        directory = raw
+    elif raw.is_file():
+        directory = raw.parent
+    else:
+        # Given but missing (e.g. a typo'd overlay name). Never fall back to
+        # the parent directory: that silently hashes the wrong config
+        # (e.g. all of config/openvins). The caller hashes a 'missing' marker.
+        return None, _repo_relative(repo, raw)
+    return directory, _repo_relative(repo, directory)
 
 
 def _iter_overlay_files(overlay_dir: Path):
@@ -159,6 +165,18 @@ def compute_scenario_fingerprint(
         hasher.update(b'\0')
         hasher.update(world_path.read_bytes())
         hasher.update(b'\0')
+    elif world:
+        # A world was given but does not resolve (typo or not vendored):
+        # hash a marker so it differs from "no world". Valid scenarios
+        # never take this branch, so their fingerprints are unchanged.
+        hasher.update(b'world-missing:')
+        hasher.update((world_rel or str(world)).encode())
+        hasher.update(b'\0')
+    if overlay_dir is None and overlay_config:
+        # Same for a given-but-missing overlay (see _resolve_overlay).
+        hasher.update(b'overlay-missing:')
+        hasher.update((overlay_rel or str(overlay_config)).encode())
+        hasher.update(b'\0')
     if overlay_dir is not None:
         hashed_resolved = set()
         for f in _iter_overlay_files(overlay_dir):
@@ -188,7 +206,7 @@ def compute_scenario_fingerprint(
             hasher.update(b'\0')
             hashed_resolved.add(resolved_real)
 
-    return {
+    result = {
         'scheme': 2,
         'sha256': hasher.hexdigest(),
         'git_sha': _git_sha(repo),
@@ -196,6 +214,16 @@ def compute_scenario_fingerprint(
         'world': world_rel,
         'openvins_overlay': overlay_rel,
     }
+    missing = []
+    if world and world_path is None:
+        missing.append('world')
+    if overlay_config and overlay_dir is None:
+        missing.append('openvins_overlay')
+    if missing:
+        # Only present when something was not found, so valid summaries
+        # keep the same keys.
+        result['missing'] = missing
+    return result
 
 
 if __name__ == '__main__':

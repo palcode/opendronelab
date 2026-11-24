@@ -19,6 +19,13 @@ North, which fights GPS and destabilizes OFFBOARD. This bridge:
    NED using vehicle_local_position (heading + position) before first publish.
 3. Stamps VehicleOdometry with the PX4 clock domain (from local_position),
    with timestamp_sample corrected by the OpenVINS message age on the sim clock.
+
+Velocity: the odomimu twist is in the IMU (body) frame (OpenVINS publishes
+R_GtoI * v_IinG). It is rotated into the OV world frame with the odometry
+orientation (IMU-to-world), then given the same axis swap and alignment yaw
+as the position, so VELOCITY_FRAME_NED really is PX4 local NED. If the
+orientation is not a usable quaternion, velocity is not published (NaN,
+VELOCITY_FRAME_UNKNOWN) for that sample.
 """
 from __future__ import annotations
 
@@ -40,6 +47,56 @@ def enu_to_ned_position(x: float, y: float, z: float) -> Tuple[float, float, flo
 
 def enu_to_ned_velocity(vx: float, vy: float, vz: float) -> Tuple[float, float, float]:
     return vy, vx, -vz
+
+
+def quat_rotate(
+    qx: float, qy: float, qz: float, qw: float,
+    vx: float, vy: float, vz: float,
+) -> Optional[Tuple[float, float, float]]:
+    """Rotate vector v by the (normalised) quaternion q (Hamilton, x,y,z,w).
+
+    Returns None if q or v is non-finite or q has (near) zero norm.
+    """
+    vals = (qx, qy, qz, qw, vx, vy, vz)
+    if not all(math.isfinite(a) for a in vals):
+        return None
+    n = math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
+    if n < 1e-6:
+        return None
+    qx, qy, qz, qw = qx / n, qy / n, qz / n, qw / n
+    # t = 2 * (u x v); v' = v + w * t + u x t
+    tx = 2.0 * (qy * vz - qz * vy)
+    ty = 2.0 * (qz * vx - qx * vz)
+    tz = 2.0 * (qx * vy - qy * vx)
+    return (
+        vx + qw * tx + (qy * tz - qz * ty),
+        vy + qw * ty + (qz * tx - qx * tz),
+        vz + qw * tz + (qx * ty - qy * tx),
+    )
+
+
+def ov_body_velocity_to_px4_ned(
+    v_body: Tuple[float, float, float],
+    q_imu_to_world: Tuple[float, float, float, float],
+    yaw_off: float,
+) -> Optional[Tuple[float, float, float]]:
+    """OpenVINS odomimu twist (IMU/body frame) -> PX4 local NED velocity.
+
+    1. Rotate body -> OV world (Z-up) with the odometry orientation.
+    2. Same Z-up -> Z-down axis swap as the position (enu_to_ned_velocity).
+    3. Same alignment yaw as the position (rotate_yaw_xy by yaw_off).
+
+    Returns None when the frame cannot be guaranteed (non-finite or
+    zero-norm quaternion, non-finite velocity or yaw).
+    """
+    if not math.isfinite(yaw_off):
+        return None
+    v_world = quat_rotate(*q_imu_to_world, *v_body)
+    if v_world is None:
+        return None
+    vx_n, vy_n, vz_n = enu_to_ned_velocity(*v_world)
+    vx_a, vy_a = rotate_yaw_xy(vx_n, vy_n, yaw_off)
+    return vx_a, vy_a, vz_n
 
 
 def yaw_from_quat(x: float, y: float, z: float, w: float) -> float:
@@ -203,7 +260,6 @@ class VisionPx4Bridge(Node):
         v = msg.twist.twist.linear
         q = msg.pose.pose.orientation
         x_n, y_n, z_n = enu_to_ned_position(p.x, p.y, p.z)
-        vx_n, vy_n, vz_n = enu_to_ned_velocity(v.x, v.y, v.z)
         ov_ned = (x_n, y_n, z_n)
         yaw_enu = yaw_from_quat(q.x, q.y, q.z, q.w)
         ov_ned_yaw = enu_yaw_to_ned_yaw(yaw_enu)
@@ -230,8 +286,14 @@ class VisionPx4Bridge(Node):
             return
 
         x_a, y_a, z_a = apply_ned_alignment(ov_ned, self._yaw_off, self._translation)
-        vx_a, vy_a = rotate_yaw_xy(vx_n, vy_n, self._yaw_off)
-        vz_a = vz_n
+        vel_ned = None
+        if self._pub_vel:
+            # Body-frame twist -> OV world -> PX4 local NED (see module doc).
+            vel_ned = ov_body_velocity_to_px4_ned(
+                (float(v.x), float(v.y), float(v.z)),
+                (float(q.x), float(q.y), float(q.z), float(q.w)),
+                self._yaw_off,
+            )
 
         # PX4 clock domain: local_position.timestamp is "now" in PX4 µs.
         # OpenVINS header is sim/ROS clock; age = now_sim - stamp_sim.
@@ -267,9 +329,9 @@ class VisionPx4Bridge(Node):
                 [math.nan, math.nan, math.nan], dtype=np.float32
             )
 
-        if self._pub_vel:
+        if vel_ned is not None:
             out.velocity_frame = VehicleOdometry.VELOCITY_FRAME_NED
-            out.velocity = np.array([vx_a, vy_a, vz_a], dtype=np.float32)
+            out.velocity = np.array(vel_ned, dtype=np.float32)
             out.velocity_variance = np.array(
                 [self._vel_var] * 3, dtype=np.float32
             )

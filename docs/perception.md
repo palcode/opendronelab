@@ -94,7 +94,7 @@ The `edge_overlay_node` performs real-time computer vision processing:
 |-----------|---------|-------------|
 | `canny_low` | 50 | Canny lower threshold |
 | `canny_high` | 150 | Canny upper threshold |
-| `process_every_n` | 1 | Process every Nth frame (1 = all frames) |
+| `process_every_n` | 1 | Process every Nth frame (1 = all frames; must be >= 1) |
 | `use_sim_time` | true | Use simulation time from /clock |
 
 ### Metrics
