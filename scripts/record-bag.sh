@@ -179,9 +179,9 @@ else
 fi
 
 echo "[INFO] Recording topics: ${TOPICS[*]}"
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG_PATH="${BAG_PATH}" "${CONTAINER_NAME}" \
     bash -c "${SOURCE_CMD}; \
-    timeout ${DURATION} ros2 bag record ${STORAGE_ARG} -o ${BAG_PATH} ${TOPICS[*]} || true"
+    timeout ${DURATION} ros2 bag record ${STORAGE_ARG} -o \"\${ODL_BAG_PATH}\" ${TOPICS[*]} || true"
 
 echo ""
 echo "[SUCCESS] Recording complete."
@@ -189,8 +189,8 @@ echo "[INFO] Bag location: ${BAG_PATH}"
 
 echo ""
 echo "[INFO] Bag summary:"
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "${SOURCE_CMD}; ros2 bag info ${BAG_PATH}" || \
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG_PATH="${BAG_PATH}" "${CONTAINER_NAME}" \
+    bash -c "${SOURCE_CMD}"'; ros2 bag info "${ODL_BAG_PATH}"' || \
     echo "[WARN] Could not read bag info (recording may have produced no messages)"
 
 echo ""

@@ -129,8 +129,8 @@ for run in $(seq 1 "$NUM_RUNS"); do
     wait "$RECORD_PID" || true
     
     LATEST_BAG="/data/bags/${RUN_BAG_STAMP}"
-    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "test -d ${LATEST_BAG} && ls ${LATEST_BAG}/* >/dev/null 2>&1"; then
+    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${LATEST_BAG}" "${CONTAINER_NAME}" \
+        bash -c 'test -d "${ODL_BAG}" && ls "${ODL_BAG}"/* >/dev/null 2>&1'; then
         echo "[${run}/${NUM_RUNS}] ERROR: expected bag ${LATEST_BAG} missing (refusing older bag)"
         continue
     fi
@@ -139,8 +139,8 @@ for run in $(seq 1 "$NUM_RUNS"); do
     # Compute metrics
     if [ "${MISSION_STATUS}" = "success" ]; then
         echo "[${run}/${NUM_RUNS}] Computing metrics..."
-        if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-            bash -c "${SOURCE_CMD}; cd ${LATEST_BAG} && ros2 run drone_localization localization_metrics ."; then
+        if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${LATEST_BAG}" "${CONTAINER_NAME}" \
+            bash -c "${SOURCE_CMD}"'; cd "${ODL_BAG}" && ros2 run drone_localization localization_metrics .'; then
             echo "[${run}/${NUM_RUNS}] Metrics computed"
             
             # Copy metrics to results
@@ -148,14 +148,14 @@ for run in $(seq 1 "$NUM_RUNS"); do
             docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
                 mkdir -p "${RUN_DIR}"
             
-            docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-                bash -c "cp ${LATEST_BAG}/metrics.json ${RUN_DIR}/ 2>/dev/null || true"
-            docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-                bash -c "cp ${LATEST_BAG}/*.png ${RUN_DIR}/ 2>/dev/null || true"
+            docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${LATEST_BAG}" -e ODL_RUN_DIR="${RUN_DIR}" "${CONTAINER_NAME}" \
+                bash -c 'cp "${ODL_BAG}/metrics.json" "${ODL_RUN_DIR}/" 2>/dev/null || true'
+            docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${LATEST_BAG}" -e ODL_RUN_DIR="${RUN_DIR}" "${CONTAINER_NAME}" \
+                bash -c 'cp "${ODL_BAG}"/*.png "${ODL_RUN_DIR}/" 2>/dev/null || true'
             
             # Store bag path
-            docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-                bash -c "echo '${LATEST_BAG}' > ${RUN_DIR}/bag_path.txt"
+            docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${LATEST_BAG}" -e ODL_RUN_DIR="${RUN_DIR}" "${CONTAINER_NAME}" \
+                bash -c 'echo "${ODL_BAG}" > "${ODL_RUN_DIR}/bag_path.txt"'
         else
             echo "[${run}/${NUM_RUNS}] ERROR: Metrics computation failed"
         fi
@@ -183,48 +183,50 @@ echo "================================================================"
 echo "[INFO] Aggregating results..."
 SUMMARY_FILE="${RESULTS_DIR}/summary.txt"
 
-docker exec -i -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "cat > ${SUMMARY_FILE}" << 'EOF'
+docker exec -i -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" "${CONTAINER_NAME}" \
+    bash -c 'cat > "${ODL_SUMMARY_FILE}"' << 'EOF'
 Localization Baseline Summary
 =============================
 
 EOF
 
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "echo 'Date: $(date)' >> ${SUMMARY_FILE}"
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "echo 'Runs: ${NUM_RUNS}' >> ${SUMMARY_FILE}"
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "echo '' >> ${SUMMARY_FILE}"
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" -e ODL_DATE="$(date)" "${CONTAINER_NAME}" \
+    bash -c 'echo "Date: ${ODL_DATE}" >> "${ODL_SUMMARY_FILE}"'
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" -e ODL_NUM_RUNS="${NUM_RUNS}" "${CONTAINER_NAME}" \
+    bash -c 'echo "Runs: ${ODL_NUM_RUNS}" >> "${ODL_SUMMARY_FILE}"'
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" "${CONTAINER_NAME}" \
+    bash -c 'echo "" >> "${ODL_SUMMARY_FILE}"'
 
 # Table header
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "printf '%-6s %-12s %-12s %-12s %-12s %-12s\n' \
-    'Run' 'H_RMSE(m)' 'H_Max(m)' 'V_RMSE(m)' 'V_Max(m)' 'Samples' >> ${SUMMARY_FILE}"
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" "${CONTAINER_NAME}" \
+    bash -c 'printf "%-6s %-12s %-12s %-12s %-12s %-12s\n" \
+    Run "H_RMSE(m)" "H_Max(m)" "V_RMSE(m)" "V_Max(m)" Samples >> "${ODL_SUMMARY_FILE}"'
 
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "printf '%-6s %-12s %-12s %-12s %-12s %-12s\n' \
-    '---' '--------' '-------' '--------' '-------' '-------' >> ${SUMMARY_FILE}"
+docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" "${CONTAINER_NAME}" \
+    bash -c 'printf "%-6s %-12s %-12s %-12s %-12s %-12s\n" \
+    --- -------- ------- -------- ------- ------- >> "${ODL_SUMMARY_FILE}"'
 
 # Extract metrics from each run
 for run in $(seq 1 "$NUM_RUNS"); do
     METRICS_FILE="${RESULTS_DIR}/run_${run}/metrics.json"
     
-    if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-        bash -c "[ -f ${METRICS_FILE} ]"; then
+    if docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_METRICS_FILE="${METRICS_FILE}" "${CONTAINER_NAME}" \
+        bash -c '[ -f "${ODL_METRICS_FILE}" ]'; then
         
         # Extract metrics using python
-        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-            bash -c "python3 -c \"
-import json
-with open('${METRICS_FILE}') as f:
+        docker exec -i -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_METRICS_FILE="${METRICS_FILE}" \
+            -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" -e ODL_RUN="${run}" "${CONTAINER_NAME}" \
+            bash -c 'python3 - >> "${ODL_SUMMARY_FILE}"' <<'PY'
+import json, os
+with open(os.environ['ODL_METRICS_FILE']) as f:
     m = json.load(f)
-print(f'{run:6d} {m[\\\"horizontal_rmse\\\"]:12.3f} {m[\\\"horizontal_max\\\"]:12.3f} {m[\\\"vertical_rmse\\\"]:12.3f} {m[\\\"vertical_max\\\"]:12.3f} {m[\\\"num_samples\\\"]:12d}')
-\" >> ${SUMMARY_FILE}"
+run = int(os.environ['ODL_RUN'])
+print(f"{run:6d} {m['horizontal_rmse']:12.3f} {m['horizontal_max']:12.3f} {m['vertical_rmse']:12.3f} {m['vertical_max']:12.3f} {m['num_samples']:12d}")
+PY
     else
-        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-            bash -c "printf '%-6d %-12s %-12s %-12s %-12s %-12s\n' \
-            ${run} 'N/A' 'N/A' 'N/A' 'N/A' 'N/A' >> ${SUMMARY_FILE}"
+        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_SUMMARY_FILE="${SUMMARY_FILE}" -e ODL_RUN="${run}" "${CONTAINER_NAME}" \
+            bash -c 'printf "%-6d %-12s %-12s %-12s %-12s %-12s\n" \
+            "${ODL_RUN}" N/A N/A N/A N/A N/A >> "${ODL_SUMMARY_FILE}"'
     fi
 done
 

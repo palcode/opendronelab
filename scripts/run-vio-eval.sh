@@ -63,24 +63,34 @@ wait "${RECORD_PID}" || true
 
 # Discover newest bag
 BAG="/data/bags/${TIMESTAMP}"
-if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "test -d ${BAG}"; then
+if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp -e ODL_BAG="${BAG}" "${CONTAINER_NAME}" \
+    bash -c 'test -d "${ODL_BAG}"'; then
     echo "[ERROR] expected bag ${BAG} missing" >&2
     exit 1
 fi
 echo "[INFO] Scoring bag: ${BAG}"
 
-docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "${SOURCE_CMD}; mkdir -p ${RESULTS_DIR}; \
-    ros2 run drone_localization localization_metrics ${BAG} \
-      --output-dir ${RESULTS_DIR} --metrics-name metrics_ekf2.json \
-      --tum-dir ${RESULTS_DIR}/tum_ekf2; \
-    ros2 run drone_localization localization_metrics ${BAG} \
-      --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
-      --output-dir ${RESULTS_DIR} --metrics-name metrics_vio.json \
-      --tum-dir ${RESULTS_DIR}/tum_vio; \
-    echo '--- EKF2 ---'; cat ${RESULTS_DIR}/metrics_ekf2.json; \
-    echo '--- VIO (origin-align only; yaw-free VIO needs Umeyama) ---'; cat ${RESULTS_DIR}/metrics_vio.json; \
-    evo_ape tum ${RESULTS_DIR}/tum_vio/gt_ned.tum ${RESULTS_DIR}/tum_vio/est_ned.tum       -r trans_part -a --project_to_plane xy > ${RESULTS_DIR}/evo_vio_ape_xy.txt;     evo_ape tum ${RESULTS_DIR}/tum_vio/gt_ned.tum ${RESULTS_DIR}/tum_vio/est_ned.tum       -r trans_part -a > ${RESULTS_DIR}/evo_vio_ape_3d.txt;     evo_rpe tum ${RESULTS_DIR}/tum_vio/gt_ned.tum ${RESULTS_DIR}/tum_vio/est_ned.tum       -r trans_part -a -d 1.0 -u m > ${RESULTS_DIR}/evo_vio_rpe.txt;     echo '--- VIO evo Umeyama xy ---'; cat ${RESULTS_DIR}/evo_vio_ape_xy.txt;     echo '--- VIO evo Umeyama 3D ---'; cat ${RESULTS_DIR}/evo_vio_ape_3d.txt"
+# Paths go in as -e ODL_*; the scoring commands are a quoted heredoc that
+# runs in the same shell as SOURCE_CMD (source /dev/stdin).
+docker exec -i -u "$(id -u):$(id -g)" -e HOME=/tmp \
+    -e ODL_BAG="${BAG}" -e ODL_RESULTS_DIR="${RESULTS_DIR}" "${CONTAINER_NAME}" \
+    bash -c "${SOURCE_CMD}"'; source /dev/stdin' <<'OUTER_SH'
+R="${ODL_RESULTS_DIR}"
+mkdir -p "${R}"
+ros2 run drone_localization localization_metrics "${ODL_BAG}" \
+  --output-dir "${R}" --metrics-name metrics_ekf2.json \
+  --tum-dir "${R}/tum_ekf2"
+ros2 run drone_localization localization_metrics "${ODL_BAG}" \
+  --estimate-topic /ov_msckf/odomimu --estimate-frame enu \
+  --output-dir "${R}" --metrics-name metrics_vio.json \
+  --tum-dir "${R}/tum_vio"
+echo '--- EKF2 ---'; cat "${R}/metrics_ekf2.json"
+echo '--- VIO (origin-align only; yaw-free VIO needs Umeyama) ---'; cat "${R}/metrics_vio.json"
+evo_ape tum "${R}/tum_vio/gt_ned.tum" "${R}/tum_vio/est_ned.tum" -r trans_part -a --project_to_plane xy > "${R}/evo_vio_ape_xy.txt"
+evo_ape tum "${R}/tum_vio/gt_ned.tum" "${R}/tum_vio/est_ned.tum" -r trans_part -a > "${R}/evo_vio_ape_3d.txt"
+evo_rpe tum "${R}/tum_vio/gt_ned.tum" "${R}/tum_vio/est_ned.tum" -r trans_part -a -d 1.0 -u m > "${R}/evo_vio_rpe.txt"
+echo '--- VIO evo Umeyama xy ---'; cat "${R}/evo_vio_ape_xy.txt"
+echo '--- VIO evo Umeyama 3D ---'; cat "${R}/evo_vio_ape_3d.txt"
+OUTER_SH
 
 echo "[INFO] Results in ${RESULTS_DIR}"

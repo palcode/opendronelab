@@ -667,13 +667,81 @@ def test_scoring_heredocs_are_checked():
         assert docker_exec_stdin_without_i(broken), name
 
 
+# Host-side path variables that must reach container commands as -e ODL_*
+# (R1/R2), never pasted into a double-quoted `bash -c "..."` string.
+PATH_VARS = ('BAG', 'SUMMARY_DIR', 'ATTEMPT', 'RUN_OUT', 'LATEST_BAG', 'RUN_DIR',
+             'SUMMARY_FILE', 'METRICS_FILE', 'RESULTS_DIR', 'BAG_PATH')
+PATH_VAR_SCRIPTS = ('run-vio-stress.sh', 'run-vio-baseline.sh', 'run-baseline.sh',
+                    'run-vio-eval.sh', 'record-bag.sh')
+
+
+def bash_c_double_quoted_bodies(text):
+    """Yield (line_no, body) for every `bash -c "..."` / `bash -lc "..."`
+    double-quoted argument, across lines, honouring backslash escapes
+    (so an inner python3 -c \"...\" stays inside the body)."""
+    for m in re.finditer(r'\bbash\s+-l?c\s+"', text):
+        i = m.end()
+        body = []
+        while i < len(text):
+            c = text[i]
+            if c == '\\' and i + 1 < len(text):
+                body.append(text[i:i + 2])
+                i += 2
+                continue
+            if c == '"':
+                break
+            body.append(c)
+            i += 1
+        yield text.count('\n', 0, m.start()) + 1, ''.join(body)
+
+
+def interpolated_path_vars(text, names=PATH_VARS):
+    """[(line_no, var)] for host path variables expanded by the host shell
+    inside a double-quoted bash -c body. An escaped \\${X} (expanded by the
+    container shell) does not count."""
+    pat = re.compile(r'(?<!\\)\$\{?(' + '|'.join(names) + r')\b')
+    hits = []
+    for no, body in bash_c_double_quoted_bodies(text):
+        hits += [(no, m.group(1)) for m in pat.finditer(body)]
+    return hits
+
+
+@pytest.mark.parametrize('snippet,expected', [
+    ('bash -c "test -d ${BAG}"', ['BAG']),
+    ('bash -lc "cd $LATEST_BAG && ls"', ['LATEST_BAG']),
+    ('bash -c "cp x ${RUN_DIR}/ 2>/dev/null || true"', ['RUN_DIR']),
+    # multi-line body with an inner python3 -c \"...\" (old run-baseline.sh)
+    ('bash -c "python3 -c \\"\nopen(\'${METRICS_FILE}\')\n\\" >> ${SUMMARY_FILE}"',
+     ['METRICS_FILE', 'SUMMARY_FILE']),
+    ('bash -c "${SOURCE_CMD}; timeout 5 ros2 bag record -o \\"\\${ODL_BAG_PATH}\\" /a"', []),
+    ("bash -c 'test -d \"${ODL_BAG}\"'", []),
+    ('bash -c "${SOURCE_CMD}"\'; cd "${ODL_BAG}" && ls\'', []),
+    ('bash -c "echo ${BAGS_TOTAL}"', []),
+])
+def test_interpolated_path_checker(snippet, expected):
+    assert [v for _, v in interpolated_path_vars(snippet)] == expected
+
+
 def test_no_host_paths_interpolated_into_container_bash_c():
-    """Bag/summary paths go in as -e ODL_* (R2), not pasted into bash -c "..."."""
-    pat = re.compile(r'bash -l?c "[^"]*\$\{(?:BAG|SUMMARY_DIR|ATTEMPT|RUN_OUT)\}')
-    for name in ('run-vio-stress.sh', 'run-vio-baseline.sh'):
+    """Bag/summary/results paths go in as -e ODL_* (R1/R2), not pasted into
+    bash -c "...", in every script that runs container commands on them."""
+    for name in PATH_VAR_SCRIPTS:
         text = (REPO / 'scripts' / name).read_text()
-        hits = [no for no, line in _logical_lines(text) if pat.search(line)]
-        assert not hits, f'{name}: interpolated path at line(s) {hits}'
+        hits = interpolated_path_vars(text)
+        assert not hits, f'{name}: interpolated path(s) {hits}'
+
+
+def test_path_checker_catches_the_old_run_baseline():
+    """Guard: the pre-R1 run-baseline.sh lines are flagged."""
+    old = ('''docker exec c \\
+        bash -c "test -d ${LATEST_BAG} && ls ${LATEST_BAG}/* >/dev/null 2>&1"
+docker exec c bash -c "cp ${LATEST_BAG}/metrics.json ${RUN_DIR}/ 2>/dev/null || true"
+docker exec c bash -c "[ -f ${METRICS_FILE} ]"
+docker exec c bash -c "${SOURCE_CMD}; ros2 bag info ${BAG_PATH}"
+docker exec c bash -c "${SOURCE_CMD}; mkdir -p ${RESULTS_DIR}; ros2 run x ${BAG}"
+''')
+    got = sorted({v for _, v in interpolated_path_vars(old)})
+    assert got == ['BAG', 'BAG_PATH', 'LATEST_BAG', 'METRICS_FILE', 'RESULTS_DIR', 'RUN_DIR']
 
 
 def _regression_report_code():

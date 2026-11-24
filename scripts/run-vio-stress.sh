@@ -36,6 +36,9 @@
 #   FLIGHT (default: registry flight for SCENARIO, else square). fw_mission
 #     runs scripts/fw_mission.py (PX4 Auto Mission over MAVLink) instead of
 #     square_flight_cpp.
+#   ODL_TEST_SUPPRESS_VIO=1 (tests only): launch the bridges and ground truth
+#     but not OpenVINS (start_openvins:=false), to exercise the VIO-failure
+#     scoring path; summary.json then has test_suppress_vio=true.
 #   AIRBORNE_MIN_AGL / AIRBORNE_MAX_AGL (default: registry airframe
 #     airborne_agl, else localization_metrics defaults 0.5 / 20 m)
 set -euo pipefail
@@ -91,6 +94,21 @@ fi
 # Container ROS env (overlays, PYTHONPATH, ROS_DOMAIN_ID, discovery): scripts/container-env.sh
 SOURCE_CMD='source /workspace/scripts/container-env.sh || exit 1'
 
+# Recorded in summary.json (not part of the scenario fingerprint).
+GIT_SHA="$(git -C "${REPO_DIR}" rev-parse HEAD 2>/dev/null || true)"
+GIT_DIRTY=""
+if [ -n "${GIT_SHA}" ]; then
+    if GIT_STATUS="$(git -C "${REPO_DIR}" status --porcelain --untracked-files=no 2>/dev/null)"; then
+        if [ -n "${GIT_STATUS}" ]; then GIT_DIRTY=1; else GIT_DIRTY=0; fi
+    fi
+fi
+
+OV_LAUNCH_ARGS=""
+if [ "${ODL_TEST_SUPPRESS_VIO:-0}" = "1" ]; then
+    echo "[WARN] ODL_TEST_SUPPRESS_VIO=1: OpenVINS is NOT started (test of the VIO-failure path)"
+    OV_LAUNCH_ARGS=" start_openvins:=false"
+fi
+
 
 # Resolve and validate VIO_INIT_ATTEMPTS. Never silently default to 3.
 # Set RESOLVE_VIO_INIT_ATTEMPTS_ONLY=1 to print the value and exit (no docker).
@@ -130,6 +148,11 @@ fi
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "[ERROR] ${CONTAINER_NAME} not running" >&2
+    exit 1
+fi
+# container-env.sh is read from the repo mounted at /workspace.
+if ! docker exec "${CONTAINER_NAME}" test -r /workspace/scripts/container-env.sh; then
+    echo "[ERROR] /workspace/scripts/container-env.sh not readable in ${CONTAINER_NAME}: the repo is not mounted at /workspace (start it with scripts/launch-sitl.sh)" >&2
     exit 1
 fi
 
@@ -210,7 +233,7 @@ else
     echo "[INFO] (Re)starting vio.launch.py gz_world:=${GZ_WORLD} gz_model:=${GZ_MODEL}..."
     docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
         -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
-        bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=${GZ_WORLD} gz_model:=${GZ_MODEL} config_path:=${OV_CONFIG} start_ground_truth:=true > /tmp/vio-launch.log 2>&1"
+        bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=${GZ_WORLD} gz_model:=${GZ_MODEL} config_path:=${OV_CONFIG} start_ground_truth:=true${OV_LAUNCH_ARGS} > /tmp/vio-launch.log 2>&1"
 fi
 
 for i in $(seq 1 30); do
@@ -269,7 +292,8 @@ if [ "${GT_OK}" != "1" ]; then
 fi
 
 # Feature wait is best-effort on low-texture (may never get disparity)
-if [ "${SCORE_VIO}" != "0" ] && ! "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 45; then
+if [ "${SCORE_VIO}" != "0" ] && [ -z "${OV_LAUNCH_ARGS}" ] \
+    && ! "${REPO_DIR}/scripts/wait-ov-features.sh" /tmp/vio-launch.log 45; then
     echo "[WARN] OpenVINS feature wait timed out (expected on low_texture); continuing"
 fi
 sleep 2
@@ -357,6 +381,9 @@ docker exec -i -u "$(id -u):$(id -g)" \
   -e ODL_ATTEMPT="${ATTEMPT}" \
   -e ODL_RETRY_BAGS_JSON="${RETRY_BAGS_JSON}" \
   -e ODL_OV_CONFIG="${OV_CONFIG}" \
+  -e ODL_GIT_SHA="${GIT_SHA}" \
+  -e ODL_GIT_DIRTY="${GIT_DIRTY}" \
+  -e ODL_TEST_SUPPRESS_VIO="${ODL_TEST_SUPPRESS_VIO:-0}" \
   "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
 set -euo pipefail
 source /workspace/scripts/container-env.sh
@@ -382,6 +409,7 @@ import json, math, os, re, pathlib, sys
 out = pathlib.Path(os.environ['ODL_SUMMARY_DIR'])
 sys.path.insert(0, '/workspace/scripts')
 from scenario_fingerprint import compute_scenario_fingerprint
+from git_state import git_fields
 def ape_rmse(path):
     # None (JSON null), not NaN: keep summary.json strict JSON.
     if not path.exists():
@@ -456,6 +484,9 @@ summary = {
   'vio_pose_jumps': vio.get('pose_jumps'),
 }
 summary = {k: json_safe(v) for k, v in summary.items()}
+summary.update(git_fields())
+if os.environ.get('ODL_TEST_SUPPRESS_VIO') == '1':
+    summary['test_suppress_vio'] = True
 summary['scenario_fingerprint'] = compute_scenario_fingerprint(
     '/workspace', gz_world, ov_config if ov_config else None, model=model)
 (out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))

@@ -2,7 +2,10 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Pallab Sarkar
 # run-vio-baseline.sh: N consecutive VIO+EKF2 square flights with matching metrics.
-# Assumes odl-sim is up (WORLD=vio_test MODEL=gz_x500_mono_cam) and QGC is open.
+# Assumes odl-sim is up (WORLD=vio_test MODEL=gz_x500_mono_cam). If no
+# QGroundControl is running it starts the AppImage (headless PX4 will not arm
+# without a GCS) and stops that instance on exit, like run-regression.sh.
+# ODL_TEST_SUPPRESS_VIO=1 (tests only): do not start OpenVINS.
 # Restarts vio.launch between runs so a post-land OV diverge does not poison the next flight.
 # Usage: ./scripts/run-vio-baseline.sh [N] [bag_duration]
 set -euo pipefail
@@ -22,6 +25,34 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "[ERROR] ${CONTAINER_NAME} not running" >&2
     exit 1
 fi
+# container-env.sh is read from the repo mounted at /workspace.
+if ! docker exec "${CONTAINER_NAME}" test -r /workspace/scripts/container-env.sh; then
+    echo "[ERROR] /workspace/scripts/container-env.sh not readable in ${CONTAINER_NAME}: the repo is not mounted at /workspace (start it with scripts/launch-sitl.sh)" >&2
+    exit 1
+fi
+
+# Headless PX4 needs a GCS to pass preflight: start QGC unless one is open.
+# shellcheck source=qgc-lib.sh
+source "${REPO_DIR}/scripts/qgc-lib.sh"
+qgc_state_reset
+trap 'stop_our_qgc' EXIT
+trap 'exit 130' INT TERM
+start_our_qgc
+
+# Recorded in summary.json (not part of the scenario fingerprint).
+GIT_SHA="$(git -C "${REPO_DIR}" rev-parse HEAD 2>/dev/null || true)"
+GIT_DIRTY=""
+if [ -n "${GIT_SHA}" ]; then
+    if GIT_STATUS="$(git -C "${REPO_DIR}" status --porcelain --untracked-files=no 2>/dev/null)"; then
+        if [ -n "${GIT_STATUS}" ]; then GIT_DIRTY=1; else GIT_DIRTY=0; fi
+    fi
+fi
+
+OV_LAUNCH_ARGS=""
+if [ "${ODL_TEST_SUPPRESS_VIO:-0}" = "1" ]; then
+    echo "[WARN] ODL_TEST_SUPPRESS_VIO=1: OpenVINS is NOT started (test of the VIO-failure path)"
+    OV_LAUNCH_ARGS=" start_openvins:=false"
+fi
 
 docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" mkdir -p "${SUMMARY_DIR}"
 echo "summary_dir=${SUMMARY_DIR}" | tee "${REPO_DIR}/logs/vio-baseline-${STAMP}.log"
@@ -32,7 +63,7 @@ _restart_vio() {
     sleep 3
     docker exec -d -u "$(id -u):$(id -g)" -e HOME=/tmp -e ROS_DOMAIN_ID=42 \
         -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST "${CONTAINER_NAME}" \
-        bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=vio_test gz_model:=x500_mono_cam_0 > /tmp/vio-launch.log 2>&1"
+        bash -lc "${SOURCE_CMD}; ros2 launch drone_bringup vio.launch.py gz_world:=vio_test gz_model:=x500_mono_cam_0${OV_LAUNCH_ARGS} > /tmp/vio-launch.log 2>&1"
     # Wait for odom topic (may appear only after OV init; wait for camera+imu first)
     for i in $(seq 1 30); do
         HAS_CAM=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
@@ -59,6 +90,9 @@ _score_bag() {
       -e HOME=/tmp \
       -e ODL_BAG="${bag}" \
       -e ODL_OUT="${out}" \
+      -e ODL_GIT_SHA="${GIT_SHA}" \
+      -e ODL_GIT_DIRTY="${GIT_DIRTY}" \
+      -e ODL_TEST_SUPPRESS_VIO="${ODL_TEST_SUPPRESS_VIO:-0}" \
       "${CONTAINER_NAME}" bash <<'OUTER_SH'
 set -euo pipefail
 source /workspace/scripts/container-env.sh
@@ -80,8 +114,10 @@ evo_ape tum "${ODL_OUT}/tum_vio/gt_ned.tum" "${ODL_OUT}/tum_vio/est_ned.tum" -r 
 evo_ape tum "${ODL_OUT}/tum_ekf2/gt_ned.tum" "${ODL_OUT}/tum_ekf2/est_ned.tum" -r trans_part --project_to_plane xy > "${ODL_OUT}/evo_ekf2_ape_xy_noalign.txt" || true
 # Parse helpers
 python3 - <<'PY'
-import json, math, os, re, pathlib
+import json, math, os, re, pathlib, sys
 out = pathlib.Path(os.environ['ODL_OUT'])
+sys.path.insert(0, '/workspace/scripts')
+from git_state import git_fields
 bag = os.environ['ODL_BAG']
 def ape_rmse(path):
     # None (JSON null), not NaN: keep summary.json strict JSON. A missing
@@ -122,6 +158,9 @@ summary = {
   'vio_pose_jumps': vio.get('pose_jumps'),
 }
 summary = {k: json_safe(v) for k, v in summary.items()}
+summary.update(git_fields())
+if os.environ.get('ODL_TEST_SUPPRESS_VIO') == '1':
+    summary['test_suppress_vio'] = True
 (out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 print(json.dumps(summary, indent=2))
 # Health: VIO umeyama xy under 5 m and samples > 500 (missing = unhealthy)

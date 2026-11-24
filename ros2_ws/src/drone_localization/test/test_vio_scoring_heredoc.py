@@ -15,6 +15,8 @@ No docker, no ROS.
 """
 import json
 import os
+import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -222,3 +224,135 @@ def test_baseline_summary_has_no_nan_when_evo_output_unparsable(sandbox):
     s = _strict_load(out / 'summary.json')
     assert s['vio_umeyama_xy_rmse'] is None
     assert s['ekf2_noalign_xy_rmse'] is None
+
+
+SHA = '0123456789abcdef0123456789abcdef01234567'
+
+
+def _stress_env(sandbox, out, **extra):
+    env = dict(sandbox['env'])
+    env.update({
+        'ODL_SUMMARY_DIR': str(out), 'ODL_BAG': '/data/bags/odltest',
+        'ODL_AGL_ARGS': '', 'ODL_VIO_INIT_FAILED': '0', 'ODL_SCORE_VIO': '1',
+        'ODL_SCENARIO': 'baseline', 'ODL_GZ_WORLD': 'vio_test',
+        'ODL_MODEL': 'gz_x500_mono_cam', 'ODL_GZ_MODEL': 'x500_mono_cam_0',
+        'ODL_FLIGHT': 'square', 'ODL_MISSION': 'success', 'ODL_ATTEMPT': '1',
+        'ODL_RETRY_BAGS_JSON': '[]', 'ODL_OV_CONFIG': '',
+    })
+    env.update(extra)
+    return env
+
+
+@pytest.mark.parametrize('sha,dirty,want_sha,want_dirty', [
+    (SHA, '0', SHA, False),
+    (SHA, '1', SHA, True),
+    (SHA, '', SHA, None),       # git status failed
+    ('', '', None, None),       # no git / not a checkout
+    ('not-a-sha', '1', None, None),
+])
+def test_stress_summary_git_fields(sandbox, sha, dirty, want_sha, want_dirty):
+    (body,) = _extract_heredocs(STRESS)
+    out = sandbox['tmp'] / 'summary'
+    out.mkdir()
+    env = _stress_env(sandbox, out, ODL_GIT_SHA=sha, ODL_GIT_DIRTY=dirty)
+    r = _run(_prepare(body, sandbox), env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    s = _strict_load(out / 'summary.json')
+    assert s['git_sha'] == want_sha
+    assert s['git_dirty'] is want_dirty
+    # Kept out of the fingerprint: no git_dirty there, and the hash does
+    # not depend on the run's git fields.
+    assert 'git_dirty' not in s['scenario_fingerprint']
+    assert 'test_suppress_vio' not in s
+
+
+def test_stress_fingerprint_hash_ignores_git_fields(sandbox):
+    (body,) = _extract_heredocs(STRESS)
+    hashes = []
+    for i, (sha, dirty) in enumerate(((SHA, '0'), ('', ''))):
+        out = sandbox['tmp'] / f'summary{i}'
+        out.mkdir()
+        env = _stress_env(sandbox, out, ODL_GIT_SHA=sha, ODL_GIT_DIRTY=dirty)
+        r = _run(_prepare(body, sandbox), env)
+        assert r.returncode == 0, r.stdout + r.stderr
+        hashes.append(_strict_load(out / 'summary.json')['scenario_fingerprint']['sha256'])
+    assert hashes[0] == hashes[1]
+
+
+def test_stress_summary_without_git_env_is_null(sandbox):
+    """Older callers that pass no ODL_GIT_* still get strict JSON with nulls."""
+    (body,) = _extract_heredocs(STRESS)
+    out = sandbox['tmp'] / 'summary'
+    out.mkdir()
+    env = _stress_env(sandbox, out)
+    env.pop('ODL_GIT_SHA', None)
+    env.pop('ODL_GIT_DIRTY', None)
+    r = _run(_prepare(body, sandbox), env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    s = _strict_load(out / 'summary.json')
+    assert s['git_sha'] is None and s['git_dirty'] is None
+
+
+def test_suppressed_vio_summary_is_marked_and_null(sandbox):
+    (body,) = _extract_heredocs(STRESS)
+    out = sandbox['tmp'] / 'summary'
+    out.mkdir()
+    env = _stress_env(sandbox, out, ODL_GIT_SHA=SHA, ODL_GIT_DIRTY='0',
+                      ODL_TEST_SUPPRESS_VIO='1')
+    r = _run(_prepare(body, sandbox), env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    s = _strict_load(out / 'summary.json')
+    assert s['test_suppress_vio'] is True
+    assert s['ov_published'] is False
+    assert s['vio_umeyama_xy_rmse'] is None
+    assert s['git_sha'] == SHA
+
+
+def test_baseline_summary_git_fields(sandbox):
+    score_body, _ = _extract_heredocs(BASELINE)
+    out = sandbox['tmp'] / 'run1'
+    out.mkdir()
+    env = dict(sandbox['env'], ODL_BAG='/data/bags/odltest', ODL_OUT=str(out),
+               ODL_GIT_SHA=SHA, ODL_GIT_DIRTY='1')
+    r = _run(_prepare(score_body, sandbox), env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    s = _strict_load(out / 'summary.json')
+    assert s['git_sha'] == SHA and s['git_dirty'] is True
+
+
+@pytest.mark.parametrize('script', [STRESS, BASELINE], ids=lambda p: p.name)
+def test_suppress_vio_switch_skips_openvins_launch(script):
+    text = script.read_text()
+    assert 'if [ "${ODL_TEST_SUPPRESS_VIO:-0}" = "1" ]; then' in text
+    assert 'OV_LAUNCH_ARGS=" start_openvins:=false"' in text
+    launches = [l for l in text.splitlines() if 'ros2 launch drone_bringup vio.launch.py' in l]
+    assert launches and all('${OV_LAUNCH_ARGS}' in l for l in launches), launches
+
+
+@pytest.mark.parametrize('script', [STRESS, BASELINE], ids=lambda p: p.name)
+def test_host_git_snippet_handles_missing_git_and_non_checkout(script, tmp_path):
+    """Run the scripts' own GIT_SHA/GIT_DIRTY block: real checkout, a dir
+    that is not a checkout (e.g. .git not mounted), and no git binary."""
+    lines = script.read_text().splitlines()
+    i = next(n for n, l in enumerate(lines) if l.startswith('GIT_SHA="$(git -C'))
+    j = next(n for n in range(i, len(lines)) if lines[n] == 'fi' and lines[n - 1] == '    fi')
+    snippet = '\n'.join(lines[i:j + 1]) + '\necho "sha=${GIT_SHA} dirty=${GIT_DIRTY}"\n'
+
+    def run(repo, path):
+        env = dict(os.environ, REPO_DIR=str(repo), PATH=path)
+        r = subprocess.run([shutil.which('bash'), '-euo', 'pipefail', '-c', snippet], env=env,
+                           text=True, capture_output=True, check=False, timeout=30)
+        assert r.returncode == 0, r.stderr
+        return r.stdout.strip()
+
+    nogit = tmp_path / 'nogit'
+    nogit.mkdir()
+    assert run(nogit, os.environ['PATH']) == 'sha= dirty='
+    bindir = tmp_path / 'bin'
+    bindir.mkdir()
+    assert run(REPO, str(bindir)) == 'sha= dirty='
+    out = run(REPO, os.environ['PATH'])
+    if out != 'sha= dirty=':   # a checkout git can read (not always in CI images)
+        sha, dirty = out.split()
+        assert re.match(r'^sha=[0-9a-f]{40}$', sha), out
+        assert dirty in ('dirty=0', 'dirty=1'), out
