@@ -273,8 +273,9 @@ of hardcoded `x500_mono_cam` strings. Gates stay in
   when `SYS_AUTOSTART` changes. No image or PX4 source rebuild is needed for
   stock airframes.
 - Scenario fingerprints hash `MODEL` + world + overlay (+ shared mask) since
-  ODL-92, so `mc_gps` (`gz_x500` on `vio_test`, no overlay) has its own hash
-  (`71401996f3b3…`). Results recorded before ODL-92 carry the old
+  ODL-92, and the flight profile since scheme 3 (2026-11-24), so `mc_gps`
+  (`gz_x500` on `vio_test`, no overlay) has its own hash (`704df735f3af…`;
+  scheme 2 `71401996f3b3…`). Results recorded before ODL-92 carry the old
   world/overlay-only hashes and are not comparable by fingerprint; see
   `docs/localization.md` for the old → new table.
 - Phase B (fixed-wing, `fw_mission`) is below; C (VTOL) and D (rover) are
