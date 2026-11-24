@@ -6,6 +6,7 @@ remain. The file itself is exercised with stub setup.bash files.
 """
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -105,3 +106,80 @@ def test_container_env_tolerates_missing_overlays(tmp_path):
     assert not any(k in out for k in ('ODL_T_DEPS', 'ODL_T_WS',
                                       'ODL_T_OPENVINS'))
     assert out['ROS_DOMAIN_ID'] == '42'
+
+
+def test_container_env_refuses_to_run_when_executed():
+    r = subprocess.run(['bash', str(ENV_SH)], text=True, capture_output=True,
+                       check=False, timeout=30)
+    assert r.returncode == 2
+    assert 'must be sourced, not executed' in r.stderr
+    head = ENV_SH.read_text().split('set +u', 1)[0]
+    assert 'MUST BE SOURCED, NOT EXECUTED' in head
+
+
+@pytest.mark.parametrize('script', SCRIPTS, ids=lambda p: p.name)
+def test_scripts_stop_early_if_repo_not_mounted(script):
+    text = script.read_text()
+    check = 'docker exec "${CONTAINER_NAME}" test -r /workspace/scripts/container-env.sh'
+    assert check in text
+    # The check comes before the first container command that sources it.
+    assert text.index(check) < text.index('bash -lc "${SOURCE_CMD}')
+    assert 'the repo is not mounted at /workspace' in text
+
+
+QGC_LIB = REPO / 'scripts' / 'qgc-lib.sh'
+
+
+def test_qgc_lib_is_shared_by_regression_and_vio_baseline():
+    reg = (REPO / 'scripts' / 'run-regression.sh').read_text()
+    assert 'source "${REPO_DIR}/scripts/qgc-lib.sh"' in reg
+    # Sourced above the test-only guard so tests still get the helpers.
+    assert reg.index('scripts/qgc-lib.sh"') < reg.index('QGC_FUSE_HELPERS_ONLY:-0')
+    assert 'stop_our_qgc() {' not in reg and 'start_our_qgc() {' not in reg
+    base = (REPO / 'scripts' / 'run-vio-baseline.sh').read_text()
+    assert 'source "${REPO_DIR}/scripts/qgc-lib.sh"' in base
+    assert "trap 'stop_our_qgc' EXIT" in base
+    first_flight = base.index('for run in $(seq 1 "${NUM_RUNS}")')
+    assert base.index('\nstart_our_qgc\n') < first_flight
+    assert base.index("trap 'stop_our_qgc' EXIT") < base.index('\nstart_our_qgc\n')
+
+
+def test_start_and_stop_our_qgc_with_a_fake_appimage(tmp_path):
+    """start_our_qgc launches the AppImage in its own session and records
+    it; stop_our_qgc stops exactly that instance."""
+    # start_our_qgc does nothing if `pgrep -af QGroundControl` finds a QGC.
+    # Make that one check report "none" (any process whose command line
+    # mentions QGroundControl would match); every other pgrep call is real.
+    real_pgrep = shutil.which('pgrep')
+    bindir = tmp_path / 'bin'
+    bindir.mkdir()
+    (bindir / 'pgrep').write_text(
+        '#!/usr/bin/env bash\n'
+        '[ "$*" = "-af QGroundControl" ] && exit 1\n'
+        f'exec {real_pgrep} "$@"\n')
+    (bindir / 'pgrep').chmod(0o755)
+    fake = tmp_path / 'fake-qgc.AppImage'
+    fake.write_text('#!/usr/bin/env bash\nexec sleep 300\n')
+    fake.chmod(0o755)
+    script = f'''
+set -euo pipefail
+QGC_APPIMAGE="{fake}" QGC_LOG="{tmp_path}/qgc.log" QGC_TERM_WAIT_STEPS=2
+source "{QGC_LIB}"
+start_our_qgc
+echo "started=$REG_STARTED_QGC pid=$QGC_PID pgid=$QGC_PGID"
+kill -0 "$QGC_PID" && echo alive
+stop_our_qgc
+st=""
+if s="$(cat /proc/$QGC_PID/stat 2>/dev/null)"; then r="${{s##*)}}"; set -- $r; st="$1"; fi
+case "$st" in ""|Z|X|x) echo gone;; *) echo "still-$st";; esac
+'''
+    env = dict(os.environ, PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    r = subprocess.run(['bash', '-c', script], text=True, capture_output=True,
+                       check=False, timeout=60, env=env)
+    out = r.stdout + r.stderr
+    assert r.returncode == 0, out
+    assert '[REG] started QGC pid' in out
+    m = re.search(r'started=1 pid=(\d+) pgid=(\d+)', out)
+    assert m and m.group(1) == m.group(2), out
+    assert 'alive' in out and 'gone' in out, out
+    assert 'stopped QGC' in out, out
