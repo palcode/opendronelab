@@ -274,3 +274,54 @@ def test_unknown_scenario_is_recorded(fake_repo):
     r, rep = _run_reg(fake_repo, SCENARIOS='nope')
     assert r.returncode == 1, r.stdout
     assert json.loads((rep / 'judge_nope.json').read_text())['error'] == 'unknown scenario'
+
+
+# --- pytest selection (regression_20261124_153609 printed "skipping pytest") --
+
+@pytest.mark.parametrize('skip, want', [
+    ('', 'run'), ('0', 'run'), ('1', 'skip SKIP_PYTEST=1'),
+])
+def test_pytest_decision(skip, want):
+    r = _lib(f'reg_pytest_decision {skip!r}')
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == want
+
+
+def _with_ws(fr):
+    # pytest refuses to start without a built workspace; fake its setup files.
+    for sub in ('deps', 'ws'):
+        p = fr['data'] / 'ros2_build' / sub / 'install'
+        p.mkdir(parents=True)
+        (p / 'setup.bash').write_text('# stub\n')
+    env = dict(fr['env'])
+    env.pop('SKIP_PYTEST', None)
+    return env
+
+
+@pytest.mark.parametrize('scenarios, flies', [
+    ('mc_gps', True),            # explicit flight list, no "pytest" word
+    ('mc_gps pytest', True),
+    ('pytest', False),           # pytest only
+])
+def test_pytest_runs_with_explicit_scenarios(fake_repo, scenarios, flies):
+    fake_repo['env'] = _with_ws(fake_repo)
+    r, rep = _run_reg(fake_repo, SCENARIOS=scenarios)
+    assert '[REG] pytest...' in r.stdout
+    assert 'skipping pytest' not in r.stdout
+    # The stub docker prints no pytest output, so the step is run and fails;
+    # what matters is that it was not recorded as skipped.
+    j = json.loads((rep / 'pytest.json').read_text())
+    assert 'skipped' not in j and j['pass'] is False
+    # No "N passed" line used to abort the run under pipefail before the
+    # report was written; now the failed pytest is reported and fails the run.
+    assert (rep / 'report.json').is_file()
+    assert json.loads((rep / 'report.json').read_text())['overall_pass'] is False
+    assert r.returncode == 1, r.stdout
+    calls = fake_repo['calls'].read_text() if fake_repo['calls'].exists() else ''
+    assert ('fly mc_gps' in calls) is flies
+
+
+def test_skip_pytest_says_why(fake_repo):
+    r, rep = _run_reg(fake_repo, SCENARIOS='mc_gps', SKIP_PYTEST='1')
+    assert '[REG] skipping pytest (SKIP_PYTEST=1)' in r.stdout
+    assert json.loads((rep / 'pytest.json').read_text())['skipped'] is True
