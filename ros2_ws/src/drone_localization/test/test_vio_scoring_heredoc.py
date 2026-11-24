@@ -50,7 +50,7 @@ fi
 mkdir -p "${tum}"
 printf '0 0 0 0 0 0 0 1\n' > "${tum}/gt_ned.tum"
 printf '0 0 0 0 0 0 0 1\n' > "${tum}/est_ned.tum"
-printf '{"horizontal_rmse": 0.25, "vertical_rmse": 0.1, "num_samples": 900, "estimate_count": 950}\n' \
+printf '{"horizontal_rmse": 0.25, "vertical_rmse": 0.1, "num_samples": 900, "estimate_count": 950, "scoring_version": 2}\n' \
     > "${out}/${name}"
 '''
 
@@ -174,6 +174,9 @@ def test_stress_scoring_writes_summary_when_vio_metrics_fail(sandbox):
     assert summary['flight_profile']['params']['corner_hold_time'] == 0.5
     assert summary['flight_profile']['params']['cruise_speed'] == 6.0
     assert summary['scenario_fingerprint']['flight_profile_sha256']
+    # ODL-118/119: scoring version recorded, and not part of the fingerprint.
+    assert summary['scoring_version'] == 2
+    assert 'scoring_version' not in summary['scenario_fingerprint']
 
 
 def test_baseline_scoring_and_aggregate_survive_vio_failure(sandbox):
@@ -325,6 +328,7 @@ def test_baseline_summary_git_fields(sandbox):
     assert r.returncode == 0, r.stdout + r.stderr
     s = _strict_load(out / 'summary.json')
     assert s['git_sha'] == SHA and s['git_dirty'] is True
+    assert s['scoring_version'] == 2
 
 
 @pytest.mark.parametrize('script', [STRESS, BASELINE], ids=lambda p: p.name)

@@ -301,7 +301,7 @@ Localization-only (`pytest -q ros2_ws/src/drone_localization/test/`): **17 passe
 
 `scripts/evo-check.sh` re-scores the three baseline bags with [evo](https://github.com/MichaelGrupp/evo) 1.38.1 (GPL-3, installed in the image at `/opt/evo` and run **only as an external CLI**; our packages never import it). It runs in a throwaway container (`--network none`) and writes everything to `<bag>/evo/`; the baseline `metrics.json` in the bag root is not touched.
 
-**TUM export:** `localization_metrics <bag> --tum-dir DIR` writes `gt_ned.tum` and `est_ned.tum` (`timestamp tx ty tz qx qy qz qw`) containing exactly the samples the metrics score: NED frame, bag receive time in seconds, GT interpolated onto the estimate's timestamps, first-sample origin offset removed (unless `--no-origin-align`), airborne samples only. Orientation is yaw-only (GT yaw converted ENU->NED vs EKF2 `heading`).
+**TUM export:** `localization_metrics <bag> --tum-dir DIR` writes `gt_ned.tum` and `est_ned.tum` (`timestamp tx ty tz qx qy qz qw`) containing exactly the samples the metrics score: NED frame, bag receive time in seconds, GT interpolated onto the estimate's timestamps, origin offset removed at the first estimate time (unless `--no-origin-align`; scoring version 2, see [Timestamp Alignment](#timestamp-alignment)), airborne samples only. Orientation is yaw-only (GT yaw converted ENU->NED vs EKF2 `heading`).
 
 | Bag | Ours horiz RMSE | evo APE xy RMSE | Ours 3D RMSE (sqrt(h²+v²)) | evo APE 3D RMSE | Diff | evo APE `--align_origin` | evo APE `-a` (Umeyama SE3) | evo RPE, 1 m (trans) |
 |-----|-----------------|-----------------|----------------------------|-----------------|------|--------------------------|----------------------------|----------------------|
@@ -326,12 +326,114 @@ Commands per bag (see the script): `evo_ape tum gt_ned.tum est_ned.tum -r trans_
 
 **ROS 2 / bag timestamps:** `localization_metrics` uses **bag receive time** for both the estimate (`vehicle_local_position_v1`) and ground truth (`/ground_truth/odometry`) so both series share one clock. Gazebo pose stamps still ride on the odometry header for live use; bag alignment does not mix boot-time with header time.
 
-**Alignment strategy for metrics:**
+**Alignment strategy for metrics (scoring version 2):**
 1. Use bag receive timestamps for both trajectories
-2. Restrict to the overlapping time window
-3. Optionally remove a constant origin offset (default on) so spawn/home frame bias does not dominate RMSE — absolute bias is then hidden; pass `--no-origin-align` to keep it
-4. Interpolate ground truth onto estimate sample times
+2. Keep the estimate samples inside the GT time range (GT itself is not cropped)
+3. Interpolate ground truth onto those estimate sample times, from the full GT series
+4. Optionally remove a constant origin offset (default on) so spawn/home frame bias does not dominate RMSE: GT is shifted so it equals the estimate at the first kept estimate time. Absolute bias is then hidden; pass `--no-origin-align` to keep it
 5. Restrict reported RMSE to the airborne segment (NED z < -0.5 m)
+
+### Scoring version 2 (ODL-118 / ODL-119, 2026-11-24)
+
+Two alignment bugs in `align_trajectories` (scoring version 1) are fixed:
+
+- **ODL-118, origin offset taken at two different instants.** v1 used
+  `gt[0] - est[0]`, the first GT sample and the first estimate sample of the
+  overlap window, which are up to one GT period apart (about 17 ms at 57 Hz
+  GT). When the vehicle moves at that moment, the offset is wrong by speed x
+  gap and that error is added to every sample. On synthetic data a perfect
+  estimate scored 0.058 m at 6 m/s with 60 Hz GT and 0.18 m with 10 Hz GT.
+  v2 takes the offset from GT interpolated at the first estimate time.
+- **ODL-119, GT cropped before interpolation.** v1 cropped GT to the overlap
+  window and then interpolated, so estimate samples between the window edge
+  and the first/last cropped GT sample got clamped GT. v2 keeps the full GT
+  series for interpolation and only drops estimate samples outside the GT
+  time range.
+
+A perfect estimate now scores 0 whatever the GT rate, speed, or start time
+(`test_scoring_alignment.py`; the same tests fail on v1).
+
+`SCORING_VERSION = 2` is written into every metrics JSON and into
+`summary.json` as `scoring_version` (`scripts/scoring_version.py`; a summary
+without it was scored by v1). The regression report shows it per run, and
+`report.json` has `scoring_versions`. **It is not part of the scenario
+fingerprint.** The fingerprint covers what was flown (model, flight profile,
+world, overlay, mask). The scoring version describes how a recorded flight
+was scored, and the same bag can be re-scored under either version. Putting
+it into the hash would give one flight two fingerprints and would change
+every fingerprint again for no change in what was flown. Compare numbers only
+when both `scenario_fingerprint.sha256` and `scoring_version` match.
+
+**Effect on recorded flights (re-scored from the existing bags, no new
+flights).** 46 runs were re-scored with both versions from their bags (same
+airborne mask, evo `-a` Umeyama). The v1 re-score reproduces every recorded
+number exactly. The change turned out to be almost nil on real runs:
+
+- EKF2 starts publishing on the ground, at rest, before GT moves, so the
+  offset instant does not matter: EKF2 origin H/V and Umeyama are unchanged
+  (|delta| < 1e-16 m).
+- OpenVINS starts during the climb (0.5-1.8 m/s), so the v1 offset was off by
+  a few mm to cm. VIO origin-aligned H changes by at most 1.3 mm and VIO
+  origin V by at most 21.5 mm. Neither is gated.
+- The Umeyama metrics that gate VIO fit their own translation, so the offset
+  bug cannot affect them. Edge clamping touched at most a sample or two
+  outside the airborne mask: |delta| <= 2e-6 m.
+- **No verdict changed and no gate was crossed in either direction.** The
+  knife-edge 0.70045 m baseline run (`20261113_215826`) is still 0.70045 m.
+  No gate was changed.
+
+Old (v1) vs new (v2). The gated metric is VIO Umeyama xy (EKF2 Umeyama xy
+for mc_gps); "(ng)" = non-gating scenario.
+
+| Run | Scenario | gated metric | old | new | gate | EKF2 origin H old→new (gate) | VIO origin V old→new | old verdict | new verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| 1113_195617 (old world) | baseline | VIO Umeyama xy | 0.4447 | 0.4447 | 0.7 | 0.2775→0.2775 (0.44) | 0.1421→0.1454 | PASS | PASS |
+| 1113_211846 (old world) | baseline | VIO Umeyama xy | 2.3399 | 2.3399 | 0.7 | 0.2763→0.2763 (0.44) | 0.2422→0.2414 | FAIL | FAIL |
+| 1113_215826 (old world) | baseline | VIO Umeyama xy | 0.7005 | 0.7005 | 0.7 | 0.2855→0.2855 (0.44) | 0.1287→0.1296 | FAIL | FAIL |
+| 1124_114534 (old world) | baseline | VIO Umeyama xy | 0.8929 | 0.8929 | 0.7 | 0.2863→0.2863 (0.44) | 0.1195→0.1193 | FAIL | FAIL |
+| 1124_115528 (old world) | baseline | VIO Umeyama xy | 0.4041 | 0.4041 | 0.7 | 0.2852→0.2852 (0.44) | 0.0710→0.0721 | PASS | PASS |
+| 1124_122737 (old world) | baseline | VIO Umeyama xy | 0.9840 | 0.9840 | 0.7 | 0.2878→0.2878 (0.44) | 0.1161→0.1156 | FAIL | FAIL |
+| 1124_123448 (old world) | baseline | VIO Umeyama xy | 1.3879 | 1.3879 | 0.7 | 0.2902→0.2902 (0.44) | 0.2878→0.2882 | FAIL | FAIL |
+| 1124_124128 (old world) | baseline | VIO Umeyama xy | 1.0886 | 1.0886 | 0.7 | 0.2831→0.2831 (0.44) | 0.1751→0.1775 | FAIL | FAIL |
+| 1124_124449 (old world) | baseline | VIO Umeyama xy | 0.6253 | 0.6253 | 0.7 | 0.2832→0.2832 (0.44) | 0.0841→0.0828 | PASS | PASS |
+| 1124_124828 (old world) | baseline | VIO Umeyama xy | 0.6590 | 0.6590 | 0.7 | 0.2855→0.2855 (0.44) | 0.1003→0.0989 | PASS | PASS |
+| 1124_125130 (old world) | baseline | VIO Umeyama xy | 0.4397 | 0.4397 | 0.7 | 0.2878→0.2878 (0.44) | 0.0708→0.0719 | PASS | PASS |
+| 1124_125433 (old world) | baseline | VIO Umeyama xy | 0.4024 | 0.4024 | 0.7 | 0.2783→0.2783 (0.44) | 0.1455→0.1457 | PASS | PASS |
+| 1124_140757 (old world) | baseline | VIO Umeyama xy | 0.4152 | 0.4152 | 0.7 | 0.2879→0.2879 (0.44) | 0.0321→0.0318 | PASS | PASS |
+| 1124_143838 (old world) | baseline | VIO Umeyama xy | 0.3856 | 0.3856 | 0.7 | 0.2873→0.2873 (0.44) | 0.0907→0.0963 | PASS | PASS |
+| 1124_145205 (new world) | baseline | VIO Umeyama xy | 0.0738 | 0.0738 | 0.7 | 0.2860→0.2860 (0.44) | 0.0667→0.0704 | PASS | PASS |
+| 1124_145508 (new world) | baseline | VIO Umeyama xy | 0.1075 | 0.1075 | 0.7 | 0.2908→0.2908 (0.44) | 0.0494→0.0497 | PASS | PASS |
+| 1124_145811 (new world) | baseline | VIO Umeyama xy | 0.1111 | 0.1111 | 0.7 | 0.2942→0.2942 (0.44) | 0.0241→0.0254 | PASS | PASS |
+| 1124_150126 (new world) | baseline | VIO Umeyama xy | 0.1143 | 0.1143 | 0.7 | 0.2863→0.2863 (0.44) | 0.0398→0.0399 | PASS | PASS |
+| 1124_150436 (new world) | baseline | VIO Umeyama xy | 0.0746 | 0.0746 | 0.7 | 0.2888→0.2888 (0.44) | 0.0250→0.0248 | PASS | PASS |
+| 1120_223052 | low_texture | VIO Umeyama xy | 0.1020 | 0.1020 | 0.55 | 0.2706→0.2706 (0.4) | 0.0545→0.0517 | PASS (ng) | PASS (ng) |
+| 1123_234522 | low_texture | VIO Umeyama xy | 0.1033 | 0.1033 | 0.55 | 0.2633→0.2633 (0.4) | 0.0531→0.0494 | PASS (ng) | PASS (ng) |
+| 1124_114821 | low_texture | VIO Umeyama xy | 0.0969 | 0.0969 | 0.55 | 0.2676→0.2676 (0.4) | 0.0757→0.0805 | PASS (ng) | PASS (ng) |
+| 1124_123029 | low_texture | VIO Umeyama xy | 0.0944 | 0.0944 | 0.55 | 0.2694→0.2694 (0.4) | 0.0882→0.0778 | PASS (ng) | PASS (ng) |
+| 1124_141102 | low_texture | VIO Umeyama xy | 0.0863 | 0.0863 | 0.55 | 0.2669→0.2669 (0.4) | 0.0523→0.0533 | PASS (ng) | PASS (ng) |
+| 1124_150747 | low_texture | VIO Umeyama xy | 0.1554 | 0.1554 | 0.55 | 0.2656→0.2656 (0.4) | 0.0658→0.0678 | PASS (ng) | PASS (ng) |
+| 1110_231056 | faster_motion | VIO Umeyama xy | 0.1408 | 0.1408 | 0.42 | 0.4125→0.4125 (0.6) | 0.0783→0.0998 | PASS | PASS |
+| 1110_232254 | faster_motion | VIO Umeyama xy | 0.2010 | 0.2010 | 0.42 | 0.4120→0.4120 (0.6) | 0.0961→0.1002 | PASS | PASS |
+| 1110_233445 | faster_motion | VIO Umeyama xy | 0.1886 | 0.1886 | 0.42 | 0.4054→0.4054 (0.6) | 0.1024→0.1157 | PASS | PASS |
+| 1110_234631 | faster_motion | VIO Umeyama xy | 0.1642 | 0.1642 | 0.42 | 0.3955→0.3955 (0.6) | 0.0838→0.0857 | PASS | PASS |
+| 1111_010040 | faster_motion | VIO Umeyama xy | 0.1512 | 0.1512 | 0.42 | 0.4047→0.4047 (0.6) | 0.0497→0.0536 | PASS | PASS |
+| 1124_151203 | faster_motion | VIO Umeyama xy | 0.1125 | 0.1125 | 0.42 | 0.4143→0.4143 (0.6) | 0.0847→0.0986 | PASS | PASS |
+| 1110_120158 | faster_motion_aggressive | VIO Umeyama xy | 0.3939 | 0.3939 | 0.42 | 0.4243→0.4243 (0.6) | 0.7193→0.7213 | PASS (ng) | PASS (ng) |
+| 1123_231942 | faster_motion_aggressive | VIO Umeyama xy | - | - | 0.42 | 0.4153→0.4153 (0.6) | - | FAIL (ng) | FAIL (ng) |
+| 1124_115139 | faster_motion_aggressive | VIO Umeyama xy | - | - | 0.42 | 0.4114→0.4114 (0.6) | - | FAIL (ng) | FAIL (ng) |
+| 1110_230200 | wind | VIO Umeyama xy | 0.3646 | 0.3646 | 1.85 | 0.2858→0.2858 (0.44) | 0.0487→0.0487 | PASS | PASS |
+| 1110_231355 | wind | VIO Umeyama xy | 0.2793 | 0.2793 | 1.85 | 0.2903→0.2903 (0.44) | 0.0668→0.0674 | PASS | PASS |
+| 1110_232600 | wind | VIO Umeyama xy | 0.6267 | 0.6267 | 1.85 | 0.2836→0.2836 (0.44) | 0.1238→0.1201 | PASS | PASS |
+| 1110_233745 | wind | VIO Umeyama xy | 0.4689 | 0.4689 | 1.85 | 0.2874→0.2874 (0.44) | 0.1196→0.1162 | PASS | PASS |
+| 1110_234938 | wind | VIO Umeyama xy | 0.8073 | 0.8073 | 1.85 | 0.2920→0.2920 (0.44) | 0.2289→0.2261 | PASS | PASS |
+| 1111_010352 | wind | VIO Umeyama xy | 0.9058 | 0.9058 | 1.85 | 0.2896→0.2896 (0.44) | 0.1528→0.1523 | PASS | PASS |
+| 1113_212138 | mc_gps | EKF2 Umeyama xy | 0.2553 | 0.2553 | 0.39 | 0.2796→0.2796 (0.43) | - | PASS | PASS |
+| 1124_122434 | mc_gps | EKF2 Umeyama xy | 0.2578 | 0.2578 | 0.39 | 0.2785→0.2785 (0.43) | - | PASS | PASS |
+| 1124_140519 | mc_gps | EKF2 Umeyama xy | 0.2629 | 0.2629 | 0.39 | 0.2854→0.2854 (0.43) | - | PASS | PASS |
+| 1124_141411 | mc_gps | EKF2 Umeyama xy | 0.2610 | 0.2610 | 0.39 | 0.2760→0.2760 (0.43) | - | PASS | PASS |
+| 1124_141702 | mc_gps | EKF2 Umeyama xy | 0.2614 | 0.2614 | 0.39 | 0.2849→0.2849 (0.43) | - | PASS | PASS |
+| 1124_143559 | mc_gps | EKF2 Umeyama xy | 0.2526 | 0.2526 | 0.39 | 0.2720→0.2720 (0.43) | - | PASS | PASS |
+
 
 **Ground truth bridge:** `localization.launch.py` bridges `/clock` for `use_sim_time` and starts `ground_truth_publisher`, which reads `/world/default/pose/info` directly via gz-transport. Override with `gz_pose_topic:=/world/default/dynamic_pose/info` if needed. Model frame defaults to `x500_0` (also matches `x500_0/base_link`).
 

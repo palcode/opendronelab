@@ -240,6 +240,18 @@ def airborne_mask_from_gt_z(gt_z, min_agl=DEFAULT_AIRBORNE_MIN_AGL,
     z = np.asarray(gt_z, dtype=np.float64)
     return (z < -float(min_agl)) & (z > -float(max_agl))
 
+# Version of the scoring code (alignment + metrics), recorded in every
+# metrics JSON and in summary.json as ``scoring_version``. Bump it whenever a
+# change can move a recorded number, so old and new scores are never mixed.
+# Missing = 1 (pre-ODL-118/119 alignment).
+#   1: origin offset from the first GT and first estimate samples (different
+#      instants), and GT cropped to the overlap before interpolation.
+#   2: ODL-118/119. GT is interpolated onto the estimate times from the full
+#      GT series (estimate masked to the GT time range), and the origin offset
+#      is taken from that interpolated GT at the first estimate time.
+SCORING_VERSION = 2
+
+
 def align_trajectories(
     gt_timestamps,
     gt_positions,
@@ -250,35 +262,43 @@ def align_trajectories(
     """
     Align ground truth and estimated trajectories.
 
-    Finds the overlapping time window, optionally removes a constant origin
-    offset (first-sample alignment), and interpolates GT onto estimate times.
+    Keeps the estimate samples that fall inside the GT time range, and
+    interpolates GT onto those estimate times using the *full* GT series, so
+    estimate samples near the edges of the overlap get real (not clamped) GT
+    (ODL-119). With ``origin_align`` a constant offset is removed so that GT
+    equals the estimate at the first kept estimate time; the offset is taken
+    from GT interpolated at that same instant, not from the first GT sample
+    (ODL-118). A perfect estimate therefore scores 0 regardless of GT rate,
+    speed or when the estimate starts.
 
     Returns:
         tuple: (aligned_gt, aligned_est, aligned_timestamps) — all length K.
     """
-    t_start = max(gt_timestamps[0], est_timestamps[0])
-    t_end = min(gt_timestamps[-1], est_timestamps[-1])
-
-    gt_mask = (gt_timestamps >= t_start) & (gt_timestamps <= t_end)
-    est_mask = (est_timestamps >= t_start) & (est_timestamps <= t_end)
-
-    gt_timestamps = gt_timestamps[gt_mask]
-    gt_positions = gt_positions[gt_mask]
-    est_timestamps = est_timestamps[est_mask]
-    est_positions = est_positions[est_mask]
-
+    gt_timestamps = np.asarray(gt_timestamps, dtype=np.float64)
+    gt_positions = np.asarray(gt_positions, dtype=np.float64)
+    est_timestamps = np.asarray(est_timestamps, dtype=np.float64)
+    est_positions = np.asarray(est_positions, dtype=np.float64)
     if len(gt_timestamps) == 0 or len(est_timestamps) == 0:
         raise ValueError(
             'No overlapping timestamps between ground truth and estimate'
         )
 
-    if origin_align:
-        origin_offset = gt_positions[0] - est_positions[0]
-        gt_positions = gt_positions - origin_offset
+    est_mask = (est_timestamps >= gt_timestamps[0]) & (
+        est_timestamps <= gt_timestamps[-1])
+    est_timestamps = est_timestamps[est_mask]
+    est_positions = est_positions[est_mask]
+
+    if len(est_timestamps) == 0:
+        raise ValueError(
+            'No overlapping timestamps between ground truth and estimate'
+        )
 
     gt_interp = interpolate_trajectory(
         gt_timestamps, gt_positions, est_timestamps
     )
+    if origin_align:
+        origin_offset = gt_interp[0] - est_positions[0]
+        gt_interp = gt_interp - origin_offset
     return gt_interp, est_positions, est_timestamps
 
 
@@ -603,6 +623,7 @@ def main(args=None):
     )
 
     extra = {
+        'scoring_version': SCORING_VERSION,
         'origin_aligned': not parsed.no_origin_align,
         'estimate_topic': est_topic,
         'estimate_frame': est_frame,

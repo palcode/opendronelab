@@ -124,6 +124,7 @@ pytest -q \
   ros2_ws/src/drone_mission_manager/test/test_safety_limits.py \
   ros2_ws/src/drone_mission_manager/test/test_mission_node.py \
   ros2_ws/src/drone_localization/test/test_metrics.py \
+  ros2_ws/src/drone_localization/test/test_scoring_alignment.py \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
   ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
   ros2_ws/src/drone_localization/test/test_regression_harness.py \
@@ -456,6 +457,9 @@ for j in judges:
         # Which checkout ran it (informational; not in the fingerprint).
         # Older summaries have no git fields -> None.
         detail += f" git={s.get('git_sha')} dirty={s.get('git_dirty')}"
+        # How it was scored (ODL-118/119). Missing = 1 (pre-fix alignment);
+        # never compare numbers across scoring versions.
+        detail += f" scoring_version={s.get('scoring_version', 1)}"
     rows.append({"step": run_label(j), "scenario": j.get("scenario"), "run_id": j.get("run_id"), "pass": j.get("pass"), "pass_at_1": j.get("pass_at_1"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag"), "bag_duration_s": j.get("bag_duration_s"), "git_sha": s.get("git_sha"), "git_dirty": s.get("git_dirty")})
 
 def _bags_report():
@@ -504,6 +508,11 @@ out = {
     "flight_profiles": {
         run_label(j): (j.get("summary") or {}).get("flight_profile")
         for j in judges if (j.get("summary") or {}).get("flight_profile")
+    },
+    # Scoring version per run (ODL-118/119); not in the fingerprint.
+    "scoring_versions": {
+        run_label(j): (j.get("summary") or {}).get("scoring_version", 1)
+        for j in judges if j.get("summary")
     },
     "elapsed_s": elapsed,
     "gz_seed": int(os.environ["GZ_SEED"]),
