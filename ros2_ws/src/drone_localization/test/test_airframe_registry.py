@@ -27,14 +27,15 @@ LEGACY = {
 }
 
 # Documented in docs/localization.md. Recomputed for ODL-92 (MODEL is
-# hashed); the pre-ODL-92 world/overlay-only values are in the docs table.
+# hashed) and for the ODL-86 far-side texture in vio_test; older values are
+# in the docs tables.
 DOCUMENTED_FINGERPRINTS = {
-    'baseline': 'df30c0c5527ade3c0f51725e6cc24fb4ad020526f4701804ae1389719d9b72a9',
+    'baseline': '649c1b4407a5764d437d92ce4cd5d746fbc762386bf57c8903a37e3984c12e2c',
     'low_texture': '9c67d000bf4983c000f5260f03a61accc9fc84fd92e47b594f7a1bd1b7f23362',
-    'faster_motion': '6c3a592f8ea00b520d441720667169838fe652aeb9582b41af709a332b9cea74',
-    'faster_motion_aggressive': '6c3a592f8ea00b520d441720667169838fe652aeb9582b41af709a332b9cea74',
+    'faster_motion': '1eef3ea1d7915767ad8730a9fb3f76730cce2e25a86ec1997f7c30501e73f774',
+    'faster_motion_aggressive': '1eef3ea1d7915767ad8730a9fb3f76730cce2e25a86ec1997f7c30501e73f774',
     'wind': '05038b7ebbf1553e17982475fd56ee7e610b3bdfa121962ad8dc712df412bc32',
-    'mc_gps': '71401996f3b3627ace4f7d585715b3149b98f6e38e383148bde150ac37400e33',
+    'mc_gps': 'eae837ca620eda4b0e0801529e1a5defbc78b544582edc69b1048aec51684ec6',
     'fw_mission': 'f0b7ad5987cd195a8fc9fc909702f8fb36d8661c3bd1f15f4d4b5c290781896c',
 }
 

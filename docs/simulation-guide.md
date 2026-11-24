@@ -274,8 +274,9 @@ of hardcoded `x500_mono_cam` strings. Gates stay in
   stock airframes.
 - Scenario fingerprints hash `MODEL` + world + overlay (+ shared mask) since
   ODL-92, and the flight profile since scheme 3 (2026-11-24), so `mc_gps`
-  (`gz_x500` on `vio_test`, no overlay) has its own hash (`704df735f3af…`;
-  scheme 2 `71401996f3b3…`). Results recorded before ODL-92 carry the old
+  (`gz_x500` on `vio_test`, no overlay) has its own hash (`ee58852aee62…`;
+  scheme 2 `eae837ca620e…`; before the ODL-86 far-side texture in
+  `vio_test`: `704df735f3af…` / `71401996f3b3…`). Results recorded before ODL-92 carry the old
   world/overlay-only hashes and are not comparable by fingerprint; see
   `docs/localization.md` for the old → new table.
 - Phase B (fixed-wing, `fw_mission`) is below; C (VTOL) and D (rover) are
