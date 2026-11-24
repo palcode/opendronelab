@@ -159,8 +159,10 @@ def test_whole_float_retry_is_accepted(judge_mod, thresholds):
 
 def test_recorded_summaries_keep_their_verdict(judge_mod, thresholds):
     """Every recorded judge_*.json in the data dir re-judges the same."""
-    data = Path(os.environ.get('ODL_DATA', REPO.parent / 'dronelab-data'))
-    files = sorted((data / 'results').glob('regression_*/judge_*.json'))
+    files = []
+    for data in (os.environ.get('ODL_DATA'), REPO.parent / 'dronelab-data', '/data'):
+        if data and not files:
+            files = sorted((Path(data) / 'results').glob('regression_*/judge_*.json'))
     if not files:
         pytest.skip('no recorded regression results in the data dir')
     n = 0
