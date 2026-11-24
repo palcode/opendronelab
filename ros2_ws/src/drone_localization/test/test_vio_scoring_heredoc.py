@@ -153,6 +153,9 @@ def test_stress_scoring_writes_summary_when_vio_metrics_fail(sandbox):
         'ODL_ATTEMPT': '1',
         'ODL_RETRY_BAGS_JSON': '[]',
         'ODL_OV_CONFIG': '',
+        'ODL_FLIGHT_CMD': ('ros2 run drone_flight_cpp square_flight_cpp --ros-args '
+                           '-p cruise_speed:=6.0 -p corner_hold_time:=0.5 '
+                           '-p status_file:=/data/results/x/flight_status.json'),
     })
     r = _run(_prepare(body, sandbox), env)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -166,7 +169,11 @@ def test_stress_scoring_writes_summary_when_vio_metrics_fail(sandbox):
     assert summary['vio_umeyama_xy_rmse'] is None
     assert summary['vio_umeyama_3d_rmse'] is None
     assert summary['ov_published'] is False
-    assert summary['scenario_fingerprint']['scheme'] == 2
+    # Scheme 3 (ODL-92): the flight profile is recorded and hashed.
+    assert summary['scenario_fingerprint']['scheme'] == 3
+    assert summary['flight_profile']['params']['corner_hold_time'] == 0.5
+    assert summary['flight_profile']['params']['cruise_speed'] == 6.0
+    assert summary['scenario_fingerprint']['flight_profile_sha256']
 
 
 def test_baseline_scoring_and_aggregate_survive_vio_failure(sandbox):

@@ -127,6 +127,7 @@ pytest -q \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
   ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
   ros2_ws/src/drone_localization/test/test_regression_harness.py \
+  ros2_ws/src/drone_localization/test/test_flight_profile.py \
   ros2_ws/src/drone_localization/test/test_vio_scoring_heredoc.py \
   ros2_ws/src/drone_localization/test/test_container_env.py \
   ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py \
@@ -498,6 +499,12 @@ out = {
         j.get("scenario"): (j.get("summary") or {}).get("scenario_fingerprint")
         for j in judges
     },
+    # Flight profile per run (ODL-92): what shaped the trajectory; hashed
+    # into scenario_fingerprint since scheme 3.
+    "flight_profiles": {
+        run_label(j): (j.get("summary") or {}).get("flight_profile")
+        for j in judges if (j.get("summary") or {}).get("flight_profile")
+    },
     "elapsed_s": elapsed,
     "gz_seed": int(os.environ["GZ_SEED"]),
     "bag_duration_s": default_bag,
@@ -543,11 +550,12 @@ if fps:
     lines.extend([
         "## Scenario fingerprints",
         "",
-        "sha256 of the vehicle MODEL + world SDF + OpenVINS overlay directory",
-        "+ any mask file the overlay references outside that directory (MODEL",
-        "since ODL-92); changes when those inputs change, not when unrelated",
-        "files change. scheme is the fingerprint version (2 = current with MODEL,",
-        "1 = pre-ODL-92, missing = 1). git SHA is extra.",
+        "sha256 of the vehicle MODEL + flight profile + world SDF + OpenVINS",
+        "overlay directory + any mask file the overlay references outside that",
+        "directory; changes when those inputs change, not when unrelated files",
+        "change. scheme is the fingerprint version (3 = current with the flight",
+        "profile, 2 = MODEL without profile, 1 = pre-ODL-92, missing = 1); never",
+        "compare sha256 across schemes. git SHA is extra, not hashed.",
         "",
         "| Scenario | scheme | sha256 | model | world | overlay | git |",
         "|----------|--------|--------|-------|-------|---------|-----|",
@@ -561,6 +569,31 @@ if fps:
             f"{fp.get('world') or ''} | {fp.get('openvins_overlay') or ''} | "
             f"`{fp.get('git_sha') or ''}` |"
         )
+    lines.append("")
+profs = [j for j in judges if (j.get("summary") or {}).get("flight_profile")]
+if profs:
+    lines.extend([
+        "## Flight profiles",
+        "",
+        "Inputs that shape the trajectory (hashed into the fingerprint since",
+        "scheme 3). Square: square_flight_cpp parameters; fw_mission: mission",
+        "arguments and PX4 params.",
+        "",
+        "| Scenario | flight | profile sha256 | parameters |",
+        "|----------|--------|----------------|------------|",
+    ])
+    for j in profs:
+        prof = j["summary"]["flight_profile"]
+        fp = j["summary"].get("scenario_fingerprint") or {}
+        params = ", ".join(f"{k}={v!r}" if isinstance(v, str) else f"{k}={v}"
+                           for k, v in (prof.get("params") or {}).items())
+        if prof.get("px4_params"):
+            params += "; PX4 " + ", ".join(prof["px4_params"])
+        if prof.get("command"):
+            params = f"`{prof['command']}`"
+        lines.append(
+            f"| {run_label(j)} | {prof.get('flight') or ''} | "
+            f"`{(fp.get('flight_profile_sha256') or '')[:12]}` | {params} |")
     lines.append("")
 
 def _failed_section(title, items):
