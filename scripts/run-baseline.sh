@@ -84,10 +84,25 @@ if [ "${GROUND_TRUTH_ACTIVE}" = "0" ]; then
 fi
 
 # Fail closed if advertised but silent (wrong world/model is the usual cause).
-GT_HZ=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
-    bash -c "${SOURCE_CMD}; timeout 4 ros2 topic hz /ground_truth/odometry 2>&1 | head -8" || true)
+# A few tries: right after the publisher starts, the first 4 s window can
+# miss the rate even though the topic is fine (a startup race, not a fault).
+GT_HZ=""
+GT_HZ_TRIES="${GT_HZ_TRIES:-3}"
+for i in $(seq 1 "${GT_HZ_TRIES}"); do
+    GT_HZ=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+        bash -c "${SOURCE_CMD}; timeout 4 ros2 topic hz /ground_truth/odometry 2>&1 | head -8" || true)
+    if echo "${GT_HZ}" | grep -qE 'average rate:'; then
+        if [ "${i}" -gt 1 ]; then
+            echo "[INFO] ground_truth rate seen at try ${i}/${GT_HZ_TRIES}"
+        fi
+        break
+    fi
+    if [ "${i}" -lt "${GT_HZ_TRIES}" ]; then
+        sleep 3
+    fi
+done
 if ! echo "${GT_HZ}" | grep -qE 'average rate:'; then
-    echo "[ERROR] /ground_truth/odometry has no live rate." >&2
+    echo "[ERROR] /ground_truth/odometry has no live rate after ${GT_HZ_TRIES} tries." >&2
     echo "[ERROR] Expected gz_pose_topic=${GT_GZ_POSE} model_name=${GT_MODEL_NAME}" >&2
     echo "${GT_HZ}" >&2
     docker exec "${CONTAINER_NAME}" tail -40 /tmp/localization-launch.log 2>/dev/null || true

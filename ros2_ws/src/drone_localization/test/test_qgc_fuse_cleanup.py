@@ -394,3 +394,124 @@ def test_stop_our_qgc_leaves_foreign_qgc_alone(dummy_qgc, tmp_path, fallback):
     finally:
         foreign.kill()
         foreign.wait(timeout=10)
+
+
+# --- start_our_qgc with a QGC that is still exiting (fake /proc) ----------
+# Back-to-back runs: the previous run's KILLed QGC can stay visible for a
+# few seconds (zombie leader / PF_EXITING). start_our_qgc must not mistake
+# it for a running GCS, must not signal it, and must start its own.
+
+def _fake_qgc_pid(proc: Path, pid: int, state='S', flags=0, shdpnd='0000000000000000'):
+    d = proc / str(pid)
+    d.mkdir(parents=True)
+    rest = [state, 1, pid, pid, 0, 0, flags] + [0] * 12 + [12345] + [0] * 5
+    (d / 'stat').write_text(f"{pid} (QGroundControl) " + ' '.join(map(str, rest)) + '\n')
+    (d / 'status').write_text(f"Name:\tQGroundControl\nSigPnd:\t0000000000000000\nShdPnd:\t{shdpnd}\n")
+    return d
+
+
+@pytest.mark.parametrize('kw, exiting', [
+    ({}, False),
+    ({'state': 'Z'}, True),
+    ({'state': 'X'}, True),
+    ({'flags': 0x400004}, True),            # PF_EXITING with other flags
+    ({'flags': 0x400100}, False),           # other flags only
+    ({'shdpnd': '0000000000000100'}, True),  # SIGKILL pending
+    ({'shdpnd': '0000000000004000'}, False),  # SIGTERM pending only
+])
+def test_qgc_pid_exiting(tmp_path, kw, exiting):
+    proc = tmp_path / 'proc'
+    _fake_qgc_pid(proc, 7001, **kw)
+    r = _run_helpers(proc, 'if qgc_pid_exiting 7001; then echo exiting; else echo live; fi')
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ['exiting' if exiting else 'live']
+
+
+def _stub_appimage(tmp_path: Path) -> Path:
+    app = tmp_path / 'QGC.AppImage'
+    app.write_text(f'#!/usr/bin/env bash\necho started >> "{tmp_path}/started"\n')
+    app.chmod(0o755)
+    return app
+
+
+START_SNIPPET = '''
+start_our_qgc
+echo "REG_STARTED_QGC=${REG_STARTED_QGC}"
+'''
+
+
+def test_start_waits_for_exiting_qgc_then_starts_ours(tmp_path):
+    proc = tmp_path / 'proc'
+    d = _fake_qgc_pid(proc, 7101, state='Z')
+    app = _stub_appimage(tmp_path)
+    # The "kernel" reaps it after ~1 s.
+    reaper = subprocess.Popen(['bash', '-c', f'sleep 1; rm -rf "{d}"'])
+    try:
+        r = _run_helpers(proc, START_SNIPPET, {
+            'QGC_APPIMAGE': str(app), 'QGC_LOG': str(tmp_path / 'qgc.log'),
+            'QGC_START_SETTLE_S': '0.3', 'QGC_EXIT_WAIT_S': '10'})
+    finally:
+        reaper.wait()
+    assert r.returncode == 0, r.stderr
+    assert 'exiting (previous run?)' in r.stdout
+    assert 'exiting QGroundControl gone' in r.stdout
+    assert 'REG_STARTED_QGC=1' in r.stdout
+    assert (tmp_path / 'started').read_text().strip() == 'started'
+
+
+def test_start_gives_up_waiting_and_starts_ours_without_signalling(tmp_path):
+    proc = tmp_path / 'proc'
+    _fake_qgc_pid(proc, 7201, flags=0x4)  # stuck exiting
+    app = _stub_appimage(tmp_path)
+    r = _run_helpers(proc, START_SNIPPET, {
+        'QGC_APPIMAGE': str(app), 'QGC_LOG': str(tmp_path / 'qgc.log'),
+        'QGC_START_SETTLE_S': '0.3', 'QGC_EXIT_WAIT_S': '1'})
+    assert r.returncode == 0, r.stderr
+    assert 'still exiting after 1s; starting our own anyway (not signalled)' in r.stderr
+    assert 'REG_STARTED_QGC=1' in r.stdout
+    assert (proc / '7201').is_dir()  # left alone
+
+
+def test_start_uses_a_live_qgc_and_does_not_start_ours(tmp_path):
+    proc = tmp_path / 'proc'
+    _fake_qgc_pid(proc, 7301)
+    app = _stub_appimage(tmp_path)
+    r = _run_helpers(proc, START_SNIPPET, {
+        'QGC_APPIMAGE': str(app), 'QGC_LOG': str(tmp_path / 'qgc.log'),
+        'QGC_START_SETTLE_S': '0', 'QGC_EXIT_WAIT_S': '1'})
+    assert r.returncode == 0, r.stderr
+    assert 'already running (pid(s) 7301)' in r.stdout
+    assert 'REG_STARTED_QGC=0' in r.stdout
+    assert not (tmp_path / 'started').exists()
+
+
+def test_start_prefers_live_qgc_that_appears_while_waiting(tmp_path):
+    proc = tmp_path / 'proc'
+    _fake_qgc_pid(proc, 7401, state='Z')
+    app = _stub_appimage(tmp_path)
+    opener = subprocess.Popen(['python3', '-c', (
+        'import time, pathlib, sys; time.sleep(0.8); '
+        f'd = pathlib.Path({str(proc)!r}) / "7402"; d.mkdir(); '
+        '(d / "stat").write_text("7402 (QGroundControl) S 1 7402 7402 " + "0 " * 20 + "\\n")')])
+    try:
+        r = _run_helpers(proc, START_SNIPPET, {
+            'QGC_APPIMAGE': str(app), 'QGC_LOG': str(tmp_path / 'qgc.log'),
+            'QGC_START_SETTLE_S': '0', 'QGC_EXIT_WAIT_S': '5'})
+    finally:
+        opener.wait()
+    assert r.returncode == 0, r.stderr
+    assert 'already running (pid(s) 7402)' in r.stdout
+    assert 'REG_STARTED_QGC=0' in r.stdout
+    assert not (tmp_path / 'started').exists()
+
+
+def test_start_with_nothing_running_starts_ours(tmp_path):
+    proc = tmp_path / 'proc'
+    proc.mkdir()
+    app = _stub_appimage(tmp_path)
+    r = _run_helpers(proc, START_SNIPPET, {
+        'QGC_APPIMAGE': str(app), 'QGC_LOG': str(tmp_path / 'qgc.log'),
+        'QGC_START_SETTLE_S': '0.3'})
+    assert r.returncode == 0, r.stderr
+    assert 'exiting' not in r.stdout
+    assert 'REG_STARTED_QGC=1' in r.stdout
