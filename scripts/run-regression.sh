@@ -6,7 +6,8 @@
 # Usage:
 #   ./scripts/run-regression.sh
 #   SCENARIOS=baseline,wind ./scripts/run-regression.sh   # commas and/or spaces
-#   SCENARIOS=pytest ./scripts/run-regression.sh
+#   SCENARIOS=pytest ./scripts/run-regression.sh           # pytest only
+#   SCENARIOS=baseline ./scripts/run-regression.sh         # pytest + baseline
 #   SKIP_PYTEST=1 SCENARIOS=faster_motion ./scripts/run-regression.sh
 #   SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh   # gz_x500, EKF2 only
 #
@@ -40,19 +41,17 @@ else
     WANT=(pytest "${ALL_SCENARIOS[@]}")
 fi
 
-RUN_PYTEST=0
+# "pytest" in SCENARIOS is accepted (SCENARIOS=pytest = pytest only, no
+# flights), but pytest runs whenever SKIP_PYTEST is not 1.
 FLIGHTS=()
 for s in "${WANT[@]+"${WANT[@]}"}"; do
     [ -z "$s" ] && continue
-    if [ "$s" = "pytest" ]; then
-        RUN_PYTEST=1
-    else
-        FLIGHTS+=("$s")
-    fi
+    [ "$s" = "pytest" ] && continue
+    FLIGHTS+=("$s")
 done
-if [ "${SKIP_PYTEST:-0}" = "1" ]; then
-    RUN_PYTEST=0
-fi
+PYTEST_DECISION="$(reg_pytest_decision "${SKIP_PYTEST:-0}")"
+RUN_PYTEST=0
+[ "${PYTEST_DECISION}" = "run" ] && RUN_PYTEST=1
 
 # QGC start/stop helpers (QGC_FUSE_HELPERS_ONLY=1 sources only these, for tests).
 # shellcheck source=qgc-lib.sh
@@ -138,7 +137,10 @@ pytest -q \
 ' | tee "${REPORT_HOST}/pytest.txt"
     PY_EC=${PIPESTATUS[0]}
     set -e
-    PASSED=$(grep -Eo '[0-9]+ passed' "${REPORT_HOST}/pytest.txt" | head -1 | awk '{print $1}')
+    # `|| true`: with no "N passed" line (collection error, docker failure)
+    # grep exits 1 and pipefail + set -e used to abort the whole run here,
+    # before pytest.json or the report were written.
+    PASSED=$(grep -Eo '[0-9]+ passed' "${REPORT_HOST}/pytest.txt" | head -1 | awk '{print $1}' || true)
     PASSED="${PASSED:-0}"
     # The thresholds path is passed as argv, never pasted into the Python.
     MIN_P=$(docker run --rm --network none \
@@ -154,7 +156,7 @@ pytest -q \
     reg_write_pytest_json "${PYTEST_JSON}" "${PY_PASS}" "${PY_EC}" "${PASSED}" "${MIN_P}"
     echo "[REG] pytest: $( [ "${PY_PASS}" = 1 ] && echo PASS || echo FAIL ) (${PASSED}/${MIN_P})"
 else
-    echo "[REG] skipping pytest"
+    echo "[REG] skipping pytest (${PYTEST_DECISION#skip })"
     echo '{"step":"pytest","pass":true,"skipped":true}' > "${PYTEST_JSON}"
 fi
 
