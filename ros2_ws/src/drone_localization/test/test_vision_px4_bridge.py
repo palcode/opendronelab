@@ -196,6 +196,7 @@ def _run_bridge_once(q, v_body):
     try:
         sent = []
         node._pub = type('P', (), {'publish': lambda self, m: sent.append(m)})()
+        node._gate_on = False  # publish gate: test_ev_publish_gate.py
         # PX4 at the origin with the same heading as OV -> yaw_off = 0.
         node._px4_ts_us = 1_000_000
         node._px4_pos = (0.0, 0.0, 0.0)
