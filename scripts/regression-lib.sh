@@ -21,6 +21,20 @@ reg_split_scenarios() {
     return 0
 }
 
+# Whether run-regression.sh runs pytest: prints "run" or "skip <reason>".
+# pytest runs by default, with or without SCENARIOS (the documented
+# `SKIP_PYTEST=1 SCENARIOS=<one>` usage relies on that); only SKIP_PYTEST=1
+# turns it off. Before, an explicit SCENARIOS without the word "pytest"
+# skipped it silently. Args: SKIP_PYTEST value.
+reg_pytest_decision() {
+    if [ "${1:-0}" = "1" ]; then
+        printf 'skip SKIP_PYTEST=1\n'
+    else
+        printf 'run\n'
+    fi
+    return 0
+}
+
 # One run id per scenario, in order: the first run of a scenario keeps its
 # name (judge_<scenario>.json, as before); a repeat gets __run<N> so a
 # duplicate never overwrites an earlier result (ODL-122).
