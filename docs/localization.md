@@ -507,6 +507,31 @@ fingerprint without flying:
 `PRINT_FINGERPRINT_ONLY=1 VIO_INIT_ATTEMPTS=1 WORLD=<world> MODEL=<MODEL> [SQUARE_*=...] ./scripts/run-vio-stress.sh <scenario>`
 or `python3 scripts/scenario_fingerprint.py --world <world> [--overlay ...] --model <MODEL> --flight-cmd '<FLIGHT_CMD>'`.
 
+#### Far-side texture in `vio_test` (ODL-86, 2026-11-24)
+
+The baseline camera looks north (PX4 yaw 0) for the whole square. At the far
+corner (wp2, ENU 10,10) and on the wp2->wp3 leg it saw only the blank ground
+pad and the skybox: the old courtyard tiles stop at x=7 and the box corridor at
+x=+-2.5. OpenVINS had no MSCKF/SLAM points there and snapped 0.5-2.6 m about
+1 s after leaving wp2. `worlds/vio_test.sdf` now has static texture in that
+view: a 24 x 12 m panelled facade at y=17 (x -2..22), 12 crates beyond the far
+edge (y 12-15.5) and checker tiles continuing east (x 8..16, y 0..14). Plain
+SDF colours from a fixed seed; no image textures or downloads.
+`vio_low_texture.sdf` and `vio_wind.sdf` are separate files and unchanged.
+
+Every scenario on `vio_test` changes fingerprint once; the others do not.
+
+| Scenario | old scheme 3 | new scheme 3 | new scheme 2 (no profile) |
+|---|---|---|---|
+| baseline | `4bb3131bcafb9db9a662c67405151db199973135549f6ed802b8b3068d86885a` | `99cbafa43aec78105650d3670e3ff0f9862e6ad02d8d7fb1c1e504d06fc625e3` | `649c1b4407a5764d437d92ce4cd5d746fbc762386bf57c8903a37e3984c12e2c` |
+| faster_motion | `a3b5c200b551fcf94e1632ec93dabe89de89f9bd72a956d77fa7f245ab5d6068` | `f4a0c4e7426ebfb6421202c87213ac39d1ed9c7ceaddbef4e243b6844533b9ce` | `1eef3ea1d7915767ad8730a9fb3f76730cce2e25a86ec1997f7c30501e73f774` |
+| faster_motion_aggressive | `ca32e0190b69e6d15d9ae0538875809e6f14dc338b85edba5f393ae7ae77297b` | `6201b05cb8875325607ced0d1e660b018d55a20962a906c8b426dcb88ef6a85f` | `1eef3ea1d7915767ad8730a9fb3f76730cce2e25a86ec1997f7c30501e73f774` (same as faster_motion) |
+| mc_gps | `704df735f3af425ed4cca43a78d4fc94efd0749eda3df70048e858112acf5e71` | `ee58852aee627c97fcc253a3404a273b27e4eb6eb9e665d41eb861e763509c72` | `eae837ca620eda4b0e0801529e1a5defbc78b544582edc69b1048aec51684ec6` |
+| low_texture, wind, fw_mission | unchanged | unchanged | unchanged |
+
+Results flown on the old `vio_test` are not comparable by fingerprint with
+results on the new one.
+
 ### Bring-up
 
 ```bash

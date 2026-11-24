@@ -181,7 +181,7 @@ def test_without_profile_scheme_2_is_unchanged():
     # Callers that pass no profile keep the scheme 2 hash (documented values).
     fp = fpmod.compute_scenario_fingerprint(REPO, 'vio_test', None, model='gz_x500')
     assert fp['scheme'] == 2
-    assert fp['sha256'] == '71401996f3b3627ace4f7d585715b3149b98f6e38e383148bde150ac37400e33'
+    assert fp['sha256'] == 'eae837ca620eda4b0e0801529e1a5defbc78b544582edc69b1048aec51684ec6'
 
 
 def test_documented_scheme3_fingerprints_match():
