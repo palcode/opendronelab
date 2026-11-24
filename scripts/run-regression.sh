@@ -119,12 +119,14 @@ set -u
 pytest -q \
   ros2_ws/src/drone_perception/test/test_processing.py \
   ros2_ws/src/drone_perception/test/test_yolox.py \
+  ros2_ws/src/drone_perception/test/test_yolox_robustness.py \
   ros2_ws/src/drone_perception/test/test_params.py \
   ros2_ws/src/drone_mission_manager/test/test_safety_limits.py \
   ros2_ws/src/drone_mission_manager/test/test_mission_node.py \
   ros2_ws/src/drone_localization/test/test_metrics.py \
   ros2_ws/src/drone_localization/test/test_scoring_alignment.py \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
+  ros2_ws/src/drone_localization/test/test_backlog_fixes.py \
   ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
   ros2_ws/src/drone_localization/test/test_regression_harness.py \
   ros2_ws/src/drone_localization/test/test_flight_profile.py \

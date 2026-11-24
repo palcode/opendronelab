@@ -71,11 +71,13 @@ SCENARIOS=pytest ./scripts/run-regression.sh
 
 `scripts/odl-env.sh` is sourced by the launch and regression scripts, so you can omit the `export` lines if you are happy with those defaults.
 
-Expected pytest output (example from a 2026-11-14 run on this tree):
+Expected pytest output (example from a 2026-11-24 run; the count grows as
+tests are added, and the gate is `pytest_min_passed` in
+`config/regression_thresholds.yaml`):
 
 ```text
-93 passed, 3 warnings in 3.08s
-[REG] pytest: PASS (93/31)
+428 passed, 1 warning in 27.67s
+[REG] pytest: PASS (428/250)
 ```
 
 A scored SITL suite needs an NVIDIA GPU and takes longer:

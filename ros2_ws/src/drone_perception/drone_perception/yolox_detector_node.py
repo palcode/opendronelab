@@ -49,8 +49,10 @@ def letterbox(img, target_size=(416, 416)):
     img_h, img_w = img.shape[:2]
 
     scale = min(target_w / img_w, target_h / img_h)
-    new_w = int(img_w * scale)
-    new_h = int(img_h * scale)
+    # At least 1 px: an extreme aspect ratio (e.g. 10000x1) rounded one side
+    # to 0 and cv2.resize raised (ODL-132).
+    new_w = min(target_w, max(1, int(img_w * scale)))
+    new_h = min(target_h, max(1, int(img_h * scale)))
 
     resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
 
@@ -70,6 +72,13 @@ def preprocess_yolox(img, input_size=(416, 416)):
     input_tensor = np.transpose(input_tensor, (2, 0, 1))  # HWC -> CHW
     input_tensor = np.expand_dims(input_tensor, axis=0)
     return input_tensor, scale, padding
+
+
+MAX_WH_LOGIT = 20.0
+# Highest-scoring candidates kept before NMS (ODL-132). NMS cost grows with
+# the candidate count: all 3549 YOLOX-nano anchors above threshold took
+# ~226 ms on CPU against ~5.5 ms normally.
+NMS_MAX_CANDIDATES = 300
 
 
 def demo_postprocess(outputs, img_size=(416, 416), p6=False):
@@ -96,7 +105,11 @@ def demo_postprocess(outputs, img_size=(416, 416), p6=False):
     expanded_strides = np.concatenate(expanded_strides, 1)
     outputs = outputs.copy()
     outputs[..., :2] = (outputs[..., :2] + grids) * expanded_strides
-    outputs[..., 2:4] = np.exp(outputs[..., 2:4]) * expanded_strides
+    # Clip the log-size before exp so a huge logit cannot overflow to inf
+    # (ODL-132). exp(20) * stride is already far larger than any image, so
+    # real boxes are unchanged; unscale_boxes clips to the image anyway.
+    outputs[..., 2:4] = np.exp(np.clip(outputs[..., 2:4], None, MAX_WH_LOGIT)) \
+        * expanded_strides
     return outputs
 
 
@@ -136,19 +149,29 @@ def decode_yolox_outputs(outputs, input_size=(416, 416), strides=None):
     return detections
 
 
-def nms(detections, score_threshold=0.5, nms_threshold=0.45):
-    """Non-maximum suppression. detections: (N, 7)."""
+def nms(detections, score_threshold=0.5, nms_threshold=0.45,
+        max_candidates=NMS_MAX_CANDIDATES):
+    """Non-maximum suppression. detections: (N, 7).
+
+    Only the ``max_candidates`` highest-scoring boxes above the threshold
+    enter NMS. An empty result has shape (0, k), like the input (ODL-132).
+    """
+    detections = np.asarray(detections)
+    width = detections.shape[1] if detections.ndim == 2 else 7
+    empty = np.zeros((0, width), dtype=detections.dtype if detections.size else np.float64)
     if len(detections) == 0:
-        return np.array([])
+        return empty
 
     scores = detections[:, 4] * detections[:, 5]
     mask = scores >= score_threshold
     detections = detections[mask]
     if len(detections) == 0:
-        return np.array([])
+        return empty
     scores = scores[mask]
 
     order = scores.argsort()[::-1]
+    if max_candidates is not None and len(order) > max_candidates:
+        order = order[:max_candidates]
     keep = []
     while len(order) > 0:
         i = order[0]

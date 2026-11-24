@@ -31,8 +31,12 @@ def _resolve_world(repo: Path, world: str | None) -> tuple[Path | None, str | No
     if not world:
         return None, None
     raw = Path(world)
-    if raw.suffix == '.sdf' and raw.is_file():
-        return raw, _repo_relative(repo, raw)
+    # A relative path is resolved against the repo only, never the process
+    # CWD, so the fingerprint does not depend on where it is run (ODL-134).
+    if raw.suffix == '.sdf':
+        cand = raw if raw.is_absolute() else repo / raw
+        if cand.is_file():
+            return cand, _repo_relative(repo, cand)
     name = raw.stem
     # Container path /workspace/worlds/<name>.sdf or a bare world name.
     for cand in (

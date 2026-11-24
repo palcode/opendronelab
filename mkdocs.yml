@@ -17,6 +17,7 @@ site_dir: site
 
 exclude_docs: |
   AGENTS.md
+  decisions/
   LAUNCH_CHECKLIST.md
   community/
 

@@ -14,6 +14,7 @@ The shell output is meant for `eval`; every value is shlex-quoted.
 from __future__ import annotations
 
 import argparse
+import math
 import shlex
 import sys
 from pathlib import Path
@@ -60,6 +61,25 @@ def camera_topics(model: str, world: str, registry: dict | None = None) -> tuple
     return tuple(out)
 
 
+def _airborne_agl(model: str, raw) -> list:
+    """Validated [min, max] AGL band, or [None, None] when not set (ODL-136).
+
+    A scalar raised TypeError and a reversed band (min >= max) was accepted.
+    """
+    if raw is None or (isinstance(raw, (list, tuple))
+                       and (len(raw) == 0 or list(raw) == [None, None])):
+        return [None, None]
+    bad = f'airframe {model!r}: airborne_agl must be [min, max] with min < max, got {raw!r}'
+    if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+        raise ValueError(bad)
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in raw):
+        raise ValueError(bad)
+    lo, hi = float(raw[0]), float(raw[1])
+    if not (math.isfinite(lo) and math.isfinite(hi)) or lo >= hi:
+        raise ValueError(bad)
+    return [raw[0], raw[1]]
+
+
 def scenario(name: str, registry: dict | None = None) -> dict:
     """Resolved scenario: airframe fields merged with scenario fields.
 
@@ -79,9 +99,7 @@ def scenario(name: str, registry: dict | None = None) -> dict:
         raise ValueError(f'scenario {name!r}: score_vio needs an openvins_overlay')
     world = sc.get('world')
     img, info = camera_topics(model, world, reg) if world else (None, None)
-    agl = af.get('airborne_agl') or [None, None]
-    if len(agl) != 2:
-        raise ValueError(f'airframe {model!r}: airborne_agl must be [min, max]')
+    agl = _airborne_agl(model, af.get('airborne_agl'))
     return {
         'scenario': name,
         'model': model,

@@ -195,7 +195,8 @@ These rules define the boundaries and responsibilities within the system:
 1. PX4 publishes uORB topics (e.g., `vehicle_local_position`, `vehicle_attitude`)
 2. uXRCE-DDS client in PX4 forwards topics to agent
 3. Agent publishes to ROS 2 DDS network
-4. ROS 2 nodes subscribe (e.g., `/fmu/out/vehicle_local_position`)
+4. ROS 2 nodes subscribe (e.g., `/fmu/out/vehicle_local_position_v1`; PX4 v1.17
+   adds a `_vN` suffix to versioned messages, see `drone_telemetry`)
 
 ### Command Flow (ROS 2 → PX4)
 1. ROS 2 node publishes command (e.g., `TrajectorySetpoint`)
