@@ -88,22 +88,8 @@ if [ "${SCORE_VIO}" != "0" ] && [ -z "${OV_CONFIG:-}" ]; then
     fi
 fi
 
-SOURCE_CMD='set +u
-source /opt/ros/jazzy/setup.bash
-[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
-[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
-[ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
-
-# Prefer first-party Python sources over a stale overlay copy. colcon
-# --symlink-install does not actually symlink this ament_python/setuptools
-# combo, so without this, `ros2 run drone_localization localization_metrics`
-# can silently use an outdated install after a source edit (no image rebuild).
-if [ -d /workspace/ros2_ws/src/drone_localization ]; then
-    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
-fi
-set -u
-export ROS_DOMAIN_ID=42
-export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST'
+# Container ROS env (overlays, PYTHONPATH, ROS_DOMAIN_ID, discovery): scripts/container-env.sh
+SOURCE_CMD='source /workspace/scripts/container-env.sh || exit 1'
 
 
 # Resolve and validate VIO_INIT_ATTEMPTS. Never silently default to 3.
@@ -373,22 +359,7 @@ docker exec -i -u "$(id -u):$(id -g)" \
   -e ODL_OV_CONFIG="${OV_CONFIG}" \
   "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-stress-${SCENARIO}-score.txt"
 set -euo pipefail
-set +u
-source /opt/ros/jazzy/setup.bash
-[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
-[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
-[ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
-
-# Prefer first-party Python sources over a stale overlay copy. colcon
-# --symlink-install does not actually symlink this ament_python/setuptools
-# combo, so without this, `ros2 run drone_localization localization_metrics`
-# can silently use an outdated install after a source edit (no image rebuild).
-if [ -d /workspace/ros2_ws/src/drone_localization ]; then
-    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
-fi
-set -u
-export ROS_DOMAIN_ID=42
-export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+source /workspace/scripts/container-env.sh
 
 mkdir -p "${ODL_SUMMARY_DIR}/tum_ekf2" "${ODL_SUMMARY_DIR}/tum_vio"
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \

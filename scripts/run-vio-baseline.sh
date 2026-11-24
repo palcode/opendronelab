@@ -15,22 +15,8 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 SUMMARY_DIR="/data/results/vio_baseline_${STAMP}"
 FLIGHT_CMD="${FLIGHT_CMD:-ros2 run drone_flight_cpp square_flight_cpp}"
 
-SOURCE_CMD='set +u
-source /opt/ros/jazzy/setup.bash
-[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
-[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
-[ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
-
-# Prefer first-party Python sources over a stale overlay copy. colcon
-# --symlink-install does not actually symlink this ament_python/setuptools
-# combo, so without this, `ros2 run drone_localization localization_metrics`
-# can silently use an outdated install after a source edit (no image rebuild).
-if [ -d /workspace/ros2_ws/src/drone_localization ]; then
-    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
-fi
-set -u
-export ROS_DOMAIN_ID=42
-export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST'
+# Container ROS env (overlays, PYTHONPATH, ROS_DOMAIN_ID, discovery): scripts/container-env.sh
+SOURCE_CMD='source /workspace/scripts/container-env.sh || exit 1'
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "[ERROR] ${CONTAINER_NAME} not running" >&2
@@ -75,19 +61,7 @@ _score_bag() {
       -e ODL_OUT="${out}" \
       "${CONTAINER_NAME}" bash <<'OUTER_SH'
 set -euo pipefail
-set +u
-source /opt/ros/jazzy/setup.bash
-[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
-[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
-[ -f /data/ros2_build/openvins/install/setup.bash ] && source /data/ros2_build/openvins/install/setup.bash
-
-# Prefer first-party Python sources over a stale overlay copy.
-if [ -d /workspace/ros2_ws/src/drone_localization ]; then
-    export PYTHONPATH="/workspace/ros2_ws/src/drone_localization${PYTHONPATH:+:$PYTHONPATH}"
-fi
-set -u
-export ROS_DOMAIN_ID=42
-export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+source /workspace/scripts/container-env.sh
 
 mkdir -p "${ODL_OUT}/tum_ekf2" "${ODL_OUT}/tum_vio"
 ros2 run drone_localization localization_metrics "${ODL_BAG}" \
@@ -213,13 +187,7 @@ docker exec -i -u "$(id -u):$(id -g)" \
   -e ODL_SUMMARY_DIR="${SUMMARY_DIR}" \
   "${CONTAINER_NAME}" bash <<'OUTER_SH' | tee "${REPO_DIR}/logs/vio-baseline-${STAMP}-aggregate.txt"
 set -euo pipefail
-set +u
-source /opt/ros/jazzy/setup.bash
-[ -f /data/ros2_build/deps/install/setup.bash ] && source /data/ros2_build/deps/install/setup.bash
-[ -f /data/ros2_build/ws/install/setup.bash ] && source /data/ros2_build/ws/install/setup.bash
-set -u
-export ROS_DOMAIN_ID=42
-export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+source /workspace/scripts/container-env.sh
 
 python3 - <<'PY'
 import json, math, os, pathlib
