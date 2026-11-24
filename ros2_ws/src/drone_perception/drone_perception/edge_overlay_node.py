@@ -16,6 +16,8 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
+from drone_perception.params import validate_process_every_n
+
 
 def process_frame_with_overlay(frame, canny_low, canny_high):
     """
@@ -94,7 +96,8 @@ class EdgeOverlayNode(Node):
 
         self.canny_low = self.get_parameter('canny_low').value
         self.canny_high = self.get_parameter('canny_high').value
-        self.process_every_n = self.get_parameter('process_every_n').value
+        self.process_every_n = validate_process_every_n(
+            self.get_parameter('process_every_n').value)
 
         # CV bridge
         self.bridge = CvBridge()

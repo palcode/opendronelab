@@ -358,3 +358,80 @@ def test_airborne_mask_default_unchanged_and_fw_band():
         False, False, True, True, True, False, False, False]
     assert airborne_mask_from_gt_z(z, 3.0, 200.0).tolist() == [
         False, False, False, True, True, True, True, False]
+
+
+# --- Typo handling (deep validation finding 11) ----------------------------
+
+def test_valid_fingerprints_have_no_missing_key(reg_mod, registry, fp_mod):
+    for name in registry['scenarios']:
+        sc = reg_mod.scenario(name, registry)
+        fp = fp_mod.compute_scenario_fingerprint(
+            REPO, sc['world'], sc['ov_config'] or None, model=sc['model'])
+        assert 'missing' not in fp, f'{name}: {fp.get("missing")}'
+
+
+@pytest.mark.parametrize('typo', [
+    '/workspace/config/openvins/gz_x500_mono_cam_low_textrue',
+    '/workspace/config/openvins/gz_x500_mono_cam_low_textrue/estimator_config.yaml',
+    'config/openvins/no_such_overlay',
+])
+def test_typod_overlay_is_not_hashed_as_parent_dir(fp_mod, typo):
+    """A typo'd overlay used to fall back to its parent (config/openvins)."""
+    parent = fp_mod.compute_scenario_fingerprint(
+        REPO, 'vio_low_texture', '/workspace/config/openvins', model='gz_x500_mono_cam')
+    none = fp_mod.compute_scenario_fingerprint(
+        REPO, 'vio_low_texture', None, model='gz_x500_mono_cam')
+    fp = fp_mod.compute_scenario_fingerprint(
+        REPO, 'vio_low_texture', typo, model='gz_x500_mono_cam')
+    assert fp['sha256'] not in (parent['sha256'], none['sha256'])
+    assert fp['missing'] == ['openvins_overlay']
+    assert fp['openvins_overlay'] != 'config/openvins'
+    assert 'textrue' in fp['openvins_overlay'] or 'no_such' in fp['openvins_overlay']
+
+
+def test_overlay_dir_and_its_config_file_hash_the_same(fp_mod):
+    d = fp_mod.compute_scenario_fingerprint(
+        REPO, 'vio_test', '/workspace/config/openvins/gz_x500_mono_cam', model='m')
+    f = fp_mod.compute_scenario_fingerprint(
+        REPO, 'vio_test', '/workspace/config/openvins/gz_x500_mono_cam/estimator_config.yaml',
+        model='m')
+    assert d['sha256'] == f['sha256'] and 'missing' not in d
+
+
+def test_missing_world_differs_from_no_world(fp_mod):
+    none = fp_mod.compute_scenario_fingerprint(REPO, None, None, model='gz_x500')
+    typo = fp_mod.compute_scenario_fingerprint(REPO, 'vio_tset', None, model='gz_x500')
+    typo2 = fp_mod.compute_scenario_fingerprint(REPO, 'vio_lowtexture', None, model='gz_x500')
+    assert typo['sha256'] != none['sha256']
+    assert typo['sha256'] != typo2['sha256']
+    assert typo['missing'] == ['world'] and 'missing' not in none
+
+
+def _registry_cli(*args):
+    return subprocess.run(
+        ['python3', 'scripts/airframe_registry.py', *args],
+        cwd=str(REPO), text=True, capture_output=True, check=False)
+
+
+def test_cli_unknown_model_exits_nonzero():
+    out = _registry_cli('--model', 'gz_x500_mono_cma', '--shell')
+    assert out.returncode == 2
+    assert 'unknown airframe' in out.stderr and out.stdout == ''
+
+
+def test_cli_known_model_still_works():
+    out = _registry_cli('--model', 'gz_x500', '--shell')
+    assert out.returncode == 0 and 'ODL_GZ_INSTANCE=x500_0' in out.stdout
+
+
+def test_cli_gz_instance_typo_warns_but_keeps_fallback():
+    out = _registry_cli('--gz-instance', 'gz_x500_mono_cma')
+    assert out.returncode == 0
+    assert out.stdout.strip() == 'x500_mono_cma_0'
+    assert 'not in the registry' in out.stderr
+
+
+def test_cli_gz_instance_known_model_is_quiet():
+    out = _registry_cli('--gz-instance', 'gz_x500_mono_cam')
+    assert out.returncode == 0 and out.stdout.strip() == 'x500_mono_cam_0'
+    assert out.stderr == ''

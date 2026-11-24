@@ -131,8 +131,17 @@ def main(argv=None) -> int:
         print('\n'.join(reg['scenarios']))
         return 0
     if args.gz_instance:
+        if args.gz_instance not in reg['airframes']:
+            # Keep the documented ${MODEL#gz_}_0 fallback (runners use it for
+            # unregistered models) but make a typo visible.
+            print(f'[WARN] airframe {args.gz_instance!r} is not in the registry; '
+                  f'using fallback instance name', file=sys.stderr)
         print(gz_instance_for(args.gz_instance, reg))
         return 0
+    if args.model is not None and args.model not in reg['airframes']:
+        print(f'[ERROR] unknown airframe {args.model!r} in airframe registry '
+              f'(known: {", ".join(reg["airframes"]) or "none"})', file=sys.stderr)
+        return 2
     try:
         d = scenario(args.scenario, reg) if args.scenario else airframe(args.model, reg)
     except (KeyError, ValueError) as e:
