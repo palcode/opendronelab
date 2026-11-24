@@ -87,12 +87,12 @@ This matrix pins the exact software versions for the OpenDroneLab development en
 |-----------|---------|--------|-------------|
 | Micro XRCE-DDS Agent | **v2.4.3** | [Micro-XRCE-DDS-Agent v2.4.3](https://github.com/eProsima/Micro-XRCE-DDS-Agent/releases/tag/v2.4.3) | Not yet tested |
 | uXRCE-DDS Client | Embedded in PX4 v1.17.0 firmware | Built with PX4 | Not yet tested |
-| px4_msgs | release/1.17 branch | [px4_msgs GitHub](https://github.com/PX4/px4_msgs) | Not yet tested |
+| px4_msgs | release/1.17 branch, pinned to `86d8239e962f6939e05c3737784f60c02fa884db` | [px4_msgs GitHub](https://github.com/PX4/px4_msgs) | Used by every SITL regression run |
 | DDS Topics Config | dds_topics.yaml in PX4 v1.17.0 | [PX4-Autopilot](https://github.com/PX4/PX4-Autopilot/blob/v1.17.0/src/modules/uxrce_dds_client/dds_topics.yaml) | Not yet tested |
 
 **Notes:**
 - Agent clone command: `git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git`
-- px4_msgs clone command: `git clone -b release/1.17 https://github.com/PX4/px4_msgs.git`
+- px4_msgs: `scripts/build-workspace.sh` clones release/1.17 and checks out the pinned commit (`PX4_MSGS_COMMIT`), and verifies the pin on every run
 - For ROS 2 Humble (Ubuntu 22.04), use Micro XRCE-DDS Agent v2.4.2
 - Client runs on PX4 SITL (UDP port 8888 by default), agent runs in container
 - Message definitions in px4_msgs must match PX4 firmware version (use release/1.17 for PX4 v1.17.0)

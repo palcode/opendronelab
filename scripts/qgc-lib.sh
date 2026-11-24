@@ -521,14 +521,124 @@ stop_our_qgc() {
     cleanup_qgc_fuse
 }
 
+# --- Is a QGroundControl already running, or only exiting? ---------------
+# A QGC that a previous run just KILLed can stay visible for a few seconds
+# while the kernel tears it down (a zombie thread-group leader whose other
+# threads are still exiting, or a task with PF_EXITING set). start_our_qgc
+# used to see it with `pgrep -af QGroundControl`, skip its own launch, and
+# leave PX4 with no GCS ("Preflight Fail: No connection to the GCS"). These
+# helpers tell a usable QGC from one that is going away. Nothing here ever
+# signals a process.
+QGC_EXIT_WAIT_S="${QGC_EXIT_WAIT_S:-20}"
+
+# pids whose cmdline or comm mentions QGroundControl (what the old
+# `pgrep -af QGroundControl` check matched). A fake QGC_PROC_ROOT is scanned.
+qgc_candidate_pids() {
+    local pidpath pid
+    {
+        if [ "${QGC_PROC_ROOT}" = "/proc" ]; then
+            pgrep -f QGroundControl 2>/dev/null || true
+            pgrep QGroundControl 2>/dev/null || true
+        else
+            for pidpath in "${QGC_PROC_ROOT}"/[0-9]*; do
+                [ -e "${pidpath}/stat" ] || continue
+                if grep -qs QGroundControl "${pidpath}/stat" "${pidpath}/cmdline" "${pidpath}/comm"; then
+                    printf '%s\n' "${pidpath##*/}"
+                fi
+            done
+        fi
+    } | sort -un | while IFS= read -r pid; do
+        [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+        [ "${pid}" = "$$" ] && continue
+        [ -e "${QGC_PROC_ROOT}/${pid}/stat" ] && printf '%s\n' "${pid}"
+    done
+    return 0
+}
+
+# True if the pid is on its way out (or already gone): zombie/dead,
+# PF_EXITING (0x4 in stat field 9, flags), or SIGKILL pending (0x100 in
+# SigPnd/ShdPnd). Such a process cannot act as the GCS.
+qgc_pid_exiting() {
+    local pid="$1" state flags line mask
+    state="$(qgc_stat_field "${pid}" 3 2>/dev/null)" || return 0
+    case "${state}" in
+        Z|X|x) return 0 ;;
+    esac
+    flags="$(qgc_stat_field "${pid}" 9 2>/dev/null || echo 0)"
+    [[ "${flags}" =~ ^[0-9]+$ ]] || flags=0
+    if (( flags & 0x4 )); then
+        return 0
+    fi
+    if [ -r "${QGC_PROC_ROOT}/${pid}/status" ]; then
+        while IFS= read -r line; do
+            case "${line}" in
+                SigPnd:*|ShdPnd:*)
+                    mask="${line#*:}"
+                    mask="${mask//[[:space:]]/}"
+                    [[ "${mask}" =~ ^[0-9a-fA-F]+$ ]] || continue
+                    if (( 16#${mask: -4} & 0x100 )); then
+                        return 0
+                    fi
+                    ;;
+            esac
+        done < "${QGC_PROC_ROOT}/${pid}/status"
+    fi
+    return 1
+}
+
+# Split the candidates into QGC_SEEN_LIVE (usable, e.g. a QGC opened by
+# hand) and QGC_SEEN_EXITING (zombie/exiting/killed); space-separated.
+qgc_scan_running() {
+    local pid
+    QGC_SEEN_LIVE=""
+    QGC_SEEN_EXITING=""
+    for pid in $(qgc_candidate_pids); do
+        if qgc_pid_exiting "${pid}"; then
+            QGC_SEEN_EXITING="${QGC_SEEN_EXITING}${pid} "
+        else
+            QGC_SEEN_LIVE="${QGC_SEEN_LIVE}${pid} "
+        fi
+    done
+}
+
+# Wait, bounded by QGC_EXIT_WAIT_S, while only exiting QGCs are visible.
+# Returns 0 when a live QGC is running (the caller uses it); returns 1 when
+# there is no usable QGC and the caller should start its own: nothing left,
+# or exiting ones that outlived the wait (left alone, never signalled).
+qgc_wait_for_exiting() {
+    local waited=0 limit
+    limit=$(( ${QGC_EXIT_WAIT_S:-20} * 2 ))
+    qgc_scan_running
+    [ -z "${QGC_SEEN_LIVE}" ] || return 0
+    [ -n "${QGC_SEEN_EXITING}" ] || return 1
+    echo "[REG] QGroundControl pid(s) ${QGC_SEEN_EXITING}exiting (previous run?); waiting up to ${QGC_EXIT_WAIT_S:-20}s before starting our own"
+    while [ "${waited}" -lt "${limit}" ]; do
+        sleep 0.5
+        waited=$((waited + 1))
+        qgc_scan_running
+        [ -z "${QGC_SEEN_LIVE}" ] || return 0
+        if [ -z "${QGC_SEEN_EXITING}" ]; then
+            echo "[REG] exiting QGroundControl gone after ~$(( (waited + 1) / 2 ))s"
+            return 1
+        fi
+    done
+    echo "[WARN] QGroundControl pid(s) ${QGC_SEEN_EXITING}still exiting after ${QGC_EXIT_WAIT_S:-20}s; starting our own anyway (not signalled)" >&2
+    return 1
+}
+
 # Start QGroundControl from the AppImage unless one is already running.
 # Headless PX4 SITL refuses to arm without a GCS ("Preflight Fail: No
 # connection to the GCS"); QGC on UDP 14550 is that GCS. Sets QGC_PID /
 # QGC_PGID / QGC_SID / QGC_STARTTIME / QGC_MOUNTS and REG_STARTED_QGC=1 so
 # stop_our_qgc only ever stops this instance. A QGC that is already running
-# is left alone (and never stopped). QGC_APPIMAGE / QGC_LOG are overridable.
+# is left alone (and never stopped); one that is only exiting is waited for
+# (QGC_EXIT_WAIT_S, default 20 s), then ours is started. QGC_APPIMAGE /
+# QGC_LOG / QGC_START_SETTLE_S are overridable.
 start_our_qgc() {
-    if pgrep -af QGroundControl >/dev/null 2>&1; then
+    # A live QGC (for example one opened by hand) is used and never stopped.
+    # One that is only exiting is waited for (bounded) and never signalled.
+    if qgc_wait_for_exiting; then
+        echo "[REG] QGroundControl already running (pid(s) ${QGC_SEEN_LIVE% }); using it, not starting or stopping it"
         return 0
     fi
     echo "[WARN] QGroundControl not detected; trying AppImage..."
@@ -550,8 +660,10 @@ start_our_qgc() {
         if [ -z "${QGC_STARTTIME}" ]; then
             echo "[WARN] could not read start time of QGC pid ${QGC_PID}; cleanup will not signal that pid" >&2
         fi
-        sleep 5
-        QGC_PGID="$(ps -o pgid= -p "${QGC_PID}" 2>/dev/null | tr -d ' ')"
+        sleep "${QGC_START_SETTLE_S:-5}"
+        # `|| true`: a launcher that already exited must not abort a set -e
+        # caller here; the pgid check below then falls back safely.
+        QGC_PGID="$(ps -o pgid= -p "${QGC_PID}" 2>/dev/null | tr -d ' ' || true)"
         # Session after setsid has run (read after the sleep, not at fork).
         # Never use this script's own session for the fallback match.
         QGC_SID="$(qgc_stat_field "${QGC_PID}" 6 2>/dev/null || true)"

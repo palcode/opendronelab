@@ -8,7 +8,12 @@
 #   baseline r1 VIO Umeyama xy 3.84 m (r2/r3 ~0.45) — genuine VIO outlier
 #   low_texture r2 VIO nan / ov_published=false — OV failed to score
 
-pytest_min_passed: 31
+# pytest gate floor (ODL-126). 272 tests passed on main at 5968da7; the
+# floor sits ~8% below that, so merging or retiring a handful of tests does
+# not trip it, but losing a whole test file (or collection silently
+# shrinking) does. Raise it when the suite grows; never lower it to make a
+# run pass.
+pytest_min_passed: 250
 
 defaults:
   mission: success

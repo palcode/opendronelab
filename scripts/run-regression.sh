@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ./scripts/run-regression.sh
-#   SCENARIOS=baseline,wind ./scripts/run-regression.sh
+#   SCENARIOS=baseline,wind ./scripts/run-regression.sh   # commas and/or spaces
 #   SCENARIOS=pytest ./scripts/run-regression.sh
 #   SKIP_PYTEST=1 SCENARIOS=faster_motion ./scripts/run-regression.sh
 #   SKIP_PYTEST=1 SCENARIOS=mc_gps ./scripts/run-regression.sh   # gz_x500, EKF2 only
@@ -21,6 +21,9 @@ set -euo pipefail
 
 # shellcheck source=odl-env.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odl-env.sh"
+# wait_dds, scenario/run-id parsing, JSON writers (testable on their own).
+# shellcheck source=regression-lib.sh
+source "${REPO_DIR}/scripts/regression-lib.sh"
 IMAGE_NAME="${IMAGE_NAME:-opendronelab-dev:latest}"
 GZ_SEED="${GZ_SEED:-1234}"
 BAG_DURATION="${BAG_DURATION:-100}"
@@ -32,15 +35,14 @@ CONTAINER_NAME="odl-sim"
 # Default list. mc_gps (gz_x500, EKF2 only) gated since 2026-11-13.
 ALL_SCENARIOS=(baseline low_texture faster_motion faster_motion_aggressive wind mc_gps)
 if [ -n "${SCENARIOS:-}" ]; then
-    IFS=',' read -r -a WANT <<< "${SCENARIOS}"
+    mapfile -t WANT < <(reg_split_scenarios "${SCENARIOS}")
 else
     WANT=(pytest "${ALL_SCENARIOS[@]}")
 fi
 
 RUN_PYTEST=0
 FLIGHTS=()
-for s in "${WANT[@]}"; do
-    s="$(echo "$s" | tr -d '[:space:]')"
+for s in "${WANT[@]+"${WANT[@]}"}"; do
     [ -z "$s" ] && continue
     if [ "$s" = "pytest" ]; then
         RUN_PYTEST=1
@@ -124,6 +126,7 @@ pytest -q \
   ros2_ws/src/drone_localization/test/test_metrics.py \
   ros2_ws/src/drone_localization/test/test_judge_regression.py \
   ros2_ws/src/drone_localization/test/test_qgc_fuse_cleanup.py \
+  ros2_ws/src/drone_localization/test/test_regression_harness.py \
   ros2_ws/src/drone_localization/test/test_vio_scoring_heredoc.py \
   ros2_ws/src/drone_localization/test/test_container_env.py \
   ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py \
@@ -133,16 +136,18 @@ pytest -q \
     set -e
     PASSED=$(grep -Eo '[0-9]+ passed' "${REPORT_HOST}/pytest.txt" | head -1 | awk '{print $1}')
     PASSED="${PASSED:-0}"
+    # The thresholds path is passed as argv, never pasted into the Python.
     MIN_P=$(docker run --rm --network none \
         -v "${REPO_DIR}":/workspace:ro \
         -e HOME=/tmp -u "$(id -u):$(id -g)" \
         "${IMAGE_NAME}" \
-        python3 -c "import yaml; print(yaml.safe_load(open('/workspace/config/regression_thresholds.yaml'))['pytest_min_passed'])")
+        python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["pytest_min_passed"])' \
+            /workspace/config/regression_thresholds.yaml || true)
     PY_PASS=0
-    if [ "${PY_EC}" -eq 0 ] && [ "${PASSED}" -ge "${MIN_P}" ]; then
+    if [[ "${MIN_P}" =~ ^[0-9]+$ ]] && [ "${PY_EC}" -eq 0 ] && [ "${PASSED}" -ge "${MIN_P}" ]; then
         PY_PASS=1
     fi
-    python3 -c "import json; json.dump({'step':'pytest','pass':bool(${PY_PASS}),'exit_code':${PY_EC},'passed':int('${PASSED}'),'min_passed':int('${MIN_P}')}, open('${PYTEST_JSON}','w'), indent=2)"
+    reg_write_pytest_json "${PYTEST_JSON}" "${PY_PASS}" "${PY_EC}" "${PASSED}" "${MIN_P}"
     echo "[REG] pytest: $( [ "${PY_PASS}" = 1 ] && echo PASS || echo FAIL ) (${PASSED}/${MIN_P})"
 else
     echo "[REG] skipping pytest"
@@ -153,28 +158,11 @@ if [ "${#FLIGHTS[@]}" -gt 0 ]; then
     start_our_qgc
 fi
 
-wait_dds() {
-    local i N
-    for i in $(seq 1 45); do
-        N=$(docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" bash -lc '
-set +u
-source /opt/ros/jazzy/setup.bash
-source /data/ros2_build/deps/install/setup.bash
-source /data/ros2_build/ws/install/setup.bash
-set -u
-export ROS_DOMAIN_ID=42 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-timeout 2 ros2 topic echo /fmu/out/vehicle_status_v1 --once 2>/dev/null | grep -c arming_state || true
-' || true)
-        if [ "${N}" != "0" ]; then
-            echo "[REG] DDS up (try ${i})"
-            return 0
-        fi
-        sleep 3
-    done
-    echo "[ERROR] PX4 DDS not ready" >&2
-    return 1
-}
+# wait_dds is in regression-lib.sh.
 
+# run_flight is called as `if ! run_flight`, where bash ignores set -e, so
+# every step that must stop the flight has an explicit `|| return 1`
+# (ODL-125).
 launch_sitl() {
     local world="$1"
     local model="$2"
@@ -182,27 +170,35 @@ launch_sitl() {
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
     HEADLESS=1 MEM_LIMIT=12g GZ_SEED="${GZ_SEED}" WORLD="${world}" \
       MODEL="${model}" IMAGE_NAME="${IMAGE_NAME}" \
-      "${REPO_DIR}/scripts/launch-sitl.sh"
-    "${REPO_DIR}/scripts/start-dds-agent.sh"
-    local i
-    for i in $(seq 1 40); do
-        if docker exec "${CONTAINER_NAME}" bash -lc \
-            "gz topic -l 2>/dev/null | grep -q /world/${world}/clock"; then
+      "${REPO_DIR}/scripts/launch-sitl.sh" || return 1
+    "${REPO_DIR}/scripts/start-dds-agent.sh" || return 1
+    local _try
+    for _try in $(seq 1 40); do
+        # World name via env, not pasted into the command string.
+        if docker exec -e ODL_WAIT_WORLD="${world}" "${CONTAINER_NAME}" bash -lc \
+            'gz topic -l 2>/dev/null | grep -qF "/world/${ODL_WAIT_WORLD}/clock"'; then
             break
         fi
         sleep 2
     done
-    wait_dds
+    wait_dds || return 1
 }
 
+# run_flight SCENARIO RUN_ID. RUN_ID names this run's files (it differs
+# from SCENARIO only for a repeated scenario, see reg_run_ids). Every
+# failure writes judge_<RUN_ID>.json so the report counts it.
 run_flight() {
     local scenario="$1"
+    local run_id="${2:-$1}"
     local world="" model="" reg=""
     local -a extra_env=()
+    local judge_host="${REPORT_HOST}/judge_${run_id}.json"
+    mkdir -p "${REPORT_HOST}/${run_id}" || return 1
 
     # MODEL / world / overlay / score_vio from config/airframes.yaml.
     if ! reg="$(python3 "${REPO_DIR}/scripts/airframe_registry.py" --scenario "${scenario}" --shell)"; then
         echo "[ERROR] unknown scenario: ${scenario}" >&2
+        reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" "unknown scenario"
         return 1
     fi
     # Assigned via eval from airframe_registry.py --shell. Some names are
@@ -211,7 +207,7 @@ run_flight() {
     local ODL_SCENARIO ODL_MODEL ODL_GZ_INSTANCE ODL_VEHICLE_CLASS ODL_CAMERA ODL_WORLD \
         ODL_OPENVINS_OVERLAY ODL_OV_CONFIG ODL_SCORE_VIO ODL_CAMERA_IMAGE_TOPIC ODL_CAMERA_INFO_TOPIC \
         ODL_FLIGHT ODL_BAG_DURATION ODL_FLIGHT_WALL ODL_AIRBORNE_MIN_AGL ODL_AIRBORNE_MAX_AGL
-    eval "${reg}"
+    eval "${reg}" || return 1
     world="${ODL_WORLD}"
     model="${ODL_MODEL}"
 
@@ -256,53 +252,75 @@ run_flight() {
             ;;
         *)
             echo "[ERROR] no flight profile for scenario: ${scenario}" >&2
+            reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" "no flight profile"
             return 1
             ;;
     esac
 
     echo ""
     echo "----------------------------------------------------------------"
-    echo "[REG] scenario=${scenario} world=${world} model=${model} score_vio=${ODL_SCORE_VIO}"
+    echo "[REG] scenario=${scenario} run=${run_id} world=${world} model=${model} score_vio=${ODL_SCORE_VIO}"
     echo "----------------------------------------------------------------"
-    launch_sitl "${world}" "${model}"
+    # Bag length and wall clock this run really uses (the registry may
+    # override BAG_DURATION per scenario); the report reads it (ODL-138).
+    local bag_s="${ODL_BAG_DURATION:-${BAG_DURATION}}"
+    local wall_s="${ODL_FLIGHT_WALL:-150}"
+    reg_write_run_meta "${REPORT_HOST}/${run_id}/run_meta.json" \
+        "${scenario}" "${run_id}" "${bag_s}" "${wall_s}" || return 1
 
-    docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
+    if ! launch_sitl "${world}" "${model}"; then
+        echo "[ERROR] SITL launch failed for ${run_id}; not flying" >&2
+        reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" "launch_sitl failed"
+        return 1
+    fi
+
+    if ! docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "${CONTAINER_NAME}" \
         bash -lc 'test -x /data/ros2_build/ws/install/drone_flight_cpp/lib/drone_flight_cpp/square_flight_cpp \
-          || /workspace/scripts/build-workspace.sh' >/dev/null
+          || /workspace/scripts/build-workspace.sh' >/dev/null; then
+        echo "[ERROR] workspace check/build failed for ${run_id}; not flying" >&2
+        reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" "workspace build failed"
+        return 1
+    fi
 
-    local log="${REPORT_HOST}/flight_${scenario}.log"
+    local log="${REPORT_HOST}/flight_${run_id}.log"
     set +e
     (
-      export WORLD="${world}" GZ_WORLD="${world}" BAG_DURATION="${ODL_BAG_DURATION:-${BAG_DURATION}}" FLIGHT_WALL="${ODL_FLIGHT_WALL:-150}"
+      export WORLD="${world}" GZ_WORLD="${world}" FLIGHT_WALL="${wall_s}"
       export MODEL="${model}" GZ_MODEL="${ODL_GZ_INSTANCE}" OV_CONFIG="${ODL_OV_CONFIG}" SCORE_VIO="${ODL_SCORE_VIO}"
       export FLIGHT="${ODL_FLIGHT}" AIRBORNE_MIN_AGL="${ODL_AIRBORNE_MIN_AGL}" AIRBORNE_MAX_AGL="${ODL_AIRBORNE_MAX_AGL}"
       for e in "${extra_env[@]+"${extra_env[@]}"}"; do
         export "${e?}"
       done
-      "${REPO_DIR}/scripts/run-vio-stress.sh" "${scenario}"
+      # Per-run bag length as a command prefix: the global BAG_DURATION (the
+      # report default) is never reassigned.
+      BAG_DURATION="${bag_s}" "${REPO_DIR}/scripts/run-vio-stress.sh" "${scenario}"
     ) | tee "${log}"
     local flight_ec=${PIPESTATUS[0]}
     set -e
 
     local summary_cont
     summary_cont=$(grep -E '^summary_dir=' "${log}" | tail -1 | cut -d= -f2- || true)
-    mkdir -p "${REPORT_HOST}/${scenario}"
 
     if [ -z "${summary_cont}" ]; then
-        echo "[ERROR] no summary_dir in stress log for ${scenario}" >&2
-        python3 -c "import json; json.dump({'scenario':'${scenario}','pass':False,'error':'no summary_dir','flight_exit':${flight_ec}}, open('${REPORT_HOST}/judge_${scenario}.json','w'), indent=2)"
+        echo "[ERROR] no summary_dir in stress log for ${run_id}" >&2
+        reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" "no summary_dir" \
+            "flight_exit=${flight_ec}"
         return 1
     fi
 
     local summary_host="${summary_cont/\/data\//${DATA_DIR}/}"
     if [ ! -f "${summary_host}/summary.json" ]; then
         echo "[ERROR] missing ${summary_host}/summary.json" >&2
-        python3 -c "import json; json.dump({'scenario':'${scenario}','pass':False,'error':'missing summary.json','summary_dir':'${summary_cont}'}, open('${REPORT_HOST}/judge_${scenario}.json','w'), indent=2)"
+        reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" "missing summary.json" \
+            "summary_dir=${summary_cont}"
         return 1
     fi
-    cp -a "${summary_host}/summary.json" "${REPORT_HOST}/${scenario}/summary.json"
-    cp -a "${summary_host}/metrics_ekf2.json" "${REPORT_HOST}/${scenario}/" 2>/dev/null || true
-    cp -a "${summary_host}/metrics_vio.json" "${REPORT_HOST}/${scenario}/" 2>/dev/null || true
+    if ! cp -a "${summary_host}/summary.json" "${REPORT_HOST}/${run_id}/summary.json"; then
+        reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" "could not copy summary.json"
+        return 1
+    fi
+    cp -a "${summary_host}/metrics_ekf2.json" "${REPORT_HOST}/${run_id}/" 2>/dev/null || true
+    cp -a "${summary_host}/metrics_vio.json" "${REPORT_HOST}/${run_id}/" 2>/dev/null || true
 
     set +e
     docker run --rm --network none \
@@ -312,23 +330,34 @@ run_flight() {
         -u "$(id -u):$(id -g)" \
         "${IMAGE_NAME}" \
         python3 /workspace/scripts/judge-regression.py \
-            --summary "/data/results/regression_${STAMP}/${scenario}/summary.json" \
+            --summary "/data/results/regression_${STAMP}/${run_id}/summary.json" \
             --thresholds /workspace/config/regression_thresholds.yaml \
             --scenario "${scenario}" \
-            --out "/data/results/regression_${STAMP}/judge_${scenario}.json"
+            --out "/data/results/regression_${STAMP}/judge_${run_id}.json"
     local jec=$?
     set -e
-    if [ "${jec}" -ne 0 ]; then
-        echo "[REG] ${scenario}: FAIL"
+    if [ ! -s "${judge_host}" ]; then
+        # The judge crashed before writing; record it so the report counts it.
+        reg_write_judge_error "${judge_host}" "${scenario}" "${run_id}" \
+            "judge-regression.py wrote no result" "judge_exit=${jec}"
+        echo "[REG] ${run_id}: FAIL"
         return 1
     fi
-    echo "[REG] ${scenario}: PASS"
+    if [ "${jec}" -ne 0 ]; then
+        echo "[REG] ${run_id}: FAIL"
+        return 1
+    fi
+    echo "[REG] ${run_id}: PASS"
     return 0
 }
 
-for sc in "${FLIGHTS[@]+"${FLIGHTS[@]}"}"; do
-    if ! run_flight "${sc}"; then
-        echo "[REG] continuing after failure in ${sc}"
+RUN_IDS=()
+if [ "${#FLIGHTS[@]}" -gt 0 ]; then
+    mapfile -t RUN_IDS < <(reg_run_ids "${FLIGHTS[@]}")
+fi
+for idx in "${!FLIGHTS[@]}"; do
+    if ! run_flight "${FLIGHTS[idx]}" "${RUN_IDS[idx]}"; then
+        echo "[REG] continuing after failure in ${RUN_IDS[idx]}"
     fi
 done
 
@@ -336,8 +365,8 @@ END_EPOCH="$(date +%s)"
 ELAPSED=$((END_EPOCH - START_EPOCH))
 export REPORT_HOST STAMP ELAPSED GZ_SEED BAG_DURATION THRESHOLDS DATA_DIR
 export N_FLIGHTS="${#FLIGHTS[@]}"
-# Preserve scenario order for the report (comma-separated).
-FLIGHT_ORDER="$(IFS=,; echo "${FLIGHTS[*]}")"
+# Preserve run order for the report (comma-separated run ids).
+FLIGHT_ORDER="$(IFS=,; echo "${RUN_IDS[*]+"${RUN_IDS[*]}"}")"
 export FLIGHT_ORDER
 
 set +e
@@ -351,10 +380,29 @@ report_dir = Path(os.environ["REPORT_HOST"])
 pytest = json.loads((report_dir / "pytest.json").read_text())
 # Preserve scenario run order when present in filenames via FLIGHTS env list.
 flight_order = [s for s in os.environ.get("FLIGHT_ORDER", "").split(",") if s]
+# Keyed by run id (the file name), not the scenario field, so a repeated
+# scenario keeps every result (ODL-122).
 judges_by = {}
-for p in report_dir.glob("judge_*.json"):
+for p in sorted(report_dir.glob("judge_*.json")):
     j = json.loads(p.read_text())
-    judges_by[j.get("scenario") or p.stem.replace("judge_", "")] = j
+    run_id = p.stem[len("judge_"):]
+    j.setdefault("run_id", run_id)
+    if not j.get("scenario"):
+        j["scenario"] = run_id
+    meta_p = report_dir / run_id / "run_meta.json"
+    if meta_p.is_file():
+        meta = json.loads(meta_p.read_text())
+        j.setdefault("bag_duration_s", meta.get("bag_duration_s"))
+        j.setdefault("flight_wall_s", meta.get("flight_wall_s"))
+    judges_by[run_id] = j
+
+
+def run_label(j):
+    rid = j.get("run_id") or j.get("scenario")
+    scen = j.get("scenario")
+    if rid and scen and rid != scen and rid.startswith(scen + "__run"):
+        return f"{scen} (run {rid[len(scen) + 5:]})"
+    return rid
 if flight_order:
     judges = [judges_by[s] for s in flight_order if s in judges_by]
     # append any unexpected
@@ -407,7 +455,7 @@ for j in judges:
         # Which checkout ran it (informational; not in the fingerprint).
         # Older summaries have no git fields -> None.
         detail += f" git={s.get('git_sha')} dirty={s.get('git_dirty')}"
-    rows.append({"step": j.get("scenario"), "pass": j.get("pass"), "pass_at_1": j.get("pass_at_1"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag"), "git_sha": s.get("git_sha"), "git_dirty": s.get("git_dirty")})
+    rows.append({"step": run_label(j), "scenario": j.get("scenario"), "run_id": j.get("run_id"), "pass": j.get("pass"), "pass_at_1": j.get("pass_at_1"), "non_gating": bool(j.get("non_gating")), "detail": detail, "bag": s.get("bag"), "bag_duration_s": j.get("bag_duration_s"), "git_sha": s.get("git_sha"), "git_dirty": s.get("git_dirty")})
 
 def _bags_report():
     # Report-only: size/count of the bag folder and free disk. Never deletes.
@@ -432,6 +480,14 @@ def _bags_report():
 
 bags = _bags_report()
 stamp = os.environ["STAMP"]
+# BAG_DURATION is the default; the registry can override it per scenario,
+# so report what each run really recorded (ODL-138).
+default_bag = int(os.environ["BAG_DURATION"])
+bag_by_run = {
+    j.get("run_id"): j.get("bag_duration_s")
+    for j in judges if j.get("bag_duration_s") is not None
+}
+bag_overrides = {k: v for k, v in bag_by_run.items() if v != default_bag}
 elapsed = int(os.environ["ELAPSED"])
 out = {
     "stamp": stamp,
@@ -444,7 +500,8 @@ out = {
     },
     "elapsed_s": elapsed,
     "gz_seed": int(os.environ["GZ_SEED"]),
-    "bag_duration_s": int(os.environ["BAG_DURATION"]),
+    "bag_duration_s": default_bag,
+    "bag_duration_by_run": bag_by_run,
     "thresholds": os.environ["THRESHOLDS"],
     "pytest": pytest,
     "scenarios": judges,
@@ -463,8 +520,11 @@ lines = [
     f"- **Overall:** **{mark(overall)}** (pass@1: **{mark(overall_pass_at_1)}**)",
     f"- **Overall all scenarios (including non-gating):** **{mark(overall_all_scenarios)}**",
     f"- Elapsed: {elapsed}s",
-    f"- GZ_SEED={os.environ['GZ_SEED']}, BAG_DURATION={os.environ['BAG_DURATION']}, "
-    "EKF2_EV_CTRL=0, GstCamera off, VIO shadow",
+    f"- GZ_SEED={os.environ['GZ_SEED']}, BAG_DURATION={default_bag}"
+    + (" (default; per-scenario: "
+       + ", ".join(f"{k}={v}" for k, v in bag_overrides.items()) + ")"
+       if bag_overrides else "")
+    + ", EKF2_EV_CTRL=0, GstCamera off, VIO shadow",
     "- Thresholds: `config/regression_thresholds.yaml`",
     (f"- Bags (report only, nothing deleted): {bags['size_gib']} GiB in {bags['count']} bags "
      f"under {bags['dir']}; {bags['free_gib']} GiB free" if bags else "- Bags: /data/bags not found"),
@@ -496,7 +556,7 @@ if fps:
         fp = (j.get("summary") or {}).get("scenario_fingerprint") or {}
         scheme = fp.get('scheme', 1)
         lines.append(
-            f"| {j.get('scenario')} | {scheme} | `{fp.get('sha256', '')}` | "
+            f"| {run_label(j)} | {scheme} | `{fp.get('sha256', '')}` | "
             f"{fp.get('model') or (j.get('summary') or {}).get('model') or ''} | "
             f"{fp.get('world') or ''} | {fp.get('openvins_overlay') or ''} | "
             f"`{fp.get('git_sha') or ''}` |"
@@ -509,7 +569,7 @@ def _failed_section(title, items):
     lines.append(title)
     for j in items:
         suffix = " (non-gating; ignored for overall pass/fail)" if j.get("non_gating") else ""
-        lines.append(f"### {j.get('scenario')}{suffix}")
+        lines.append(f"### {run_label(j)}{suffix}")
         for c in j.get("checks") or []:
             if not c.get("pass"):
                 lines.append(f"- `{c['name']}`: {c['detail']}")
@@ -536,7 +596,7 @@ diag_lines = []
 for j in judges:
     for d in j.get("diagnostics") or []:
         diag_lines.append(
-            f"- `{j.get('scenario')}` `{d.get('name')}`: {d.get('detail')}"
+            f"- `{run_label(j)}` `{d.get('name')}`: {d.get('detail')}"
         )
 if diag_lines:
     lines.extend(["## Diagnostics (report-only, not gated)", ""] + diag_lines + [""])

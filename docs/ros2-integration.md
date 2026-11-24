@@ -84,7 +84,7 @@ Example: To command 3m altitude, set `trajectory_setpoint.position[2] = -3.0`.
    ```
 
 This script:
-- Clones `px4_msgs` (release/1.17) to `/data/ros2_build/deps/px4_msgs`
+- Clones `px4_msgs` (release/1.17, pinned to commit `PX4_MSGS_COMMIT` in the script) to `/data/ros2_build/deps/src/px4_msgs`, and on every run checks that the source is at the pin and that the install was built from it (`PX4_MSGS_VERIFY_ONLY=1` checks only, without building)
 - Builds px4_msgs to `/data/ros2_build/deps/{build,install}`
 - Builds the ros2_ws packages to `/data/ros2_build/ws/{build,install,log}`
 
