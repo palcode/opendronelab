@@ -146,16 +146,6 @@ if [ "${RESOLVE_VIO_INIT_ATTEMPTS_ONLY:-0}" = "1" ]; then
     exit 0
 fi
 
-if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo "[ERROR] ${CONTAINER_NAME} not running" >&2
-    exit 1
-fi
-# container-env.sh is read from the repo mounted at /workspace.
-if ! docker exec "${CONTAINER_NAME}" test -r /workspace/scripts/container-env.sh; then
-    echo "[ERROR] /workspace/scripts/container-env.sh not readable in ${CONTAINER_NAME}: the repo is not mounted at /workspace (start it with scripts/launch-sitl.sh)" >&2
-    exit 1
-fi
-
 # Build flight command from env (defaults = baseline square)
 if [ -z "${FLIGHT_CMD:-}" ] && [ "${FLIGHT}" = "fw_mission" ]; then
     # Fixed-wing PX4 Auto Mission (no offboard, no VIO hold/retry).
@@ -205,6 +195,35 @@ elif [ -z "${FLIGHT_CMD:-}" ]; then
     else
         FLIGHT_CMD="ros2 run drone_flight_cpp square_flight_cpp"
     fi
+fi
+
+# Test/doc hook: print this scenario's flight profile and scenario
+# fingerprint (scheme 3) as JSON and exit (no docker). Same inputs as the
+# summary.json fingerprint of a real run with the same environment.
+if [ "${PRINT_FINGERPRINT_ONLY:-0}" = "1" ]; then
+    python3 - "${REPO_DIR}" "${GZ_WORLD}" "${OV_CONFIG}" "${MODEL}" "${FLIGHT}" "${FLIGHT_CMD}" <<'PY'
+import json
+import sys
+repo, world, ov, model, flight, cmd = sys.argv[1:]
+sys.path.insert(0, repo + '/scripts')
+from flight_profile import flight_profile
+from scenario_fingerprint import compute_scenario_fingerprint
+prof = flight_profile(flight, cmd, repo)
+fp = compute_scenario_fingerprint(repo, world, ov or None, model=model, flight_profile=prof)
+fp.pop('git_sha', None)
+print(json.dumps({'flight_profile': prof, 'scenario_fingerprint': fp}, indent=2))
+PY
+    exit 0
+fi
+
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "[ERROR] ${CONTAINER_NAME} not running" >&2
+    exit 1
+fi
+# container-env.sh is read from the repo mounted at /workspace.
+if ! docker exec "${CONTAINER_NAME}" test -r /workspace/scripts/container-env.sh; then
+    echo "[ERROR] /workspace/scripts/container-env.sh not readable in ${CONTAINER_NAME}: the repo is not mounted at /workspace (start it with scripts/launch-sitl.sh)" >&2
+    exit 1
 fi
 
 echo "[INFO] scenario=${SCENARIO} world=${GZ_WORLD} model=${MODEL} gz_model=${GZ_MODEL} score_vio=${SCORE_VIO} ov_config=${OV_CONFIG} flight=${FLIGHT_CMD}"
@@ -377,6 +396,7 @@ docker exec -i -u "$(id -u):$(id -g)" \
   -e ODL_MODEL="${MODEL}" \
   -e ODL_GZ_MODEL="${GZ_MODEL}" \
   -e ODL_FLIGHT="${FLIGHT}" \
+  -e ODL_FLIGHT_CMD="${FLIGHT_CMD}" \
   -e ODL_MISSION="${MISSION}" \
   -e ODL_ATTEMPT="${ATTEMPT}" \
   -e ODL_RETRY_BAGS_JSON="${RETRY_BAGS_JSON}" \
@@ -409,6 +429,7 @@ import json, math, os, re, pathlib, sys
 out = pathlib.Path(os.environ['ODL_SUMMARY_DIR'])
 sys.path.insert(0, '/workspace/scripts')
 from scenario_fingerprint import compute_scenario_fingerprint
+from flight_profile import flight_profile
 from git_state import git_fields
 def ape_rmse(path):
     # None (JSON null), not NaN: keep summary.json strict JSON.
@@ -487,8 +508,13 @@ summary = {k: json_safe(v) for k, v in summary.items()}
 summary.update(git_fields())
 if os.environ.get('ODL_TEST_SUPPRESS_VIO') == '1':
     summary['test_suppress_vio'] = True
+# Flight profile (ODL-92): what shaped the trajectory, from the command
+# that actually ran. Recorded and hashed into the fingerprint (scheme 3).
+summary['flight_profile'] = flight_profile(
+    flight, os.environ.get('ODL_FLIGHT_CMD', ''), '/workspace')
 summary['scenario_fingerprint'] = compute_scenario_fingerprint(
-    '/workspace', gz_world, ov_config if ov_config else None, model=model)
+    '/workspace', gz_world, ov_config if ov_config else None, model=model,
+    flight_profile=summary['flight_profile'])
 (out/'summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False))
 print(json.dumps(summary, indent=2))
 PY

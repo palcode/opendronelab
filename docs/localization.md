@@ -411,16 +411,18 @@ omitted the README edits:
 #### Fingerprint scheme version
 
 `scenario_fingerprint` includes an explicit `scheme` version field (hardening
-follow-up from PR #46). The current scheme is `2` (includes MODEL as of
-ODL-92), vs `1` (pre-ODL-92, world+overlay only). When manually comparing
+follow-up from PR #46). The current scheme is `3` (MODEL + flight profile,
+2026-11-24), vs `2` (MODEL, no flight profile, ODL-92) and `1` (pre-ODL-92,
+world+overlay only). When manually comparing
 fingerprints across runs (e.g. from regression reports), treat a missing
 `scheme` as 1 and do not compare sha256 values across different schemes -
 they use different hash inputs. The `sha256` hash values are determined by
 the scheme: scheme 2 hashes `MODEL` first, then world, overlay, and masks.
 
-Fingerprints returned by `compute_scenario_fingerprint()` always include
-`scheme: 2`. The sha256 values documented below match those returned by the
-current code. Regression reports include the scheme field in the fingerprint
+`run-vio-stress.sh` always passes the flight profile, so its summaries carry
+`scheme: 3`; `compute_scenario_fingerprint()` called without a profile still
+returns the scheme 2 value. The scheme 2 table below is kept for comparing
+older results; the scheme 3 table is what new runs record. Regression reports include the scheme field in the fingerprint
 table for each scenario.
 
 #### MODEL in the scenario fingerprint (ODL-92, 2026-11-19)
@@ -448,6 +450,62 @@ old hash below.
 Recompute with
 `python3 scripts/scenario_fingerprint.py --world <world> --overlay <overlay>/estimator_config.yaml --model <MODEL>`
 (omit `--overlay` for EKF2-only scenarios).
+
+#### Flight profile in the scenario fingerprint (scheme 3, ODL-92, 2026-11-24)
+
+The fingerprint now also hashes the **flight profile**, so runs flown with a
+different trajectory can no longer share a hash. Before this,
+`faster_motion` (yaw 0.35 rad/s after wp0, hold 2.0 s, wp0 VIO hold) and
+`faster_motion_aggressive` (yaw 0.7 rad/s from the start, hold 0.5 s, no wp0
+hold) had the same fingerprint, and a run with a changed `SQUARE_HOLD` looked
+comparable with the default one.
+
+`scripts/flight_profile.py` builds the profile from the exact flight command
+`run-vio-stress.sh` runs (`FLIGHT_CMD`), so it records what was flown:
+
+- **square** (`square_flight_cpp`): every parameter the node declares, with
+  its default read from `square_flight.cpp` and overridden by the command's
+  `-p name:=value`: `square_side`, `altitude`, `max_altitude`,
+  `corner_hold_time` (`SQUARE_HOLD`), `mission_timeout` (`SQUARE_TIMEOUT`),
+  `waypoint_tolerance`, `cruise_speed` (`SQUARE_SPEED`), `yaw_spin_rate`
+  (`SQUARE_YAW_SPIN`), `yaw_spin_after_wp` (`SQUARE_YAW_SPIN_AFTER`),
+  `hold_for_topic` / `hold_for_topic_timeout` (`HOLD_FOR_TOPIC*`) and
+  `vio_init_window` (`VIO_INIT_WINDOW`). Also the waypoint list and the
+  node's waypoint code, so a changed square shape changes the hash even with
+  the same parameters.
+- **fw_mission** (`scripts/fw_mission.py`): the mission arguments (`alt`,
+  `takeoff_alt`, `approach_alt`, `base_alt`, `loiter_s`, `loiter_r`,
+  `timeout`) with their defaults, the PX4 params it sets
+  (`FW_LND_USETER=0`), the mission items, and a hash of the `build_mission`
+  code.
+- Any other flight command: the command itself.
+
+Left out on purpose: the status-file path (it contains the run timestamp),
+the MAVLink URL, `git_sha` / `git_dirty` and timestamps. An explicit `-p` equal
+to the node default hashes the same as no `-p`. The profile is hashed as
+canonical JSON right after `model:`, as `profile:<json>\0`. `summary.json` →
+`flight_profile` records it, `scenario_fingerprint.flight_profile_sha256` is
+its own hash, and the regression report has a "Flight profiles" table and
+`report.json` → `flight_profiles`. No world, overlay, mask, gate or flight
+changed, so flight results are unchanged, but **every documented fingerprint
+changes once**. Compare older results by the scheme 2 hash.
+
+| Scenario | old sha256 (scheme 2) | new sha256 (scheme 3) | profile sha256 |
+|---|---|---|---|
+| baseline | `df30c0c5527ade3c0f51725e6cc24fb4ad020526f4701804ae1389719d9b72a9` | `4bb3131bcafb9db9a662c67405151db199973135549f6ed802b8b3068d86885a` | `126f830f756d…` |
+| low_texture | `9c67d000bf4983c000f5260f03a61accc9fc84fd92e47b594f7a1bd1b7f23362` | `15495987311d9a8a31298d40ba27539113d7b19380231c7956601ca5d055db7e` | `126f830f756d…` |
+| faster_motion | `6c3a592f8ea00b520d441720667169838fe652aeb9582b41af709a332b9cea74` | `a3b5c200b551fcf94e1632ec93dabe89de89f9bd72a956d77fa7f245ab5d6068` | `7397df3b6d9d…` |
+| faster_motion_aggressive | `6c3a592f8ea00b520d441720667169838fe652aeb9582b41af709a332b9cea74` (same as faster_motion) | `ca32e0190b69e6d15d9ae0538875809e6f14dc338b85edba5f393ae7ae77297b` | `df28dbe0a516…` |
+| wind | `05038b7ebbf1553e17982475fd56ee7e610b3bdfa121962ad8dc712df412bc32` | `0edd3c3d47d087d1dd60c8d860dd2ae5f31b2227e8d7e5560a301911415fcb74` | `126f830f756d…` |
+| mc_gps | `71401996f3b3627ace4f7d585715b3149b98f6e38e383148bde150ac37400e33` | `704df735f3af425ed4cca43a78d4fc94efd0749eda3df70048e858112acf5e71` | `ec39b0c3f95d…` |
+| fw_mission | `f0b7ad5987cd195a8fc9fc909702f8fb36d8661c3bd1f15f4d4b5c290781896c` | `cb0efce85c25b6559cbf8f1f921c383ed2d0bee131526b59807a28506bbd357e` | `8df55e7109e7…` |
+
+baseline, low_texture and wind fly the same default square (same profile
+hash); they still differ by world/overlay. Values are for the environment
+`run-regression.sh` sets per scenario. Print a scenario's profile and scheme 3
+fingerprint without flying:
+`PRINT_FINGERPRINT_ONLY=1 VIO_INIT_ATTEMPTS=1 WORLD=<world> MODEL=<MODEL> [SQUARE_*=...] ./scripts/run-vio-stress.sh <scenario>`
+or `python3 scripts/scenario_fingerprint.py --world <world> [--overlay ...] --model <MODEL> --flight-cmd '<FLIGHT_CMD>'`.
 
 ### Bring-up
 

@@ -3,8 +3,9 @@
 # Copyright (C) 2026 Pallab Sarkar
 
 """Scenario fingerprint: sha256 of the vehicle MODEL (PX4 SITL airframe),
-the world SDF + OpenVINS overlay directory, plus any maskN files the overlay
-config references outside that directory.
+the flight profile (scheme 3, flight_profile.py), the world SDF + OpenVINS
+overlay directory, plus any maskN files the overlay config references
+outside that directory.
 
 Used so a low_texture (or other) result can be compared only with runs that
 used the same world and overlay. The git SHA is recorded too, but is not the
@@ -13,6 +14,7 @@ primary hash: unrelated commits would change it.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -131,12 +133,19 @@ def compute_scenario_fingerprint(
     world: str | None,
     overlay_config: str | Path | None = None,
     model: str | None = None,
+    flight_profile: dict | None = None,
 ) -> dict:
-    """Return {scheme, sha256, git_sha, model, world, openvins_overlay}.
+    """Return {scheme, sha256, git_sha, model, world, openvins_overlay, ...}.
 
-    scheme is the fingerprint version: 2 (current, includes MODEL),
-    1 (pre-ODL-92, world+overlay only). Missing scheme in old results
-    should be treated as 1.
+    scheme is the fingerprint version: 3 (current: MODEL + flight profile,
+    whenever flight_profile is given, as run-vio-stress.sh always does),
+    2 (MODEL, no flight profile), 1 (pre-ODL-92, world+overlay only).
+    Missing scheme in old results should be treated as 1.
+
+    flight_profile (flight_profile.flight_profile()) is hashed as canonical
+    JSON right after MODEL, so the same world/overlay/airframe flown with a
+    different square, hold, speed, yaw or mission is a different scenario.
+    git_sha, git_dirty and timestamps are never hashed.
 
     sha256 covers the vehicle MODEL name (e.g. gz_x500_mono_cam; always
     hashed, as an empty string when unknown, since ODL-92), the world SDF
@@ -159,6 +168,15 @@ def compute_scenario_fingerprint(
     hasher.update(b'model:')
     hasher.update(model_name.encode())
     hasher.update(b'\0')
+    profile_sha = None
+    if flight_profile is not None:
+        # Scheme 3 (ODL-92 follow-up): the flight profile, canonical JSON.
+        canonical = json.dumps(flight_profile, sort_keys=True,
+                               separators=(',', ':'), allow_nan=False)
+        profile_sha = hashlib.sha256(canonical.encode()).hexdigest()
+        hasher.update(b'profile:')
+        hasher.update(canonical.encode())
+        hasher.update(b'\0')
     if world_path is not None:
         hasher.update(b'world:')
         hasher.update((world_rel or world_path.as_posix()).encode())
@@ -207,13 +225,16 @@ def compute_scenario_fingerprint(
             hashed_resolved.add(resolved_real)
 
     result = {
-        'scheme': 2,
+        'scheme': 3 if flight_profile is not None else 2,
         'sha256': hasher.hexdigest(),
         'git_sha': _git_sha(repo),
         'model': model_name or None,
         'world': world_rel,
         'openvins_overlay': overlay_rel,
     }
+    if flight_profile is not None:
+        result['flight'] = flight_profile.get('flight')
+        result['flight_profile_sha256'] = profile_sha
     missing = []
     if world and world_path is None:
         missing.append('world')
@@ -228,13 +249,23 @@ def compute_scenario_fingerprint(
 
 if __name__ == '__main__':
     import argparse
-    import json
     ap = argparse.ArgumentParser()
     ap.add_argument('--repo', default='.')
     ap.add_argument('--world', required=True)
     ap.add_argument('--overlay', required=False)
     ap.add_argument('--model', required=False,
                     help='PX4 SITL airframe (MODEL), e.g. gz_x500_mono_cam')
+    ap.add_argument('--flight-cmd', required=False,
+                    help='flight command as run-vio-stress.sh runs it (scheme 3); '
+                         'run-vio-stress.sh PRINT_FINGERPRINT_ONLY=1 builds it for a scenario')
+    ap.add_argument('--flight', default='square')
     args = ap.parse_args()
+    profile = None
+    if args.flight_cmd:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from flight_profile import flight_profile as _fp
+        profile = _fp(args.flight, args.flight_cmd, args.repo)
     print(json.dumps(compute_scenario_fingerprint(
-        args.repo, args.world, args.overlay, model=args.model), indent=2))
+        args.repo, args.world, args.overlay, model=args.model,
+        flight_profile=profile), indent=2))
