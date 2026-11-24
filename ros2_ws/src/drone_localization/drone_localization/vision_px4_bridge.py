@@ -38,10 +38,32 @@ cleared and is only re-estimated near the ground (|z| <= align_max_abs_z),
 so after an in-air OpenVINS reset nothing is published until the vehicle
 is back near the ground. This is deliberate: an in-air re-align against
 PX4's own estimate could lock in a divergent offset.
+
+Publish gate (ODL-147): vehicle_visual_odometry is only published while the
+vehicle is armed and airborne and OpenVINS looks healthy. Publishing stops
+(and EKF2 falls back to GPS) when PX4 reports landed or maybe_landed
+(/fmu/out/vehicle_land_detected) or disarmed (/fmu/out/vehicle_status_v1),
+or when the OV input is unhealthy: a gap between OV samples longer than
+max_input_gap_s, no vehicle_local_position for max_local_position_age_s,
+an OV position variance above max_position_variance, or an OV speed above
+max_speed_mps. It resumes after resume_healthy_s of continuous healthy,
+airborne samples, with reset_counter bumped so EKF2 treats it as a new EV
+segment. While landed the translation is re-aligned to PX4 on every sample
+(yaw kept), so slow OV drift on the ground is absorbed before the next
+takeoff. Until land and arming state have been received nothing is
+published. A max_* value <= 0 disables that check; ev_gate_enable:=false
+restores the old always-publish behaviour. OpenVINS does not publish a
+feature/track count on odomimu, so there is no feature-count check.
+
+Defaults come from the 2026-11-24 EV flights (ODL-116/147): in the air the
+odomimu position variance stayed below 0.06 m^2 and the speed below 6.5 m/s
+with sample gaps under 5 ms; after touchdown the variance grew from ~0.5 to
+~27 m^2 as OV drifted.
 """
 from __future__ import annotations
 
 import math
+import re
 from typing import Optional, Tuple
 
 import numpy as np
@@ -49,7 +71,15 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from nav_msgs.msg import Odometry
-from px4_msgs.msg import VehicleLocalPosition, VehicleOdometry
+from px4_msgs.msg import (
+    VehicleLandDetected,
+    VehicleLocalPosition,
+    VehicleOdometry,
+    VehicleStatus,
+)
+
+# px4_msgs release/1.17 VehicleStatus.arming_state
+ARMING_STATE_ARMED = 2
 
 
 def enu_to_ned_position(x: float, y: float, z: float) -> Tuple[float, float, float]:
@@ -169,6 +199,95 @@ def apply_ned_alignment(
     return xr + translation[0], yr + translation[1], ov_ned_pos[2] + translation[2]
 
 
+def odom_position_variance(covariance) -> float:
+    """Largest position variance (m^2) from a 6x6 row-major pose covariance."""
+    c = list(covariance)
+    if len(c) < 15:
+        return math.nan
+    return max(float(c[0]), float(c[7]), float(c[14]))
+
+
+class EvPublishGate:
+    """Whether a bridged OV sample may be published to PX4 (ODL-147).
+
+    Pure logic (no ROS) so it can be unit tested. ``update`` returns
+    ``(publish, reason, resumed)``: reason names the failed check (or that
+    the gate is waiting for resume_healthy_s), resumed is True on the sample
+    where publishing starts again.
+    """
+
+    def __init__(self, stop_when_landed: bool = True,
+                 max_input_gap_s: float = 0.5,
+                 max_local_position_age_s: float = 0.5,
+                 max_position_variance: float = 1.0,
+                 max_speed_mps: float = 15.0,
+                 resume_healthy_s: float = 1.0) -> None:
+        self.stop_when_landed = bool(stop_when_landed)
+        self.max_input_gap_s = float(max_input_gap_s)
+        self.max_local_position_age_s = float(max_local_position_age_s)
+        self.max_position_variance = float(max_position_variance)
+        self.max_speed_mps = float(max_speed_mps)
+        self.resume_healthy_s = max(0.0, float(resume_healthy_s))
+        self.publishing = False
+        self._healthy_since: Optional[float] = None
+
+    @staticmethod
+    def _over(value: float, limit: float) -> bool:
+        if limit <= 0.0:
+            return False  # check disabled
+        return not math.isfinite(value) or value > limit
+
+    def on_ground(self, landed: Optional[bool], maybe_landed: Optional[bool],
+                  armed: Optional[bool]) -> Optional[str]:
+        """Reason the vehicle counts as on the ground, else None."""
+        if not self.stop_when_landed:
+            return None
+        if landed is None or armed is None:
+            return 'no land/arming state yet'
+        if not armed:
+            return 'disarmed'
+        if landed:
+            return 'landed'
+        if maybe_landed:
+            return 'maybe_landed'
+        return None
+
+    def check(self, *, landed: Optional[bool], maybe_landed: Optional[bool],
+              armed: Optional[bool], input_gap_s: float,
+              local_position_age_s: float, position_variance: float,
+              speed_mps: float) -> Optional[str]:
+        """First failed check, or None when the sample is publishable."""
+        ground = self.on_ground(landed, maybe_landed, armed)
+        if ground:
+            return ground
+        if self._over(input_gap_s, self.max_input_gap_s):
+            return f'OV input gap {input_gap_s:.2f} s > {self.max_input_gap_s:g} s'
+        if self._over(local_position_age_s, self.max_local_position_age_s):
+            return (f'vehicle_local_position age {local_position_age_s:.2f} s > '
+                    f'{self.max_local_position_age_s:g} s')
+        if self._over(position_variance, self.max_position_variance):
+            return (f'OV position variance {position_variance:.3g} m^2 > '
+                    f'{self.max_position_variance:g}')
+        if self._over(speed_mps, self.max_speed_mps):
+            return f'OV speed {speed_mps:.1f} m/s > {self.max_speed_mps:g}'
+        return None
+
+    def update(self, now_s: float, **kw) -> Tuple[bool, str, bool]:
+        reason = self.check(**kw)
+        if reason:
+            self.publishing = False
+            self._healthy_since = None
+            return False, reason, False
+        if self._healthy_since is None:
+            self._healthy_since = now_s
+        if self.publishing:
+            return True, '', False
+        if now_s - self._healthy_since >= self.resume_healthy_s:
+            self.publishing = True
+            return True, '', True
+        return False, 'waiting for resume_healthy_s', False
+
+
 class VisionPx4Bridge(Node):
     """Align OpenVINS local Z-up odom to PX4 local NED visual odometry."""
 
@@ -186,6 +305,16 @@ class VisionPx4Bridge(Node):
         self.declare_parameter('align_reset_jump_m', 5.0)
         self.declare_parameter('align_max_abs_z', 1.5)  # only (re)align near ground
         # When False, orientation is NaN so EKF2 should use EV_CTRL without yaw.
+        # Publish gate (ODL-147, see module doc).
+        self.declare_parameter('ev_gate_enable', True)
+        self.declare_parameter('stop_when_landed', True)
+        self.declare_parameter('max_input_gap_s', 0.5)
+        self.declare_parameter('max_local_position_age_s', 0.5)
+        self.declare_parameter('max_position_variance', 1.0)  # m^2
+        self.declare_parameter('max_speed_mps', 15.0)
+        self.declare_parameter('resume_healthy_s', 1.0)
+        self.declare_parameter('land_detected_topic', '/fmu/out/vehicle_land_detected')
+        self.declare_parameter('vehicle_status_topic', '/fmu/out/vehicle_status_v1')
 
         qos_px4 = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -209,6 +338,20 @@ class VisionPx4Bridge(Node):
         self._pub_ori = bool(self.get_parameter('publish_orientation').value)
         self._jump_m = float(self.get_parameter('align_reset_jump_m').value)
         self._align_max_abs_z = float(self.get_parameter('align_max_abs_z').value)
+        self._gate_on = bool(self.get_parameter('ev_gate_enable').value)
+        self._gate = EvPublishGate(
+            stop_when_landed=self.get_parameter('stop_when_landed').value,
+            max_input_gap_s=self.get_parameter('max_input_gap_s').value,
+            max_local_position_age_s=self.get_parameter('max_local_position_age_s').value,
+            max_position_variance=self.get_parameter('max_position_variance').value,
+            max_speed_mps=self.get_parameter('max_speed_mps').value,
+            resume_healthy_s=self.get_parameter('resume_healthy_s').value,
+        )
+        self._landed: Optional[bool] = None
+        self._maybe_landed: Optional[bool] = None
+        self._armed: Optional[bool] = None
+        self._lp_rx_ns: Optional[int] = None
+        self._gate_reason = ''
 
         self._reset_counter = 0
         self._last_ov_ned: Optional[np.ndarray] = None
@@ -228,6 +371,15 @@ class VisionPx4Bridge(Node):
         self.create_subscription(
             VehicleLocalPosition, lp_topic, self._on_local_position, qos_px4
         )
+        if self._gate_on:
+            self.create_subscription(
+                VehicleLandDetected,
+                self.get_parameter('land_detected_topic').value,
+                self._on_land_detected, qos_px4)
+            self.create_subscription(
+                VehicleStatus,
+                self.get_parameter('vehicle_status_topic').value,
+                self._on_status, qos_px4)
         self.get_logger().info(
             f'Bridging {in_topic} -> {out_topic} '
             f'(align via {lp_topic}; '
@@ -235,7 +387,15 @@ class VisionPx4Bridge(Node):
             f'velocity={"on" if self._pub_vel else "off"})'
         )
 
+    def _on_land_detected(self, msg: VehicleLandDetected) -> None:
+        self._landed = bool(msg.landed)
+        self._maybe_landed = bool(msg.maybe_landed)
+
+    def _on_status(self, msg: VehicleStatus) -> None:
+        self._armed = int(msg.arming_state) == ARMING_STATE_ARMED
+
     def _on_local_position(self, msg: VehicleLocalPosition) -> None:
+        self._lp_rx_ns = self.get_clock().now().nanoseconds
         self._px4_ts_us = int(msg.timestamp)
         self._px4_pos = (float(msg.x), float(msg.y), float(msg.z))
         self._px4_heading = float(msg.heading)
@@ -246,6 +406,7 @@ class VisionPx4Bridge(Node):
         self,
         ov_ned: Tuple[float, float, float],
         ov_ned_yaw: float,
+        quiet: bool = False,
     ) -> bool:
         if (
             self._px4_pos is None
@@ -274,6 +435,8 @@ class VisionPx4Bridge(Node):
                 self._px4_pos[2] - ov_ned[2],
             )
         self._yaw_off, self._translation = yaw_off, translation
+        if quiet:
+            return True
         self.get_logger().info(
             f'Aligned OV→PX4 NED: yaw_off={math.degrees(self._yaw_off):.1f} deg, '
             f't=({self._translation[0]:.3f},{self._translation[1]:.3f},'
@@ -300,6 +463,9 @@ class VisionPx4Bridge(Node):
                 f'Dropping out-of-order OV sample (total {self._dropped_old})',
                 throttle_duration_sec=5.0)
             return
+        input_gap_s = (
+            0.0 if self._last_stamp_ns is None
+            else (stamp_ns - self._last_stamp_ns) / 1e9)
         self._last_stamp_ns = stamp_ns
         x_n, y_n, z_n = enu_to_ned_position(p.x, p.y, p.z)
         ov_ned = (x_n, y_n, z_n)
@@ -326,6 +492,35 @@ class VisionPx4Bridge(Node):
         assert self._yaw_off is not None and self._translation is not None
         if self._px4_ts_us is None:
             return
+
+        if self._gate_on:
+            if self._gate.on_ground(self._landed, self._maybe_landed, self._armed):
+                # On the ground: keep the translation glued to PX4 (yaw kept)
+                # so slow OV drift while landed is not carried into the air.
+                self._try_align(ov_ned, ov_ned_yaw, quiet=True)
+            now_ns = self.get_clock().now().nanoseconds
+            lp_age_s = (math.inf if self._lp_rx_ns is None
+                        else (now_ns - self._lp_rx_ns) / 1e9)
+            publish, reason, resumed = self._gate.update(
+                now_ns / 1e9,
+                landed=self._landed, maybe_landed=self._maybe_landed,
+                armed=self._armed, input_gap_s=input_gap_s,
+                local_position_age_s=lp_age_s,
+                position_variance=odom_position_variance(msg.pose.covariance),
+                speed_mps=math.sqrt(float(v.x) ** 2 + float(v.y) ** 2 + float(v.z) ** 2),
+            )
+            # Log on a change of reason, ignoring the numbers in it.
+            key = re.sub(r'[0-9.]+', '#', reason)
+            if key != self._gate_reason:
+                if reason:
+                    self.get_logger().warn(f'EV publish stopped: {reason}')
+                self._gate_reason = key
+            if not publish:
+                return
+            if resumed:
+                self._reset_counter = (self._reset_counter + 1) % 256
+                self.get_logger().info(
+                    f'EV publish resumed (reset_counter={self._reset_counter})')
 
         x_a, y_a, z_a = apply_ned_alignment(ov_ned, self._yaw_off, self._translation)
         vel_ned = None

@@ -133,6 +133,7 @@ pytest -q \
   ros2_ws/src/drone_localization/test/test_vio_scoring_heredoc.py \
   ros2_ws/src/drone_localization/test/test_container_env.py \
   ros2_ws/src/drone_localization/test/test_vision_px4_bridge.py \
+  ros2_ws/src/drone_localization/test/test_ev_publish_gate.py \
   ros2_ws/src/drone_localization/test/test_airframe_registry.py
 ' | tee "${REPORT_HOST}/pytest.txt"
     PY_EC=${PIPESTATUS[0]}

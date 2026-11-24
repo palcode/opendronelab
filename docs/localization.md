@@ -794,6 +794,23 @@ documented `EKF2_EV_CTRL=3` uses position only. If the orientation is not a
 usable quaternion, that sample is published without velocity
 (`VELOCITY_FRAME_UNKNOWN`, NaN).
 
+**Publish gate (ODL-147):** the bridge publishes `vehicle_visual_odometry` only
+while PX4 reports armed and not landed / maybe_landed
+(`/fmu/out/vehicle_land_detected`, `/fmu/out/vehicle_status_v1`) and the
+OpenVINS input is healthy: OV sample gap <= `max_input_gap_s` (0.5 s),
+`vehicle_local_position` younger than `max_local_position_age_s` (0.5 s),
+odomimu position variance <= `max_position_variance` (1.0 m²) and OV speed
+<= `max_speed_mps` (15 m/s). It resumes after `resume_healthy_s` (1.0 s) of
+healthy airborne samples and bumps `reset_counter`. While landed it re-aligns
+the translation to PX4 on every sample (yaw kept), so OV drift on the ground
+is not carried into the next flight. Defaults come from the 2026-11-24 EV
+flights: in the air the variance stayed < 0.06 m² and speed < 6.5 m/s; after
+touchdown OV drifted with the variance growing to ~27 m², EKF2 followed it,
+rejected GPS and the SITL vehicle re-took off (ODL-116 / ODL-147). A
+`max_*` <= 0 disables that check; `ev_gate_enable:=false` restores the old
+always-publish behaviour. OpenVINS publishes no feature count on odomimu, so
+there is no feature-count check. The GPS-only default never starts the bridge.
+
 **Verification (2026-11-06 Asia/Calcutta, one opt-in flight):** bag
 `20261106_155243`, results `vio_ev_align_20261106_155243`. Square completed.
 `cs_ev_pos`/`cs_ev_hgt` true for 115/128 flags. EKF2 Umeyama xy **0.210 m**,
