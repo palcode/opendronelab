@@ -26,10 +26,30 @@ def _load_thresholds(path: Path) -> dict:
 
 
 def _finite(x) -> bool:
+    # bool and str are not numbers here: float(True) == 1.0 and
+    # float('0.5') would otherwise pass a gate (ODL-127).
+    if x is None or isinstance(x, (bool, str)):
+        return False
     try:
-        return x is not None and math.isfinite(float(x))
+        return math.isfinite(float(x))
     except (TypeError, ValueError):
         return False
+
+
+def _metric(x) -> bool:
+    """A usable metric value: a finite, non-negative number."""
+    return _finite(x) and float(x) >= 0.0
+
+
+def _bad_detail(x) -> str:
+    if not _finite(x):
+        return f"{x!r} (not finite)"
+    return f"{x!r} (negative)"
+
+
+def _count(x) -> bool:
+    """A usable count: a finite, non-negative whole number (0.9 is not 0)."""
+    return _metric(x) and float(x).is_integer()
 
 
 def scenario_thresholds(thresholds: dict, scenario: str) -> dict:
@@ -61,12 +81,18 @@ def retries_used(summary: dict):
     field is usable (legacy summaries are treated as 0 retries by the judge).
     """
     val = summary.get('vio_init_retries')
-    if _finite(val):
+    if _count(val):
         return int(val)
     attempts = summary.get('vio_init_attempts')
-    if _finite(attempts):
+    if _count(attempts):
         return max(0, int(attempts) - 1)
     return None
+
+
+def invalid_retry_fields(summary: dict) -> list:
+    """Retry fields that are present but not whole non-negative numbers."""
+    return [k for k in ('vio_init_retries', 'vio_init_attempts')
+            if summary.get(k) is not None and not _count(summary.get(k))]
 
 
 VIO_THRESHOLD_KEYS = (
@@ -79,6 +105,7 @@ VIO_THRESHOLD_KEYS = (
 
 def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     sc = scenario_thresholds(thresholds, scenario)
+    known = scenario in (thresholds.get('scenarios') or {})
     # EKF2-only scenarios (score_vio: false, e.g. mc_gps on gz_x500): no
     # OpenVINS runs, so drop the inherited VIO defaults and the OV truth
     # check. EKF2 / mission checks still apply.
@@ -93,6 +120,12 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     def add(name, ok, detail):
         checks.append({'name': name, 'pass': bool(ok), 'detail': detail})
 
+    # An unknown or null scenario used to be judged on the defaults alone
+    # and could pass (ODL-127). It is a failed check now.
+    if not known:
+        add('scenario', False,
+            f'unknown scenario {scenario!r}: no entry in thresholds scenarios')
+
     mission = summary.get('mission')
     add('mission', mission == sc.get('mission', 'success'),
         f"mission={mission!r} want={sc.get('mission')!r}")
@@ -106,16 +139,16 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
         thr = sc.get(thr_key)
         if thr is None:
             return
-        ok = _finite(val) and float(val) <= float(thr)
-        add(key, ok, f"{val} <= {thr}" if _finite(val) else f"{val} (not finite)")
+        ok = _metric(val) and float(val) <= float(thr)
+        add(key, ok, f"{val} <= {thr}" if _metric(val) else _bad_detail(val))
 
     def min_check(key, thr_key):
         val = summary.get(key)
         thr = sc.get(thr_key)
         if thr is None:
             return
-        ok = _finite(val) and float(val) >= float(thr)
-        add(key, ok, f"{val} >= {thr}" if _finite(val) else f"{val} (not finite)")
+        ok = _metric(val) and float(val) >= float(thr)
+        add(key, ok, f"{val} >= {thr}" if _metric(val) else _bad_detail(val))
 
     max_check('ekf2_umeyama_xy_rmse', 'ekf2_umeyama_xy_rmse_max')
     max_check('ekf2_umeyama_3d_rmse', 'ekf2_umeyama_3d_rmse_max')
@@ -139,9 +172,14 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     # fields on those are a failed check, not a silent 0. Older summaries
     # without the fingerprint keep the pre-49ef570 tolerant behaviour.
     fingerprinted = summary.get('scenario_fingerprint') is not None
+    bad_retries = invalid_retry_fields(summary)
     missing_retries = retries is None
     if retries_max is not None:
-        if missing_retries and fingerprinted:
+        if bad_retries:
+            add('vio_init_retries', False,
+                'not a whole non-negative number: ' + ', '.join(
+                    f'{k}={summary.get(k)!r}' for k in bad_retries))
+        elif missing_retries and fingerprinted:
             add('vio_init_retries', False,
                 'missing vio_init_retries/vio_init_attempts on a fingerprinted summary')
         else:
@@ -181,7 +219,7 @@ def judge(summary: dict, thresholds: dict, scenario: str) -> dict:
     passed = all(c['pass'] for c in checks)
     non_gating = bool(sc.get('non_gating', False))
     # pass@1: all checks passed and VIO started on the first attempt.
-    if missing_retries and fingerprinted:
+    if bad_retries or (missing_retries and fingerprinted):
         pass_at_1 = False
     else:
         used_for_p1 = 0 if retries is None else retries

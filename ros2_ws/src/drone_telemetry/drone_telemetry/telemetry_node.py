@@ -27,9 +27,18 @@ def quaternion_to_euler(w, x, y, z):
     Args:
         w, x, y, z: Quaternion components
 
+    The input is normalised first, so a slightly non-unit quaternion (e.g.
+    float32 rounding) gives the same angles as its unit form (ODL-139).
+
     Returns:
-        tuple: (roll, pitch, yaw) in radians
+        tuple: (roll, pitch, yaw) in radians; NaNs if the quaternion has
+        (near) zero norm or a non-finite component.
     """
+    n = math.sqrt(w * w + x * x + y * y + z * z)
+    if not math.isfinite(n) or n < 1e-9:
+        return math.nan, math.nan, math.nan
+    w, x, y, z = w / n, x / n, y / n, z / n
+
     # Roll (x-axis rotation)
     sinr_cosp = 2.0 * (w * x + y * z)
     cosr_cosp = 1.0 - 2.0 * (x * x + y * y)

@@ -26,6 +26,18 @@ orientation (IMU-to-world), then given the same axis swap and alignment yaw
 as the position, so VELOCITY_FRAME_NED really is PX4 local NED. If the
 orientation is not a usable quaternion, velocity is not published (NaN,
 VELOCITY_FRAME_UNKNOWN) for that sample.
+
+Input hygiene (ODL-130): an OpenVINS sample with a non-finite position is
+dropped (never forwarded to PX4) and does not replace the last pose used for
+reset/jump detection, so a jump right after a NaN sample is still caught.
+A sample whose header stamp is not newer than the last forwarded one is
+dropped. Alignment needs a finite OV yaw.
+
+In-air reset: after an OV jump (> align_reset_jump_m) the alignment is
+cleared and is only re-estimated near the ground (|z| <= align_max_abs_z),
+so after an in-air OpenVINS reset nothing is published until the vehicle
+is back near the ground. This is deliberate: an in-air re-align against
+PX4's own estimate could lock in a divergent offset.
 """
 from __future__ import annotations
 
@@ -43,6 +55,16 @@ from px4_msgs.msg import VehicleLocalPosition, VehicleOdometry
 def enu_to_ned_position(x: float, y: float, z: float) -> Tuple[float, float, float]:
     """Z-up x/y/z → Z-down with ENU-like axis swap (y, x, -z)."""
     return y, x, -z
+
+
+def finite_position(x: float, y: float, z: float) -> bool:
+    """True when every position component is a finite number."""
+    return all(math.isfinite(float(a)) for a in (x, y, z))
+
+
+def stamp_is_newer(stamp_ns: int, last_stamp_ns: Optional[int]) -> bool:
+    """True when stamp_ns is after the last forwarded stamp (or none yet)."""
+    return last_stamp_ns is None or stamp_ns > last_stamp_ns
 
 
 def enu_to_ned_velocity(vx: float, vy: float, vz: float) -> Tuple[float, float, float]:
@@ -190,6 +212,9 @@ class VisionPx4Bridge(Node):
 
         self._reset_counter = 0
         self._last_ov_ned: Optional[np.ndarray] = None
+        self._last_stamp_ns: Optional[int] = None
+        self._dropped_nonfinite = 0
+        self._dropped_old = 0
         self._yaw_off: Optional[float] = None
         self._translation: Optional[Tuple[float, float, float]] = None
         self._px4_ts_us: Optional[int] = None
@@ -229,6 +254,7 @@ class VisionPx4Bridge(Node):
             or not self._px4_xy_valid
             or not self._px4_z_valid
             or not math.isfinite(self._px4_heading)
+            or not math.isfinite(ov_ned_yaw)
         ):
             return False
         # Refuse in-air / post-land divergent re-align (OV can jump tens of meters).
@@ -259,6 +285,22 @@ class VisionPx4Bridge(Node):
         p = msg.pose.pose.position
         v = msg.twist.twist.linear
         q = msg.pose.pose.orientation
+        if not finite_position(p.x, p.y, p.z):
+            self._dropped_nonfinite += 1
+            self.get_logger().warn(
+                f'Dropping non-finite OV pose (total {self._dropped_nonfinite})',
+                throttle_duration_sec=5.0)
+            return
+        stamp_ns = int(msg.header.stamp.sec) * 1_000_000_000 + int(
+            msg.header.stamp.nanosec
+        )
+        if not stamp_is_newer(stamp_ns, self._last_stamp_ns):
+            self._dropped_old += 1
+            self.get_logger().warn(
+                f'Dropping out-of-order OV sample (total {self._dropped_old})',
+                throttle_duration_sec=5.0)
+            return
+        self._last_stamp_ns = stamp_ns
         x_n, y_n, z_n = enu_to_ned_position(p.x, p.y, p.z)
         ov_ned = (x_n, y_n, z_n)
         yaw_enu = yaw_from_quat(q.x, q.y, q.z, q.w)
@@ -298,9 +340,6 @@ class VisionPx4Bridge(Node):
         # PX4 clock domain: local_position.timestamp is "now" in PX4 µs.
         # OpenVINS header is sim/ROS clock; age = now_sim - stamp_sim.
         now_ns = self.get_clock().now().nanoseconds
-        stamp_ns = int(msg.header.stamp.sec) * 1_000_000_000 + int(
-            msg.header.stamp.nanosec
-        )
         age_us = max(0, int((now_ns - stamp_ns) / 1000))
         # Clamp absurd ages (e.g. before /clock is flowing) to 0.
         if age_us > 2_000_000:

@@ -38,12 +38,50 @@ def json_safe(obj):
         return {k: json_safe(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [json_safe(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return json_safe(obj.tolist())
+    if isinstance(obj, np.bool_):
+        return bool(obj)
     if isinstance(obj, (float, np.floating)):
         v = float(obj)
         return v if np.isfinite(v) else None
     if isinstance(obj, np.integer):
         return int(obj)
     return obj
+
+
+def sort_dedupe_messages(messages):
+    """Return (timestamp_ns, msg) pairs sorted by time, repeated stamps dropped.
+
+    For a repeated timestamp the first sample (in bag order) is kept. Input
+    that is already strictly increasing (every recorded bag so far) is
+    returned unchanged, so this cannot move a score; it only stops unsorted
+    or duplicate stamps from breaking interpolation (np.interp needs
+    increasing x) or giving 'No overlapping timestamps' (ODL-120).
+    """
+    messages = list(messages)
+    stamps = [t for t, _ in messages]
+    if all(b > a for a, b in zip(stamps, stamps[1:])):
+        return messages
+    out = []
+    for t, m in sorted(messages, key=lambda tm: tm[0]):
+        if out and out[-1][0] == t:
+            continue
+        out.append((t, m))
+    return out
+
+
+def sort_dedupe_series(timestamps, positions):
+    """Array form of sort_dedupe_messages: sort by time, keep first per stamp."""
+    timestamps = np.asarray(timestamps, dtype=np.float64)
+    positions = np.asarray(positions, dtype=np.float64)
+    if len(timestamps) < 2 or np.all(np.diff(timestamps) > 0):
+        return timestamps, positions
+    order = np.argsort(timestamps, kind='stable')
+    timestamps = timestamps[order]
+    positions = positions[order]
+    keep = np.concatenate([[True], np.diff(timestamps) > 0])
+    return timestamps[keep], positions[keep]
 
 
 def write_metrics_json(path, metrics):
@@ -225,6 +263,21 @@ DEFAULT_AIRBORNE_MIN_AGL = 0.5
 DEFAULT_AIRBORNE_MAX_AGL = 20.0
 
 
+def validate_airborne_band(min_agl, max_agl):
+    """Raise ValueError unless min_agl < max_agl, both finite (ODL-136).
+
+    A reversed band (min > max) made the mask empty and failed the scenario
+    as 'no samples' instead of naming the bad arguments.
+    """
+    lo, hi = float(min_agl), float(max_agl)
+    if not (np.isfinite(lo) and np.isfinite(hi)):
+        raise ValueError(f'airborne AGL band must be finite, got [{lo:g}, {hi:g}]')
+    if lo >= hi:
+        raise ValueError(
+            f'airborne AGL band needs min < max, got [{lo:g}, {hi:g}]')
+    return lo, hi
+
+
 def airborne_mask_from_gt_z(gt_z, min_agl=DEFAULT_AIRBORNE_MIN_AGL,
                             max_agl=DEFAULT_AIRBORNE_MAX_AGL):
     """Boolean mask for airborne samples from unshifted NED GT z.
@@ -278,6 +331,9 @@ def align_trajectories(
     gt_positions = np.asarray(gt_positions, dtype=np.float64)
     est_timestamps = np.asarray(est_timestamps, dtype=np.float64)
     est_positions = np.asarray(est_positions, dtype=np.float64)
+    # Unsorted / repeated stamps (ODL-120); a no-op for increasing input.
+    gt_timestamps, gt_positions = sort_dedupe_series(gt_timestamps, gt_positions)
+    est_timestamps, est_positions = sort_dedupe_series(est_timestamps, est_positions)
     if len(gt_timestamps) == 0 or len(est_timestamps) == 0:
         raise ValueError(
             'No overlapping timestamps between ground truth and estimate'
@@ -549,6 +605,10 @@ def main(args=None):
         help='Upper bound of the airborne mask, m above ground. Default 20 '
              '(multicopter); fixed-wing uses a wider band.')
     parsed = parser.parse_args(args)
+    try:
+        validate_airborne_band(parsed.airborne_min_agl, parsed.airborne_max_agl)
+    except ValueError as e:
+        parser.error(str(e))
 
     bag_path = Path(parsed.bag_path)
     output_dir = Path(parsed.output_dir) if parsed.output_dir else bag_path
@@ -569,12 +629,14 @@ def main(args=None):
 
     print(f'Reading bag: {bag_path}')
     print(f'Estimate topic: {est_topic} (frame={est_frame})')
-    est_msgs = read_bag_messages(bag_path, est_topic)
+    # Sorted, unique stamps for every series derived below (positions, yaw).
+    est_msgs = sort_dedupe_messages(read_bag_messages(bag_path, est_topic))
     if not est_msgs:
         print(f'Error: No messages on {est_topic}')
         return 1
 
-    gt_msgs = read_bag_messages(bag_path, '/ground_truth/odometry')
+    gt_msgs = sort_dedupe_messages(
+        read_bag_messages(bag_path, '/ground_truth/odometry'))
     if not gt_msgs:
         print('Error: No ground_truth/odometry messages found')
         return 1
